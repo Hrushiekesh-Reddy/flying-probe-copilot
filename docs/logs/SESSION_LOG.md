@@ -1,0 +1,71 @@
+# Session Log — Flying-Probe Co-Pilot
+
+One entry per work session. Written at session end before committing. Newest entry at top.
+
+---
+
+## Template
+
+```
+## YYYY-MM-DD — [Phase] — branch: feature/[name]
+
+**Goal:** One sentence — which deliverable this session targets.
+**Outcome:** Done / Partial / Blocked — one sentence on what happened.
+
+### Done
+- [Specific completed items: file created, test passing, deliverable ticked]
+
+### Decisions
+- [Decisions made — also add to DECISION_LOG.md with full reasoning]
+
+### Bugs
+- [Bugs found — also add to BUG_LOG.md if >5 min to resolve]
+
+### Next session should
+- [Ordered list of what to pick up]
+```
+
+---
+
+## Sessions
+
+### 2026-06-13 — Phase 0 — branch: main
+
+**Goal:** Initialize GitHub repo, build full governance layer, establish portable agent kit.
+**Outcome:** Partial — 7/9 Phase 0 deliverables done; `pyproject.toml` and Keysight manuals remain.
+
+### Done
+- GitHub repo `kanjulahrushiekeshreddy-create/flying-probe-copilot` created (private) and pushed
+- Fixed broken `.git` (missing `objects/` dir + stale `config.lock`) via `git init` re-run
+- `__perm_test` added to `.gitignore`
+- Initial commit: 18 Phase 0 files pushed to GitHub
+- `dev` permanent branch created locally
+- Branching strategy confirmed: `feature/*` → `dev` → `main` (Option A)
+- Full `.claude/` governance layer built:
+  - `settings.json` (3 hooks wired)
+  - `hooks/` — block_dangerous_git, plan_approval_gate, doc_reminder_stop
+  - `rules/` — agent-conduct, session-workflow (10-step loop), testing (TDD rules)
+  - `skills/` — all 10 skills: skill-sergeant, plan-architect, execute-plan, test-generator, session-workflow, diagnose, deep-research, verify-execution, repo-doc, evidence-dialogue
+- Log files scaffolded: BUG_LOG, DECISION_LOG (pre-seeded), AGENT_HANDOFF_LOG, SESSION_LOG
+- `docs/SKILLS.md` skill registry created (10-skill roster)
+- Session-workflow upgraded to full 10-step multi-agent loop with triple check, manual QA, agent handoff
+- Portable governance kit built: `E:\hrk-agent-starter\` (24 files)
+- `hrk-agent-starter` pushed to GitHub: `kanjulahrushiekeshreddy-create/-hrk-agent-starter`
+
+### Decisions
+- Branching: Option A (`feature/*` → `dev` → `main`) — see DECISION_LOG
+- hrk-agent-starter as portable kit — see DECISION_LOG
+- 10-step multi-agent loop as canonical workflow — see DECISION_LOG
+- TDD as non-negotiable default — see DECISION_LOG
+- Tech stack locked — see DECISION_LOG
+- HP3070 format first — see DECISION_LOG
+
+### Bugs
+- Git repo had missing `objects/` directory and stale `config.lock` on first session — fixed with `git init` re-run (not a code bug, setup issue)
+
+### Next session should
+1. Run `uv init` to create `pyproject.toml` with base dependencies (Phase 0 final item)
+2. Confirm Keysight i3070 manuals are downloaded locally (owner's task, off-git)
+3. Tick remaining Phase 0 boxes and declare Phase 0 complete
+4. Begin Phase 1a — review `specs/synthetic-log-generator.md`, plan the generator module
+5. First task: `/session-workflow` → document goal → explore spec → plan generator

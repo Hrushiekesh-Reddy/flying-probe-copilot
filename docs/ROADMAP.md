@@ -11,13 +11,13 @@
 ### Deliverables
 - [x] Project decision locked (flagship flying-probe co-pilot)
 - [x] SKILLS.md and RESOURCES.md authored
-- [ ] GitHub repo `flying-probe-copilot` created (private)
-- [ ] Doc skeleton committed (README, CLAUDE.md, GUARDRAILS, SCOPE, ROADMAP, DECISIONS, REQUIREMENTS)
-- [ ] `.cursor/rules/project.mdc` committed
-- [ ] `.env.example` committed; `.env` ignored
+- [x] GitHub repo `flying-probe-copilot` created (private)
+- [x] Doc skeleton committed (README, CLAUDE.md, GUARDRAILS, SCOPE, ROADMAP, DECISIONS, REQUIREMENTS)
+- [x] `.cursor/rules/project.mdc` committed
+- [x] `.env.example` committed; `.env` ignored
 - [ ] `pyproject.toml` initialized with `uv init`
 - [ ] Keysight i3070 manuals downloaded locally (kept off git)
-- [ ] First session log entry in CLAUDE.md
+- [x] First session log entry in CLAUDE.md
 
 ### Exit criteria
 All boxes checked. Owner can describe project goals, scope, and guardrails from memory.
