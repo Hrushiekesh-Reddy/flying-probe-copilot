@@ -67,7 +67,8 @@ Thumbs.db
 # --- DuckDB / data artifacts (large, regenerable) ---
 *.duckdb
 *.duckdb.wal
-data/synthetic/large/
+data/synthetic/*
+!data/synthetic/samples/
 data/cache/
 
 # --- ChromaDB persistence ---
@@ -80,7 +81,7 @@ chroma_db/
 # --- Logs (project's own runtime logs, not test logs, not docs/logs/) ---
 /logs/
 *.log
-!data/synthetic/**/*.log
+!data/synthetic/samples/**/*.log
 !docs/logs/
 
 # --- ML model caches ---
