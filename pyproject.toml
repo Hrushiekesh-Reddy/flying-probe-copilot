@@ -23,8 +23,8 @@ parser    = "flying_probe_copilot.parser.cli:main"
 requires      = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
 ]
