@@ -1,0 +1,37 @@
+[project]
+name = "flying-probe-copilot"
+version = "0.1.0"
+description = "PCBA flying-probe / ICT test-log intelligence co-pilot: SQL analytics + hybrid RAG Q&A"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.1",
+    "chromadb>=0.6",
+    "sentence-transformers>=3.3",
+    "rank-bm25>=0.2",
+    "google-generativeai>=0.8",
+    "streamlit>=1.40",
+    "plotly>=5.24",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+generator = "flying_probe_copilot.generator.cli:main"
+parser    = "flying_probe_copilot.parser.cli:main"
+
+[build-system]
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+addopts      = "--cov=src/flying_probe_copilot --cov-report=term-missing"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flying_probe_copilot"]
