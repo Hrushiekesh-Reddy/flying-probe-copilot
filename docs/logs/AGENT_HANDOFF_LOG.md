@@ -53,7 +53,7 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ### Completed this session
 - `pyproject.toml` committed and merged to main (feature/pyproject-init → dev → main)
-- Keysight i3070 manuals confirmed downloaded locally
+- Keysight i3070 manuals — NOT downloaded (owner confirmed). HP3070 format will be researched from public Keysight docs and industry sources in Phase 1a Step 2 (Explore)
 - ROADMAP.md: 9/9 Phase 0 boxes ticked; Phase 0 declared complete
 - CLAUDE.md: status updated to Phase 1a In progress
 

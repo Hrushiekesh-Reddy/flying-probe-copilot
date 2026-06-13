@@ -16,7 +16,7 @@
 - [x] `.cursor/rules/project.mdc` committed
 - [x] `.env.example` committed; `.env` ignored
 - [x] `pyproject.toml` initialized with `uv init`
-- [x] Keysight i3070 manuals downloaded locally (kept off git)
+- [ ] Keysight i3070 manuals downloaded locally (kept off git)
 - [x] First session log entry in CLAUDE.md
 
 ### Exit criteria
@@ -137,4 +137,4 @@ A recruiter can land on the repo, watch the demo gif, read the case study, and u
 ## Status log (update at each phase boundary)
 
 - 2026-06-13 — Phase 0 started.
-- 2026-06-13 — Phase 0 complete. All 9/9 deliverables done. Phase 1a begins next session.
+- 2026-06-13 — Phase 0: 8/9 deliverables done. Keysight manuals not yet downloaded. Log format will be researched from public sources in Phase 1a Step 2 (Explore).

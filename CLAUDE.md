@@ -89,4 +89,4 @@ This project ships in 4 phases. Each phase has its own focus, deliverable, and e
 Add a line each session: `YYYY-MM-DD — <phase> — <what was done>`
 
 - 2026-06-13 — Phase 0 — Repo on GitHub; full .claude/ governance layer (10 skills incl. skill-sergeant, 3 hooks, rules); 10-step multi-agent loop finalized; hrk-agent-starter portable kit built and pushed; branching confirmed (feature/* → dev → main). Remaining: pyproject.toml + Keysight manuals.
-- 2026-06-13 — Phase 0 complete — pyproject.toml committed (feature/pyproject-init → dev → main); Keysight manuals confirmed downloaded locally. All 9/9 Phase 0 deliverables done. Phase 1a begins next session.
+- 2026-06-13 — Phase 0: 8/9 done — pyproject.toml committed. Keysight manuals NOT downloaded (off-git owner task, still pending). HP3070 log format will be researched from public sources in Phase 1a Explore step instead.
