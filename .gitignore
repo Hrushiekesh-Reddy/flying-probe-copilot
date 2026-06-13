@@ -77,10 +77,11 @@ chroma_db/
 # --- Streamlit ---
 .streamlit/secrets.toml
 
-# --- Logs (project's own logs, not test logs) ---
-logs/
+# --- Logs (project's own runtime logs, not test logs, not docs/logs/) ---
+/logs/
 *.log
 !data/synthetic/**/*.log
+!docs/logs/
 
 # --- ML model caches ---
 .cache/

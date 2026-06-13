@@ -88,4 +88,4 @@ This project ships in 4 phases. Each phase has its own focus, deliverable, and e
 
 Add a line each session: `YYYY-MM-DD — <phase> — <what was done>`
 
-- 2026-06-13 — Phase 0 — Project initialized; docs scaffolded.
+- 2026-06-13 — Phase 0 — Repo on GitHub; full .claude/ governance layer (10 skills incl. skill-sergeant, 3 hooks, rules); 10-step multi-agent loop finalized; hrk-agent-starter portable kit built and pushed; branching confirmed (feature/* → dev → main). Remaining: pyproject.toml + Keysight manuals.
