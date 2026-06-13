@@ -25,8 +25,8 @@ This project ships in 4 phases. Each phase has its own focus, deliverable, and e
 | Phase | Goal | Status |
 |---|---|---|
 | 0 — Setup | Docs, scope, guardrails, repo skeleton | ✅ Complete |
-| 1a — Synthetic data | HP3070-style log generator | 🟡 In progress |
-| 1b — Parser & DB | Log parser + DuckDB schema | ⬜ |
+| 1a — Synthetic data | HP3070-style log generator | ✅ Complete (8/9 — README deferred) |
+| 1b — Parser & DB | Log parser + DuckDB schema | 🟡 Up next |
 | 2 — Analytics | SPC, Pareto, anomaly detection, dashboard v1 | ⬜ |
 | 3 — RAG co-pilot | Hybrid RAG over results + failure-mode KB | ⬜ |
 | 4 — Polish | Tests, docs, portfolio writeup, demo gif | ⬜ |
@@ -90,4 +90,5 @@ Add a line each session: `YYYY-MM-DD — <phase> — <what was done>`
 
 - 2026-06-13 — Phase 0 — Repo on GitHub; full .claude/ governance layer (10 skills incl. skill-sergeant, 3 hooks, rules); 10-step multi-agent loop finalized; hrk-agent-starter portable kit built and pushed; branching confirmed (feature/* → dev → main). Remaining: pyproject.toml + Keysight manuals.
 - 2026-06-13 — Phase 0: 8/9 done — pyproject.toml committed. Keysight manuals NOT downloaded (off-git owner task, still pending). HP3070 log format will be researched from public sources in Phase 1a Explore step instead.
+- 2026-06-13 — Phase 1a — synthetic HP3070 generator complete in single session. Format target revised mid-session to real Keysight Log Record Format (authoritative reference via Virinco public mirror). 9 source modules + 11 test files + conftest = 81 tests, 94% coverage, ~1 s for 1000 panels. 10-step workflow loop (brief → 2-explore → plan → red-team → execute → verify → triple-check → docs/commit) ran clean. Parent Step 7 corrected 2 contract drifts found by Step 6. uv installed standalone. BUG-001 logged for cache-research subagent process improvement. Next: Phase 1b parser + DuckDB schema.
 - 2026-06-13 — Phase 1a prep — broadened `data/synthetic/` `.gitignore` to a samples-only allow-list so bulk generator outputs (20–50 MB results.csv/json from 1k-panel runs) can't accidentally be committed; added `data/synthetic/samples/.gitkeep`. Branch: feature/gitignore-data-synthetic-v2. (`uv.lock` un-ignore is a separate concern, already landed on branch fix/commit-uv-lock.)
