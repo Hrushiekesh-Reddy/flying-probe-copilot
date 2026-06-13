@@ -8,7 +8,7 @@
 - **One-liner:** Parses PCBA flying-probe / ICT test logs into a SQL database, runs yield + anomaly analytics, and answers natural-language root-cause questions via hybrid RAG.
 - **Owner:** Hrushiekesh Reddy Kanjula (Manufacturing Engineer, ~4 yrs PCBA, Dallas TX)
 - **Why it exists:** Flagship AI portfolio project to land a Manufacturing/Process Engineer with AI role.
-- **Status:** Phase 0 — Documentation & Setup
+- **Status:** Phase 1a — Synthetic HP3070 Log Generator
 
 ## Hard guardrails (NEVER violate)
 
@@ -24,8 +24,8 @@ This project ships in 4 phases. Each phase has its own focus, deliverable, and e
 
 | Phase | Goal | Status |
 |---|---|---|
-| 0 — Setup | Docs, scope, guardrails, repo skeleton | 🟡 In progress |
-| 1a — Synthetic data | HP3070-style log generator | ⬜ Next |
+| 0 — Setup | Docs, scope, guardrails, repo skeleton | ✅ Complete |
+| 1a — Synthetic data | HP3070-style log generator | 🟡 In progress |
 | 1b — Parser & DB | Log parser + DuckDB schema | ⬜ |
 | 2 — Analytics | SPC, Pareto, anomaly detection, dashboard v1 | ⬜ |
 | 3 — RAG co-pilot | Hybrid RAG over results + failure-mode KB | ⬜ |
@@ -89,3 +89,4 @@ This project ships in 4 phases. Each phase has its own focus, deliverable, and e
 Add a line each session: `YYYY-MM-DD — <phase> — <what was done>`
 
 - 2026-06-13 — Phase 0 — Repo on GitHub; full .claude/ governance layer (10 skills incl. skill-sergeant, 3 hooks, rules); 10-step multi-agent loop finalized; hrk-agent-starter portable kit built and pushed; branching confirmed (feature/* → dev → main). Remaining: pyproject.toml + Keysight manuals.
+- 2026-06-13 — Phase 0 complete — pyproject.toml committed (feature/pyproject-init → dev → main); Keysight manuals confirmed downloaded locally. All 9/9 Phase 0 deliverables done. Phase 1a begins next session.

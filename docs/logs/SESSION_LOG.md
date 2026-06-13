@@ -29,6 +29,31 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ## Sessions
 
+### 2026-06-13 — Phase 0 wrap-up — branch: feature/pyproject-init → dev → main
+
+**Goal:** Complete final two Phase 0 deliverables (pyproject.toml, Keysight manuals) and declare Phase 0 done.
+**Outcome:** Done — Phase 0 complete. All 9/9 deliverables ticked.
+
+### Done
+- `pyproject.toml` written with full dep set (duckdb, chromadb, sentence-transformers, rank-bm25, google-generativeai, streamlit, plotly, python-dotenv) + dev deps (pytest, pytest-cov)
+- Merged feature/pyproject-init → dev → main
+- Keysight i3070 manuals confirmed downloaded locally (off-git, owner's machine)
+- ROADMAP.md Phase 0: 9/9 boxes ticked; status log updated
+- CLAUDE.md: phase status updated to Phase 1a In progress
+
+### Decisions
+- None new — carried forward from prior session
+
+### Bugs
+- `uv` not found on PATH; pyproject.toml written manually instead of via `uv init`. Equivalent output. Run `pip install uv` or the official installer to get `uv` available for Phase 1a.
+
+### Next session should
+1. Run `/session-workflow` → Step 1 Document (capture Phase 1a requirements)
+2. Review `specs/synthetic-log-generator.md` (the Phase 1a spec)
+3. Explore the HP3070 log format structure before planning
+4. Plan the generator module — `src/flying_probe_copilot/generator/`
+5. TDD: write test stubs before any implementation
+
 ### 2026-06-13 — Phase 0 — branch: main
 
 **Goal:** Initialize GitHub repo, build full governance layer, establish portable agent kit.

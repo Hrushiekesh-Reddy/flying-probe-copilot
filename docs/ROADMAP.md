@@ -15,8 +15,8 @@
 - [x] Doc skeleton committed (README, CLAUDE.md, GUARDRAILS, SCOPE, ROADMAP, DECISIONS, REQUIREMENTS)
 - [x] `.cursor/rules/project.mdc` committed
 - [x] `.env.example` committed; `.env` ignored
-- [ ] `pyproject.toml` initialized with `uv init`
-- [ ] Keysight i3070 manuals downloaded locally (kept off git)
+- [x] `pyproject.toml` initialized with `uv init`
+- [x] Keysight i3070 manuals downloaded locally (kept off git)
 - [x] First session log entry in CLAUDE.md
 
 ### Exit criteria
@@ -137,3 +137,4 @@ A recruiter can land on the repo, watch the demo gif, read the case study, and u
 ## Status log (update at each phase boundary)
 
 - 2026-06-13 — Phase 0 started.
+- 2026-06-13 — Phase 0 complete. All 9/9 deliverables done. Phase 1a begins next session.
