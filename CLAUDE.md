@@ -90,3 +90,4 @@ Add a line each session: `YYYY-MM-DD — <phase> — <what was done>`
 
 - 2026-06-13 — Phase 0 — Repo on GitHub; full .claude/ governance layer (10 skills incl. skill-sergeant, 3 hooks, rules); 10-step multi-agent loop finalized; hrk-agent-starter portable kit built and pushed; branching confirmed (feature/* → dev → main). Remaining: pyproject.toml + Keysight manuals.
 - 2026-06-13 — Phase 0: 8/9 done — pyproject.toml committed. Keysight manuals NOT downloaded (off-git owner task, still pending). HP3070 log format will be researched from public sources in Phase 1a Explore step instead.
+- 2026-06-13 — Phase 1a prep — broadened `data/synthetic/` `.gitignore` to a samples-only allow-list so bulk generator outputs (20–50 MB results.csv/json from 1k-panel runs) can't accidentally be committed; added `data/synthetic/samples/.gitkeep`. Branch: feature/gitignore-data-synthetic-v2. (`uv.lock` un-ignore is a separate concern, already landed on branch fix/commit-uv-lock.)

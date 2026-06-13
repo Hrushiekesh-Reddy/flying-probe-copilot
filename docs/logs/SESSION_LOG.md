@@ -29,6 +29,29 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ## Sessions
 
+### 2026-06-13 — Phase 1a — branch: feature/gitignore-data-synthetic-v2
+
+**Goal:** Broaden `data/synthetic/` ignore pattern so 20–50 MB bulk generator outputs (results.csv/json from 1k-panel runs) cannot accidentally enter the repo via `git add .`.
+**Outcome:** Done — `.gitignore` updated; `data/synthetic/samples/.gitkeep` added; behavior verified with `git check-ignore`. (Note: the related `uv.lock` un-ignore is a separate concern; it was already landed on branch `fix/commit-uv-lock`, commit 12bcb5c.)
+
+### Done
+- `.gitignore`: replaced `data/synthetic/large/` with `data/synthetic/*` + `!data/synthetic/samples/`. Note: had to use the `dir/*` form, not `dir/`, because gitignore blocks re-includes of any subpath when the parent directory is excluded with a trailing slash.
+- `.gitignore`: narrowed `!data/synthetic/**/*.log` to `!data/synthetic/samples/**/*.log` so bulk-run `.log` files are also excluded.
+- Created `data/synthetic/samples/.gitkeep` so the samples directory exists in git.
+- Verified with `git check-ignore -v`: `results.csv`, `results.json`, `run1/results.csv`, `run1/results.log` → ignored; `samples/.gitkeep`, `samples/sample_run.log`, `samples/example.csv`, `samples/nested/x.csv` → tracked.
+
+### Decisions
+- See DECISION_LOG: "synthetic data .gitignore — samples-only allow-list".
+
+### Bugs
+- None.
+
+### Next session should
+1. Resume Phase 1a generator work (per prior session's plan).
+2. Generator default output dir for bulk runs should be `data/synthetic/<run_id>/`; only deliberately curated small files belong under `data/synthetic/samples/`.
+
+---
+
 ### 2026-06-13 — Phase 0 wrap-up — branch: feature/pyproject-init → dev → main
 
 **Goal:** Complete final two Phase 0 deliverables (pyproject.toml, Keysight manuals) and declare Phase 0 done.
