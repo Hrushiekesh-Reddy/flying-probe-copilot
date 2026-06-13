@@ -1,0 +1,95 @@
+# --- CRITICAL: Real data must never be committed ---
+data/real/
+data/private/
+*.real.log
+*.confidential.log
+**/customer_data/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Virtual envs ---
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- uv ---
+.uv/
+uv.lock
+
+# --- Testing ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb_meta
+
+# --- DuckDB / data artifacts (large, regenerable) ---
+*.duckdb
+*.duckdb.wal
+data/synthetic/large/
+data/cache/
+
+# --- ChromaDB persistence ---
+chroma_db/
+*.parquet.cache
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+
+# --- Logs (project's own logs, not test logs) ---
+logs/
+*.log
+!data/synthetic/**/*.log
+
+# --- ML model caches ---
+.cache/
+~/.cache/huggingface/
+models/
+
+# --- OS ---
+*.bak
+*~
+
+# --- Claude Code internal ---
+__perm_test

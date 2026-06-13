@@ -1,0 +1,60 @@
+---
+description: Project-wide rules for the Flying-Probe Co-Pilot
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Flying-Probe Co-Pilot — Cursor Rules
+
+## Read first
+- Always read `CLAUDE.md` at the project root before non-trivial changes.
+- Read the relevant `docs/` file for the current phase.
+- Treat `docs/GUARDRAILS.md` as non-negotiable.
+
+## Hard rules
+
+1. **NEVER commit real customer log data.** Anything in `data/real/` is for local-only validation and is gitignored.
+2. **NEVER paste IPC-A-610 / J-STD-001 verbatim text into code, comments, or docs.** Reference and summarize only.
+3. **NEVER hardcode API keys.** Use `.env` + `python-dotenv`. Confirm `.env` is in `.gitignore` before any commit.
+4. **One phase at a time.** If `CLAUDE.md` says we're in Phase 1a, do not write Phase 1b parser code. Park ideas in `docs/DECISIONS.md`.
+
+## Code style
+
+- Python 3.11+ syntax. Use modern type hints (`list[str]` not `List[str]`).
+- Prefer `dataclasses` or `pydantic` models over raw dicts for any structured data.
+- All public functions/classes have a one-line docstring minimum.
+- Use `pathlib.Path` not `os.path`.
+- Logging via `logging` module, not `print()` — except in CLI entry points.
+- `f`-strings everywhere; no `%` or `.format()`.
+
+## Testing
+
+- Every new module gets at least one pytest happy-path test.
+- Use `tmp_path` fixture for any file I/O in tests.
+- Don't mock what you can test directly (e.g., don't mock DuckDB — use an in-memory connection).
+
+## Dependencies
+
+- Add via `uv add <pkg>`. Do not edit `pyproject.toml` by hand for additions.
+- Pin major versions in `pyproject.toml` (e.g., `duckdb>=1.0,<2.0`).
+- Justify any new dependency in `docs/DECISIONS.md` if it's not in the locked stack.
+
+## Locked stack — do not silently swap
+
+- DuckDB for SQL (no SQLite, no Postgres without ADR)
+- ChromaDB for vectors (no Pinecone, FAISS without ADR)
+- sentence-transformers for embeddings (no OpenAI embeddings in v1)
+- Google Gemini as primary LLM, Claude as backup (no OpenAI in v1 unless cost/quality forces it)
+- Streamlit for UI (no FastAPI/React in v1)
+
+## When in doubt
+
+- Ask for confirmation before adding a new top-level folder.
+- Ask before introducing async, multiprocessing, or any concurrency in Phase 1-2.
+- Ask before adding a CLI framework (typer, click) — argparse is enough in v1.
+
+## Multi-IDE etiquette
+
+- After significant work, update the **Session log** section in `CLAUDE.md`.
+- If you make an architectural call, add an ADR entry to `docs/DECISIONS.md`.
+- Don't leave Cursor changes uncommitted overnight — Claude Code reads the disk state.
