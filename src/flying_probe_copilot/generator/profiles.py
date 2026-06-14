@@ -56,12 +56,19 @@ def get_profile(name: str) -> BoardProfile:
     try:
         return _PROFILES[name]
     except KeyError as exc:
-        valid = ", ".join(sorted(_PROFILES))
+        valid = ", ".join(available_profiles())
         raise ValueError(
             f"Unknown board profile: {name!r}. Valid profiles: {valid}."
         ) from exc
 
 
+_SIZE_ORDER = ["small", "medium", "large"]
+
+
 def available_profiles() -> list[str]:
-    """Return the names of all canonical profiles, sorted alphabetically."""
-    return sorted(_PROFILES)
+    """Return the names of all canonical profiles in size-ascending order.
+
+    Order is fixed at ``small`` → ``medium`` → ``large`` (matches every doc /
+    spec / CLI help quoting of the trio) rather than alphabetical. BUG-003 fix.
+    """
+    return [name for name in _SIZE_ORDER if name in _PROFILES]

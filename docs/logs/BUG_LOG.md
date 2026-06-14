@@ -14,6 +14,28 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-002] Generator hardcodes 4 test records per board regardless of profile (P0) — RESOLVED 2026-06-13
+
+**Discovered:** 2026-06-13
+**Phase:** Phase 1a — Step 9 (Manual QA)
+**File(s):** `src/flying_probe_copilot/generator/cli.py:94-142` (`_build_blocks`)
+**Symptom:** Generated `.log` files for small/medium/large board profiles are all ~410 bytes. Each panel has exactly 4 test records: `shorts`, `R12` (A-RES), `D1` (A-DIO), `U7` (D-T) — the same 4 every time, regardless of `--board-profile`. CSV inspection (Test 8 of manual QA) confirmed: 4 rows per panel × N panels, identical component identifiers. Spec lines 100-104 require small=~120 tests, medium=~450 tests, large=~1600 tests per board.
+**Root Cause:** `_build_blocks` docstring says "Build the representative four-block test set for one board." The function hardcodes the 4-block list as a representative sample, never expanding to use `profile.component_count` or `profile.component_mix`. Manual QA caught this; automated tests did NOT because (a) `test_profiles` validates profile DEFINITIONS only, not output scale; (b) `test_lexical_compliance` only checks lexical validity; (c) CLI tests only assert file presence and YAML round-trip, not realistic content scale.
+**Fix:** Replace `_build_blocks(outcome)` with `generate_blocks(profile, outcome, seed)` that (a) uses `profile.component_count` to size the block count, (b) apportions blocks across component types per `profile.component_mix`, (c) generates realistic refdes (R1..R80, C1..C40, U1..U12, etc.), (d) maps component-type prefixes to record types (R→A-RES, C→A-CAP, L→A-IND, D→A-DIO, Q→A-NPN, U→D-T), (e) randomizes the component that fails (not always R12), and (f) keeps one shorts test as the first block per panel. Add tests asserting per-panel block count matches profile within ±10%, type mix matches `component_mix` within ±10%, refdes diversity, and failure can occur on any component family.
+**Verification:** Manual QA Test 5 reruns produce small/medium/large with file sizes scaling ~5KB / 20KB / 80KB. Automated `test_panel_block_count_scales_with_profile` and `test_panel_block_mix_matches_profile_component_mix` pass.
+**Time to resolve:** in progress (estimated 45-60 min, this session).
+
+## [BUG-003] `available_profiles()` returns sorted-set order ('large, medium, small') not size order (P3) — RESOLVED 2026-06-13
+
+**Discovered:** 2026-06-13
+**Phase:** Phase 1a — Step 9 (Manual QA)
+**File(s):** `src/flying_probe_copilot/generator/profiles.py`
+**Symptom:** CLI error for unknown profile reads "valid: large, medium, small" — alphabetical, not the size-ascending order the spec implies and the docs everywhere quote ("small | medium | large").
+**Root Cause:** Likely `set(...)` or `sorted(...)` returns alphabetical.
+**Fix:** Return the list in size-ascending order explicitly.
+**Verification:** `test_available_profiles_returns_size_ascending_order` passes; manual QA Test 6 shows ordered list.
+**Time to resolve:** in progress (estimated 5 min, this session).
+
 ## [BUG-001] Web-research subagent cached proprietary Keysight PDF + Virinco LGPL source in `.cache_research/` (P1) — OPEN
 
 **Discovered:** 2026-06-13

@@ -15,24 +15,14 @@ from pathlib import Path
 
 import yaml
 
+from .blocks import generate_blocks
 from .faults import generate_panel_faults
 from .models import (
-    AnalogRecord,
-    AnalogStatus,
-    AnalogType,
     BatchLog,
     BatchRecord,
-    BlockRecord,
     BoardLog,
     BoardTestRecord,
     BTESTStatus,
-    DigitalRecord,
-    DigitalStatus,
-    Limits2,
-    Limits3,
-    ShortsRecord,
-    ShortsStatus,
-    TestBlock,
     derive_btest_status,
 )
 from .profiles import available_profiles, get_profile
@@ -91,57 +81,6 @@ def _resolve_run_dir(out: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def _build_blocks(outcome) -> list[TestBlock]:
-    """Build the representative four-block test set for one board."""
-    shorts_fail = outcome.failed and outcome.mode == "SHORTS"
-    analog_fail = (
-        outcome.failed and outcome.btest_status == BTESTStatus.FAIL_ANALOG
-    )
-    digital_fail = outcome.failed and outcome.mode == "DIGITAL"
-
-    return [
-        TestBlock(
-            block=BlockRecord(designator="shorts", status=0),
-            record=ShortsRecord(
-                status=ShortsStatus.FAIL if shorts_fail else ShortsStatus.PASS,
-                shorts_count=(1 if shorts_fail else 0),
-                opens_count=0,
-                phantoms_count=0,
-            ),
-        ),
-        TestBlock(
-            block=BlockRecord(designator="R12", status=0),
-            record=AnalogRecord(
-                record_type=AnalogType.RES,
-                status=AnalogStatus.FAIL if analog_fail else AnalogStatus.PASS,
-                measured=(10500.0 if analog_fail else 10000.0),
-                designator="R12",
-                limits=Limits3(nominal=10000.0, high=10100.0, low=9900.0),
-            ),
-        ),
-        TestBlock(
-            block=BlockRecord(designator="D1", status=0),
-            record=AnalogRecord(
-                record_type=AnalogType.DIO,
-                status=AnalogStatus.PASS,
-                measured=0.7,
-                designator="D1",
-                limits=Limits2(high=0.8, low=0.5),
-            ),
-        ),
-        TestBlock(
-            block=BlockRecord(designator="U7", status=0),
-            record=DigitalRecord(
-                status=DigitalStatus.FAIL if digital_fail else DigitalStatus.PASS,
-                substatus=(1 if digital_fail else 0),
-                failing_vector=(12 if digital_fail else 0),
-                failing_pin_count=(1 if digital_fail else 0),
-                designator="U7",
-            ),
-        ),
-    ]
-
-
 def _build_batch_log(args, profile_name: str) -> BatchLog:
     profile = get_profile(profile_name)
     start = datetime.fromisoformat(args.start_date)
@@ -161,8 +100,9 @@ def _build_batch_log(args, profile_name: str) -> BatchLog:
 
     boards: list[BoardLog] = []
     for idx, panel in enumerate(panels):
+        panel_seed = args.seed * 1000 + idx
         outcome = generate_panel_faults(
-            seed=args.seed * 1000 + idx,
+            seed=panel_seed,
             profile=args.fault_profile,
             target_rate=args.fault_rate,
             panel_timestamp=panel.timestamp,
@@ -170,7 +110,7 @@ def _build_batch_log(args, profile_name: str) -> BatchLog:
             window_end=end,
             change_point=change_point,
         )
-        blocks = _build_blocks(outcome)
+        blocks = generate_blocks(profile, outcome, panel_seed)
         derived = derive_btest_status(blocks)
         start_ts = int(panel.timestamp.strftime("%y%m%d%H%M%S"))
         end_ts = int(

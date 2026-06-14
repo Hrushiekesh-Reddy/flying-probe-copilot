@@ -58,13 +58,33 @@ One entry per work session. Written at session end before committing. Newest ent
 ### Bugs
 - **BUG-001 logged:** web-research subagent persisted Keysight PDF + Virinco LGPL C# source at repo root during Step 2. Mitigated this session (`.cache_research/` gitignored; all artifacts deleted; stray run-on-name artifact also removed). Process improvement (Explore charter update for future projects) surfaced via spawn_task chip at session end.
 
+### Addendum (post-commit `db546e3`, same-day BUG-002 + BUG-003 fix sprint)
+
+Owner ran Step 9 manual QA. Test 5 (board profiles → distinct log sizes) and the test 8 CSV inspection together exposed a major realism gap: `cli.py::_build_blocks` hardcoded a representative 4-block test set (shorts + R12 + D1 + U7) for every panel, so small/medium/large profiles all produced ~410-byte logs instead of scaling to ~5K / ~20K / ~80K. Test 6 also revealed `available_profiles()` returned alphabetical order ("large, medium, small") instead of the size order quoted in every doc.
+
+**BUG-002 (P0)** and **BUG-003 (P3)** logged in `BUG_LOG.md`. Both fixed in-session via a focused executor sprint:
+- New `src/flying_probe_copilot/generator/blocks.py` (~245 LOC) — `generate_blocks(profile, outcome, seed)` reads `profile.component_mix` and emits one `shorts` block + N analog/digital blocks (R/C/L→A-RES/A-CAP/A-IND with LIM3; D→A-DIO with LIM2; Q→A-NPN with LIM2; U→D-T digital). Realistic refdes (`R1..R{count_R}`, etc.). Failing-component family chosen from `outcome.mode`.
+- `cli.py` swapped from `_build_blocks` (~50 lines deleted) to `generate_blocks(profile, outcome, panel_seed)`.
+- `profiles.py::available_profiles()` returns explicit size-order `["small","medium","large"]`.
+- New `tests/test_generator/test_blocks.py` with 11 tests (count by profile, mix matches `component_mix` exactly per seed, refdes diversity, seed reproducibility on `model_dump_json`, pass-measured-within-limits / fail-outside, failing-component-family-matches-mode, shorts-only-failure-doesn't-fail-analog).
+- Verified sanity: small/medium/large `.log` sizes now ~4.7K / 18.2K / 73.5K (ratio 1:3.9:15.7 vs component-count 50:200:800 = 1:4:16). Refdes diversity confirmed (R1..R25 for small, not all R12).
+
+**Final test count: 92 passing / 0 failing / 94% coverage** (was 81 / 94%). Both bugs marked RESOLVED in BUG_LOG with verification notes.
+
+QA Test 6 cosmetic question and Test 7 fail were both QA-script issues, not implementation:
+- Test 6: error message DID name unknown profile + list valid. Ordering fixed (BUG-003).
+- Test 7: bytes[0..40] showed the @BATCH header preamble only — no line break in that window. Implementation is verified by automated `test_emits_utf8_lf_when_encoding_flag_set` (binary-mode read).
+- Test 4: PowerShell `Select-Object -Last 1` picks alphabetically-last run dir, not chronologically-last. Fault injection IS working (visible in Test 8 CSV: SYN-2026W17-00005 has `btest_status=8`).
+
+Manual QA script (`docs/plans/2026-06-13-manual-qa.md`) was not re-revised — its Test 5 expectation that profiles produce distinct sizes is now correct given the BUG-002 fix; Tests 4/6/7 minor wording fixes can be applied next session if owner agrees.
+
 ### Next session should
 1. Begin Phase 1b — Parser & DuckDB schema (ROADMAP lines 49-65)
 2. Write `src/flying_probe_copilot/parser/` that ingests generator output (real-format `.log` files)
 3. Define DuckDB schema: dimension tables (boards, panels, operators, components, tests) + fact tables (test_runs, measurements, failures)
 4. Round-trip integrity test: generator → parser → DuckDB → query == expected
 5. Re-add `parser` script entry to `pyproject.toml` (removed this session)
-6. Owner: push 11 pre-existing commits + Phase 1a commit to origin when convenient
+6. Owner: push 11 pre-existing commits + Phase 1a commit + BUG-002/003 fix commit to origin when convenient
 
 ---
 
