@@ -12,12 +12,14 @@ dependencies = [
     "google-generativeai>=0.8",
     "streamlit>=1.40",
     "plotly>=5.24",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
     "python-dotenv>=1.0",
 ]
 
 [project.scripts]
 generator = "flying_probe_copilot.generator.cli:main"
-parser    = "flying_probe_copilot.parser.cli:main"
+# parser entry deferred until Phase 1b — see docs/ROADMAP.md
 
 [build-system]
 requires      = ["hatchling"]
