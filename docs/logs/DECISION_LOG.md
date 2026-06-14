@@ -5,6 +5,50 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-14 — Dedicated `exec` sub-agent with hard tool restrictions
+
+**Decision:** Step 5 of the 10-step session-workflow uses a dedicated `exec` sub-agent defined at `.claude/agents/exec.md`, with a tool allowlist enforced by the agent definition itself. Other sub-agent roles (Explore, Plan-Reviewer, Verifier) continue to use the built-in `Explore` agent type or the existing skills.
+
+**Why:** Skills can *advise* a sub-agent on scope discipline; an agent definition can *enforce* it via tool restrictions. The executor is the highest-blast-radius role (it's the one writing files), so tool-level guardrails are most valuable there. Specifically, the `exec` agent cannot spawn further sub-agents (no recursion), cannot fetch the web, cannot control the browser or desktop, cannot enter/exit plan mode, and cannot invoke nested workflows — even if a misread plan instruction tries to make it.
+
+**Rejected:**
+- Custom agents for every role (Explore, Plan-Reviewer, Verifier, Exec). Diminishing returns — Explore is already well-served by the built-in `Explore` agent type, and the other roles benefit more from skill-level prompting than tool restriction.
+- Continuing to rely on `execute-plan` skill alone. A skill is advisory; the executor could ignore it. Tool restrictions cannot be ignored.
+
+**Revisit:** End of Phase 1b. If the executor's tool list turns out to be too restrictive (e.g. we discover legitimate need for `WebFetch`), expand the allowlist deliberately rather than dropping restrictions wholesale.
+
+---
+
+## 2026-06-14 — Tier-based step selection for the 10-step workflow
+
+**Decision:** The 10-step loop is no longer uniformly applied. Sessions classify as Trivial (Steps 1, 7, 8), Small (1, 3, 5, 7, 8), Medium (1, 2, 3, 5, 7, 8), or Large (full 1–10). Tier is chosen at Step 1 using the five-minute decision rule in `.claude/templates/tiering.md`. Mid-session escalation is allowed via the escalation protocol (STOP → log → reset brief → restart at the new tier's correct step).
+
+**Why:** Running the full loop on a typo fix or a 50-LOC helper is ~4–8x token overhead with near-zero quality gain. Step 6 (Verify Execution) in particular has the lowest yield-per-token in the loop because Step 7 (parent Triple Check) already catches what Step 6 would. Tiering preserves rigor where it matters (parser, schema, RAG core) and removes it where it doesn't (config tweaks, doc edits).
+
+**Rejected:**
+- Two-tier system (fast path vs full loop). Too coarse — most Phase 1a work falls between "typo" and "build the parser".
+- Letting sub-agents self-select tier. Parent owns this — sub-agents see only their assigned tier's charter.
+
+**Revisit:** After 5 full-loop sessions of real Phase 1a/1b work. If Step 6 catches something Step 7 missed, restore Step 6 to Medium tier.
+
+---
+
+## 2026-06-14 — Context-cache brief block for sub-agent prompts
+
+**Decision:** Every sub-agent dispatch in a Medium or Large tier session is prefixed with a byte-for-byte identical "context brief" block, templated at `.claude/templates/sub-agent-brief.md`. The brief contains phase, tier, branch, guardrails-in-force, decisions-in-force, OUT-OF-SCOPE, fixtures-to-leave-alone, and resolved open questions.
+
+**Why:** Two reasons:
+1. **Direct context savings.** Without the brief, each sub-agent reads CLAUDE.md (~150 lines) + agent-conduct.md (~80 lines) + the relevant phase doc to learn the rules — ~3-5k input tokens per dispatch, or ~12-20k across a 4-sub-agent Large-tier loop.
+2. **Prompt-cache prefix reuse.** Anthropic prompt caching keys on identical token prefix with a 5-minute TTL. An identical brief across the 4 sub-agents of one loop pays the prefix cost once and reads cache (~10x cheaper) on the other three. See `.claude/templates/prompt-caching.md` for the mechanics and timeline.
+
+**Rejected:**
+- Letting sub-agents read CLAUDE.md fresh each time. Wasteful; same content re-encoded each call.
+- Including volatile content (diffs, test output) in the brief. Breaks the cache. Volatile content goes in the role-specific tail of the prompt, not the brief.
+
+**Revisit:** After 3 Medium/Large sessions, measure `cache_read_input_tokens` vs `input_tokens` ratio. Target: >60% cache reads on dispatches 2–4 of a loop. If lower, the brief is drifting between calls — investigate and tighten.
+
+---
+
 ## 2026-06-13 — Phase 1a: log format target = real Keysight Log Record Format (not simplified text report)
 
 **Decision:** The synthetic generator emits files in the **real Keysight i3070 Log Record Format** — a record-oriented format with `{@PREFIX|field|...}` syntax, numeric status codes (no literal `"PASS"`/`"FAIL"` strings), scientific-notation floats (`+1.246700E+01`), CRLF Windows-1252 encoding by default, `@LIM2`/`@LIM3` limit subrecords following analog records, and full `@BTEST` status-code vocabulary. NOT the originally-drafted simplified human-readable text-report format.
