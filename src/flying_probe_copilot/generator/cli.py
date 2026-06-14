@@ -85,6 +85,10 @@ def _build_batch_log(args, profile_name: str) -> BatchLog:
     profile = get_profile(profile_name)
     start = datetime.fromisoformat(args.start_date)
     end = datetime.fromisoformat(args.end_date)
+    if end == start:
+        # Same calendar day → treat as a 24h window so the schedule has a
+        # non-zero span (covers --start-date=X --end-date=X "one-day" runs).
+        end = start + timedelta(days=1)
 
     panels = generate_panel_schedule(
         start=start,
@@ -218,6 +222,17 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             f"unknown board profile {args.board_profile!r}; "
             f"valid: {', '.join(available_profiles())}"
+        )
+
+    try:
+        start = datetime.fromisoformat(args.start_date)
+        end = datetime.fromisoformat(args.end_date)
+    except ValueError as exc:
+        parser.error(f"invalid date format: {exc}")
+    if end < start:
+        parser.error(
+            f"--end-date ({args.end_date}) must not be earlier than "
+            f"--start-date ({args.start_date})"
         )
 
     batch_log = _build_batch_log(args, args.board_profile)

@@ -114,3 +114,45 @@ def test_cli_manifest_json_contains_panel_count_fault_rate_seed(tmp_path):
     assert manifest["panel_count"] == 3
     assert abs(manifest["fault_rate"] - 0.15) < 1e-9
     assert manifest["seed"] == 7
+
+
+def test_cli_same_start_end_date_runs_as_one_day_window(tmp_path):
+    """Bugbot regression: --start-date == --end-date is a 24h window, not a crash."""
+    rc = _invoke(
+        [
+            "--board-profile=small",
+            "--count=2",
+            f"--out={tmp_path}",
+            "--seed=42",
+            "--start-date=2026-05-10",
+            "--end-date=2026-05-10",
+        ]
+    )
+    assert rc == 0
+    run = next(tmp_path.iterdir())
+    assert (run / "logs").is_dir()
+    assert (run / "manifest.json").exists()
+    # Logs should land on (or wrap into) 2026-05-10 — the timestamp is in
+    # the @BTEST start_ts field as YYMMDDHHMMSS. Spot-check the first log.
+    log_file = next((run / "logs").iterdir())
+    raw = log_file.read_bytes().decode("cp1252")
+    # YYMMDDHHMMSS for 2026-05-10 starts with 260510 (within the 24h window).
+    assert "|260510" in raw or "|260511" in raw  # window includes both endpoints
+
+
+def test_cli_end_before_start_errors_clearly(tmp_path, capsys):
+    """Bugbot regression: end < start exits non-zero with a clear message."""
+    rc = _invoke(
+        [
+            "--board-profile=small",
+            "--count=1",
+            f"--out={tmp_path}",
+            "--start-date=2026-05-10",
+            "--end-date=2026-05-09",
+        ]
+    )
+    assert rc != 0
+    captured = capsys.readouterr()
+    combined = captured.err + captured.out
+    assert "--end-date" in combined
+    assert "--start-date" in combined
