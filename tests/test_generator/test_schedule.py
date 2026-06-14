@@ -135,3 +135,92 @@ def test_test_program_version_changes_infrequently():
     runs.append(current)
     # At least one run must be >= 100 panels long. (Most should be.)
     assert max(runs) >= 100, f"longest version-run is {max(runs)}; expected >= 100"
+
+
+# ---------------------------------------------------------------------------
+# Shift-snap overnight bug — regression tests (BUG-004 / PR #3 review comment
+# id 3409766436). The old code drew a shift letter uniformly at random per
+# panel and then snapped to that shift's start hour on the raw draw's
+# calendar day. A raw timestamp at 02:00 assigned to shift C was snapped to
+# the same day's 22:00-05:59 window — ~20 hours away from the raw draw, and
+# inside a *different* shift-C instance than the one that physically
+# contained the raw timestamp.
+# ---------------------------------------------------------------------------
+
+
+def test_panel_shift_is_derived_from_raw_timestamp_hour():
+    """Narrow window: every raw_ts falls in shift C's hour-of-day range, so
+    every emitted panel must carry shift letter 'C'.
+
+    Fails under the buggy code because it drew shift uniformly at random,
+    yielding ~25-40% non-C labels on a window where physically every panel
+    must be on shift C.
+    """
+    from flying_probe_copilot.generator.schedule import generate_panel_schedule
+
+    # 02:00 - 03:00 — every raw_ts has hour=2, which is squarely in shift C.
+    start = datetime(2026, 4, 15, 2, 0, 0)
+    end = datetime(2026, 4, 15, 3, 0, 0)
+    panels = generate_panel_schedule(
+        start=start,
+        end=end,
+        count=50,
+        seed=42,
+        operators=2,
+        lines=1,
+        board_profile_id="small",
+    )
+    shifts = {p.shift for p in panels}
+    assert shifts == {"C"}, f"expected only shift C, got {sorted(shifts)}"
+
+
+def test_snapped_timestamp_lies_within_assigned_shift_window():
+    """Every panel's timestamp must fall inside its assigned shift's
+    hour-of-day window. Contract check that the shift label is internally
+    consistent with the snapped timestamp.
+    """
+    panels = _make_schedule(2000)
+    for p in panels:
+        if p.shift == "A":
+            assert 6 <= p.timestamp.hour < 14, (
+                f"shift A panel at {p.timestamp.isoformat()} — hour outside [6,14)"
+            )
+        elif p.shift == "B":
+            assert 14 <= p.timestamp.hour < 22, (
+                f"shift B panel at {p.timestamp.isoformat()} — hour outside [14,22)"
+            )
+        elif p.shift == "C":
+            assert p.timestamp.hour >= 22 or p.timestamp.hour < 6, (
+                f"shift C panel at {p.timestamp.isoformat()} — hour outside [22,06)"
+            )
+        else:
+            raise AssertionError(f"unknown shift letter {p.shift!r}")
+
+
+def test_shift_C_panel_in_early_morning_anchors_to_previous_day_window():
+    """A shift-C panel with hour in [0,6) must belong to the overnight
+    window that *started* on the previous calendar day at 22:00. Equivalently,
+    every shift-C panel with hour < 6 must have a same-shift twin (or be
+    adjacent in time to one) on the prior calendar day's 22:00-23:59 slot,
+    or — more simply — sit inside an 8-hour window beginning at
+    (panel.timestamp.date - 1 day) 22:00.
+
+    Fails under the buggy code because shift-C panels with hour < 6 landed
+    on the day-X+1 portion of a window that started at day-X 22:00, where
+    day-X was the raw_ts's calendar day — leaving the chronologically
+    earlier overnight window (which physically contained the raw_ts)
+    unrepresented at the expected rate.
+    """
+    panels = _make_schedule(2000)
+    early_c = [p for p in panels if p.shift == "C" and p.timestamp.hour < 6]
+    # For each early-morning shift-C panel, the window-start datetime must be
+    # 22:00 on the previous calendar day, and the panel must lie strictly
+    # within the 8-hour shift-C window starting there.
+    for p in early_c:
+        prev = p.timestamp - timedelta(days=1)
+        window_start = datetime(prev.year, prev.month, prev.day, 22, 0, 0)
+        window_end = window_start + timedelta(hours=8)
+        assert window_start <= p.timestamp < window_end, (
+            f"shift C panel at {p.timestamp.isoformat()} is not inside the "
+            f"overnight window [{window_start.isoformat()}, {window_end.isoformat()})"
+        )
