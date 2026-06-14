@@ -448,16 +448,26 @@ def _ingest_batch_log(
 
 
 def ingest_run_directory(
-    run_dir: Path, con: duckdb.DuckDBPyConnection
+    run_dir: Path,
+    con: duckdb.DuckDBPyConnection,
+    encoding: str = "auto",
 ) -> IngestReport:
     """Ingest all .log files under ``run_dir`` into ``con``.
 
     Reads ``manifest.json`` for run-level metadata, then walks
     ``logs/*.log`` files, parses each one, and inserts rows into all 9 tables.
 
+    ``encoding`` is forwarded to ``parse_log_file`` for every .log file
+    (``auto`` | ``utf-8`` | ``cp1252``). BUG-005: the parser CLI's ``--encoding``
+    flag previously stopped at this boundary.
+
     Surrogate PKs are computed as the maximum existing value + 1 at the start
     of the call, so multiple calls to different run dirs are safe (the pre-flight
     check in cli.py prevents re-ingesting the same run_id).
+
+    BUG-006: the ``runs`` row is inserted AFTER the per-file loop completes, so
+    a parse/insert failure mid-ingest does not leave a stuck ``runs`` row that
+    would block re-ingest via the CLI pre-flight guard.
     """
     run_dir = Path(run_dir)
     run_id = run_dir.name  # e.g. 'run_2026-04-01T08-30-00-000000'
@@ -487,7 +497,31 @@ def ingest_run_directory(
     # Ensure board dim row
     _ensure_board_dim(con, board_profile_id)
 
-    # Insert run-level row
+    # Walk log files (BEFORE inserting the runs row, per BUG-006)
+    logs_dir = run_dir / "logs"
+    log_files = sorted(logs_dir.glob("*.log")) if logs_dir.exists() else []
+
+    for log_path in log_files:
+        try:
+            batch_log, parse_report = parse_log_file(log_path, encoding=encoding)
+        except Exception as exc:
+            report.notes.append(f"Failed to parse {log_path.name}: {exc}")
+            report.parse_errors += 1
+            continue
+
+        report.parse_errors += len(parse_report.errors)
+        report.files_processed += 1
+
+        p, tr, m, f = _ingest_batch_log(
+            con, batch_log, run_id, board_profile_id, counters
+        )
+        report.panels_inserted += p
+        report.test_runs_inserted += tr
+        report.measurements_inserted += m
+        report.failures_inserted += f
+
+    # Insert run-level row LAST. If anything above raised, this row is never
+    # written and the CLI re-ingest guard will permit a retry (BUG-006).
     con.execute(
         """
         INSERT INTO runs
@@ -505,28 +539,5 @@ def ingest_run_directory(
             int(manifest.get("failing_boards", 0)),
         ],
     )
-
-    # Walk log files
-    logs_dir = run_dir / "logs"
-    log_files = sorted(logs_dir.glob("*.log")) if logs_dir.exists() else []
-
-    for log_path in log_files:
-        try:
-            batch_log, parse_report = parse_log_file(log_path)
-        except Exception as exc:
-            report.notes.append(f"Failed to parse {log_path.name}: {exc}")
-            report.parse_errors += 1
-            continue
-
-        report.parse_errors += len(parse_report.errors)
-        report.files_processed += 1
-
-        p, tr, m, f = _ingest_batch_log(
-            con, batch_log, run_id, board_profile_id, counters
-        )
-        report.panels_inserted += p
-        report.test_runs_inserted += tr
-        report.measurements_inserted += m
-        report.failures_inserted += f
 
     return report

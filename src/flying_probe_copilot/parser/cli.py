@@ -103,9 +103,9 @@ def main(argv: list[str] | None = None) -> int:
         con.close()
         return 2
 
-    # Ingest
+    # Ingest (BUG-005: thread --encoding through to parse_log_file)
     try:
-        report = ingest_run_directory(run_dir, con)
+        report = ingest_run_directory(run_dir, con, encoding=args.encoding)
     except Exception as exc:
         print(f"ERROR during ingest: {exc}", file=sys.stderr)
         con.close()

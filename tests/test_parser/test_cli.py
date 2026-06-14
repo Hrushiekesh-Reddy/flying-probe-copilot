@@ -173,3 +173,102 @@ def test_cli_encoding_auto_handles_cp1252(small_batch_log, tmp_path):
     assert count == len(small_batch_log.boards), (
         f"Expected {len(small_batch_log.boards)} panels from cp1252 log, got {count}"
     )
+
+
+def test_cli_encoding_utf8_fails_on_cp1252_log(small_batch_log, tmp_path):
+    """BUG-005: --encoding=utf-8 against a cp1252 log must fail (and surface a parse error),
+    proving the flag is actually threaded into the parser instead of silently falling
+    back to auto-detect."""
+    from flying_probe_copilot.parser.cli import main
+
+    run_dir = tmp_path / "run_cp1252_strict"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir()
+    # Render with cp1252; ensure at least one byte that's invalid utf-8 ends up in the file
+    for board in small_batch_log.boards:
+        single = BatchLog(batch=small_batch_log.batch, boards=[board])
+        log_path = logs_dir / f"{board.panel.serial}.log"
+        render_log(single, log_path, encoding="cp1252")
+        # Inject a cp1252-only byte (0x92 = right single quote) so utf-8 decode must fail
+        with log_path.open("ab") as fh:
+            fh.write(b"{@COMMENT|don\x92t parse me as utf-8}\r\n")
+    failing = sum(1 for b in small_batch_log.boards if b.btest.status != BTESTStatus.PASS)
+    manifest = {
+        "panel_count": len(small_batch_log.boards),
+        "fault_rate": 0.05,
+        "fault_profile": "random",
+        "seed": 42,
+        "board_profile": "small",
+        "failing_boards": failing,
+    }
+    (run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    db_path = tmp_path / "test_utf8_strict.duckdb"
+    ret = main(["--input", str(run_dir), "--db", str(db_path), "--encoding", "utf-8"])
+    # CLI catches the parse error and returns exit 0 with parse_errors > 0,
+    # OR returns 1 if every file failed. Either way, parse_errors must be > 0.
+    import duckdb
+    con = duckdb.connect(str(db_path))
+    rows = con.execute(
+        "SELECT COUNT(*) FROM panels"
+    ).fetchone()
+    panel_count = rows[0] if rows else 0
+    con.close()
+    # Under the bug, --encoding was ignored and auto-detect succeeded — all panels ingested.
+    # After BUG-005 fix, strict utf-8 on a cp1252 file must skip at least one log.
+    assert panel_count < len(small_batch_log.boards), (
+        f"BUG-005: --encoding=utf-8 was ignored — got {panel_count} panels from cp1252 input, "
+        f"expected fewer than {len(small_batch_log.boards)}"
+    )
+
+
+def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
+    small_batch_log, tmp_path, monkeypatch
+):
+    """BUG-006: if _ingest_batch_log raises mid-loop, the runs row must NOT be
+    persisted — otherwise the CLI re-ingest guard (exit code 2) would block any retry
+    after the cause is fixed.
+
+    Forces a mid-loop exception by monkeypatching _ingest_batch_log to raise on the
+    first call, then asserts that the runs row is absent and that a follow-up ingest
+    (with the patch lifted) succeeds with exit code 0.
+    """
+    import duckdb
+    from flying_probe_copilot.parser import ingest as ingest_mod
+    from flying_probe_copilot.parser.cli import main
+
+    run_dir = _write_run(tmp_path, small_batch_log, "small")
+    db_path = tmp_path / "bug006.duckdb"
+
+    real = ingest_mod._ingest_batch_log
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated mid-loop ingest failure")
+
+    monkeypatch.setattr(ingest_mod, "_ingest_batch_log", _boom)
+    ret = main(["--input", str(run_dir), "--db", str(db_path)])
+    assert ret == 1, f"Mid-loop exception must yield exit 1, got {ret}"
+
+    con = duckdb.connect(str(db_path))
+    runs = con.execute(
+        "SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]
+    ).fetchone()[0]
+    con.close()
+    assert runs == 0, (
+        f"BUG-006: failed ingest left {runs} stranded runs row(s) — re-ingest would be blocked"
+    )
+
+    # Lift the patch and retry — must succeed, proving the run is genuinely retry-able.
+    monkeypatch.setattr(ingest_mod, "_ingest_batch_log", real)
+    ret2 = main(["--input", str(run_dir), "--db", str(db_path)])
+    assert ret2 == 0, f"Retry after failure must succeed (exit 0), got {ret2}"
+
+    con = duckdb.connect(str(db_path))
+    runs2 = con.execute(
+        "SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]
+    ).fetchone()[0]
+    con.close()
+    assert runs2 == 1, f"Successful retry must persist exactly one runs row, got {runs2}"

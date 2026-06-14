@@ -14,6 +14,43 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-007] Parser-rebuilt PanelInstance hardcodes shift="A" and line_id="LINE-A" (P2) — OPEN, deferred to Phase 2
+
+**Discovered:** 2026-06-14
+**Phase:** Phase 1b — PR #9 Bugbot review (comment id 3410306157, medium severity)
+**File(s):** `src/flying_probe_copilot/parser/log_parser.py:619-628` (`_make_board_log`), `src/flying_probe_copilot/parser/ingest.py:268-283` (persists the placeholder into `panels`)
+**Symptom:** Notebook Query 3 (per-shift yield) and any future per-line analytics return uniform data — every panel ingested through the parser ends up in `panels` with `shift='A'` and `line_id='LINE-A'`, regardless of what the generator's `PanelInstance.shift` / `line_id` actually was at schedule time.
+**Root Cause:** The per-board `.log` file emitted by `src/flying_probe_copilot/generator/renderers/log.py` does not carry `shift` or `line_id` at any record level (`@BATCH` has neither field; `@BTEST` only has board_id + status + timestamps). When the parser rebuilds a `PanelInstance` in `_make_board_log`, the only legal source of truth is the log itself, which is silent. The parser writes the literals `"A"` / `"LINE-A"` rather than NULL, so DuckDB sees uniform values instead of missing-data.
+**Why this is the same family as per-operator (DECISION_LOG 2026-06-14):** Same v1 limitation surface as `test_runs.operator_id`. The honest schema treatment is "nullable column populated where available, NULL where not; document in DECISION_LOG; defer enrichment to Phase 2."
+**Workaround in this PR:** Notebook Query 3 markdown now carries the same caveat as Query 4 (per-operator), explicitly calling out "placeholder, until Phase 2 either (a) extends @BTEST to carry shift + line_id, or (b) ingests results.json as an authorised sidecar."
+**Phase 2 fix paths (pick one in the spawned task):**
+  - **A — Generator extension.** Add `shift` + `line_id` (and `operator_id`) to `@BTEST` or a sibling `@CTX` record; parser reads them; columns flip to `NOT NULL`. Touches generator, schema, parser, all three.
+  - **B — Authorised sidecar.** Have the parser read `results.json` alongside the `.log` files (the original v1 brief excluded this; revisit). Generator stays unchanged.
+  - **C — Schema nullability now, repair later.** Make `panels.shift` + `panels.line_id` nullable; parser writes NULL; downstream queries learn to skip NULLs. Closes the silent-wrong-data risk while we pick A vs B.
+**Verification (when fixed):** A new round-trip test that builds a 3-shift × 2-line batch, runs through generator → parser → DB, asserts `SELECT DISTINCT shift FROM panels` returns `{'A','B','C'}` and the per-panel shift matches the in-memory `PanelInstance.shift`.
+
+## [BUG-006] `runs` row inserted before parse loop blocks retry after mid-ingest failure (P2) — RESOLVED 2026-06-14
+
+**Discovered:** 2026-06-14
+**Phase:** Phase 1b — PR #9 Bugbot review (comment id 3410306158, medium severity)
+**File(s):** `src/flying_probe_copilot/parser/ingest.py:489-507` (pre-fix)
+**Symptom:** If `_ingest_batch_log` raised partway through the per-file loop (e.g. a DuckDB constraint hit), the `runs` row was already in the database. The CLI pre-flight check (`SELECT 1 FROM runs WHERE run_id = ?`) then exited code 2 on every retry, blocking re-ingest after the operator fixed the upstream cause. The DB was left with a `runs` row but partial / no fact rows.
+**Root Cause:** Ordering. The `INSERT INTO runs` lived between `_ensure_board_dim` and the `for log_path in log_files:` loop, so it landed before any actual ingest happened.
+**Fix:** Moved the `INSERT INTO runs` to AFTER the loop completes. An exception during the loop now propagates out of `ingest_run_directory` without persisting the runs row; the CLI catches it, returns exit 1, and a retry hits an empty `runs` table and proceeds normally. A completed (even zero-file) loop still writes the runs row, preserving the "this run was ingested" contract.
+**Verification:** `tests/test_parser/test_cli.py::test_runs_row_not_persisted_when_ingest_raises_mid_loop` monkeypatches `_ingest_batch_log` to raise on the first call, asserts the runs row is absent and that a follow-up retry (patch lifted) succeeds with exit code 0 and persists exactly one runs row. 184/184 tests pass; ingest.py coverage held at 100%.
+**Time to resolve:** ~10 min.
+
+## [BUG-005] Parser CLI `--encoding` flag parsed but never threaded into parse_log_file (P2) — RESOLVED 2026-06-14
+
+**Discovered:** 2026-06-14
+**Phase:** Phase 1b — PR #9 Bugbot review (comment id 3410306154, medium severity)
+**File(s):** `src/flying_probe_copilot/parser/cli.py:106-108` and `src/flying_probe_copilot/parser/ingest.py:512-515` (pre-fix)
+**Symptom:** The CLI exposed `--encoding={auto,utf-8,cp1252}` and the manual QA Test 8 documented strict-encoding behaviour, but `cli.py` called `ingest_run_directory(run_dir, con)` without forwarding `args.encoding`, and `ingest.py` called `parse_log_file(log_path)` without an `encoding` argument. Every ingest silently fell through to `parse_log_file`'s default `encoding="auto"`, so `--encoding=utf-8` did NOT fail on a cp1252-encoded log (auto-detect rescued it) — the operator's strict choice was discarded.
+**Root Cause:** Missing plumbing on a 2-hop boundary (CLI → ingest → parse_log_file). The acceptance tests covered `--encoding=auto` only; nothing exercised a non-default value end-to-end.
+**Fix:** `ingest_run_directory(run_dir, con, encoding="auto")` now accepts an `encoding` parameter and forwards it to `parse_log_file(log_path, encoding=encoding)`. The CLI passes `args.encoding` through. The default stays `"auto"` so library callers and existing tests are unaffected.
+**Verification:** `tests/test_parser/test_cli.py::test_cli_encoding_utf8_fails_on_cp1252_log` writes cp1252 logs with an injected cp1252-only byte (0x92), invokes the CLI with `--encoding=utf-8`, and asserts that fewer panels land in the DB than the input contained (proving strict-utf-8 actually fails to decode, instead of silently auto-detecting cp1252). 184/184 tests pass.
+**Time to resolve:** ~5 min.
+
 ## [BUG-004] Shift letter drawn randomly per panel; shift-C wrap snap dropped raw_ts onto wrong overnight window (P2) — RESOLVED 2026-06-14
 
 **Discovered:** 2026-06-14
