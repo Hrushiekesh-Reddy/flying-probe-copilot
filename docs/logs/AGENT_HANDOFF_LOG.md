@@ -44,6 +44,76 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 1b → Phase 2 — 2026-06-14
+
+**From:** Claude Code parent (Phase 1b session — full 10-step Large-tier loop)
+**To:** Next Claude Code or Cursor session (Phase 2 — Analytics & Dashboard)
+**Branch:** `feature/phase1b-parser` — 1 commit ahead of `dev` (commit `efddc9f`). NOT yet merged to `dev`. NOT yet pushed.
+**Session goal:** Phase 1b — stand up parser module + DuckDB 9-table schema + ingest CLI so generator output ingests losslessly into a queryable DB, and the named exit-criterion query "yield by board over the last week" returns correct results.
+**Outcome:** Done. 6/7 ROADMAP Phase 1b deliverables shipped (notebook deferred via spawn_task chip). 179 tests passing / 0 failing / 97% total coverage. 10-step loop ran end-to-end with one Plan Revision after Step 4 red-team. No silent OOS fixes, no generator-side changes.
+
+### Completed this session
+- **Branch + skeleton:** `feature/phase1b-parser` from `dev`; pre-flight P1 created empty `parser/` and `db/` package skeletons to keep pytest collection working (Revision 1 #BLOCKER-1).
+- **DuckDB schema** (`src/flying_probe_copilot/db/schema.py`, 175 LOC, 100% coverage): 9 `CREATE TABLE IF NOT EXISTS` (5 dim: boards/panels/operators/components/tests; 1 metadata: runs; 3 fact: test_runs/measurements/failures). Idempotent. `test_runs.operator_id` NULLABLE per #WARNING-5. `failures.target_refdes` nullable. Surrogate PKs via Python counters.
+- **Log parser** (`src/flying_probe_copilot/parser/log_parser.py`, ~530 LOC, 97% coverage): brace-balanced tokenizer; per-record parsers for `@BATCH` / `@BTEST` / `@BLOCK` / `@A-RES/CAP/DIO/IND/NPN` (with `@LIM2`/`@LIM3`) / `@D-T` / `@TS` / `@TJET` / `@PF`+`@PIN`; `_parse_yymmddhhmmss(value)` helper with Python `%y` 68/69 pivot (per #BLOCKER-4 — executor corrected the plan v1's stated 69/70); structured `ParseError` + `ParseReport` dataclasses; graceful malformed handling.
+- **Ingest** (`src/flying_probe_copilot/parser/ingest.py`, 100% coverage): `ingest_run_directory(run_dir, con) -> IngestReport`; reads `manifest.json` + walks `logs/*.log`; `INSERT OR IGNORE` on dims, strict INSERT on facts.
+- **CLI** (`src/flying_probe_copilot/parser/cli.py`, 100% coverage): `--input`, `--db`, `--encoding={auto,utf-8,cp1252}` (default `auto`, falls back utf-8→cp1252); pre-flight `runs.run_id` re-ingest guard exits code 2 (#WARNING-13); creates `Path(args.db).parent` on demand; exit codes 0/1/2.
+- **Test suite** (`tests/test_parser/`, 9 files, 81 new tests): log_parser (24), schema (3), ingest (18), malformed (5), roundtrip (5 incl. ts-equality pin), yield_query (4 with empty-DB + boundary cases + dedup'd SQL constant per #MINOR-17), cli (8). All green; total session: **179 passing** (98 generator baseline + 81 parser).
+- **`pyproject.toml`:** single-line edit re-added `parser = "flying_probe_copilot.parser.cli:main"` to `[project.scripts]`.
+- **10-step loop completed:** brief (Step 1) → Explore subagent (Step 2) → Plan v1 (Step 3) → adversarial Plan Reviewer subagent (Step 4: 2 BLOCKERs + 5 WARNINGs + 6 MINORs surfaced; all resolved in Plan Revision 1) → exec subagent (Step 5, TDD, 3 documented deviations: pivot 68/69, float rel_tol 1e-6, malformed auto-GREEN) → Verifier subagent (Step 6: PASS) → Parent Triple Check (Step 7: CLEAN, independent code read + pytest run) → docs + single commit `efddc9f` (Step 8) → manual QA script written (Step 9).
+- **Plan artifacts retained:** `docs/plans/2026-06-14-brief.md`, `2026-06-14-plan.md` (with Revision 1 section at bottom — binding), `2026-06-14-triple-check.md`, `2026-06-14-manual-qa.md`.
+- **Two spawn_task chips created** for follow-ups:
+  - `task_0ee559f2` — "Write `notebooks/01-queries.ipynb` for Phase 1b" (deferred notebook deliverable).
+  - `task_ab9d75ba` — "Recover per-panel `operator_id` in parser/ingest" (Phase 2 prerequisite if the dashboard wants per-operator yield).
+
+### In progress — needs pickup
+- **Step 10 (handoff write-up):** this entry. Otherwise the session is complete pending owner manual QA.
+- **Notebook `notebooks/01-queries.ipynb`:** chip queued (`task_0ee559f2`); brief in the chip's prompt. Small standalone doc task.
+- **Per-panel operator-ID recovery:** chip queued (`task_ab9d75ba`); needs a generator change (add `operator_id` to `@BTEST`) OR an authorized `results.json` sidecar read.
+
+### Blocked — needs owner input
+- Nothing blocked for Phase 2. Owner manual QA at Step 9 may surface issues; if so, log them and decide fix-now vs fold-into-Phase-2.
+
+### Out-of-scope bugs logged (spawn_task chips created)
+- Listed above; no `BUG_LOG.md` entries this session.
+
+### Test suite status
+- Passing: **179** | Failing: 0 | Coverage: **97% total**
+- Per-module coverage:
+  - `src/flying_probe_copilot/db/schema.py` 100%
+  - `src/flying_probe_copilot/parser/cli.py` 100%
+  - `src/flying_probe_copilot/parser/ingest.py` 100%
+  - `src/flying_probe_copilot/parser/log_parser.py` 97%
+  - Generator baseline (`generator/*`) unchanged from 2026-06-14 lexical-test session: models 100%, blocks 98%, cli 98%, faults 90%, grammar 96%, renderers/log.py 97%, schedule 85%
+- Slowest test: the round-trip test that materializes a 10-small + 5-medium fixture, ingests via CLI, and queries the DB (~6 s).
+- Run time: ~60 s for full suite via `uv run pytest -q`.
+
+### Owner feedback (manual QA Step 9)
+- Pending — owner has not yet run the manual QA script at `docs/plans/2026-06-14-manual-qa.md`.
+- The QA script has 9 numbered tests covering: generator + parser CLI smoke, schema sanity, the exit-criterion yield query, round-trip count audit, re-ingest guard, missing-input error path, a bigger UTF-8 smoke, and a failure Pareto sanity-check.
+
+### Next session should (ordered)
+1. **Owner runs Manual QA** at `docs/plans/2026-06-14-manual-qa.md`. If PASS: merge `feature/phase1b-parser` → `dev` (and eventually `dev` → `main` at the Phase 2 boundary). If FAIL: log to `BUG_LOG.md`, decide fix-now vs Phase 2.
+2. **Begin Phase 2 — Analytics & Dashboard** (ROADMAP lines 69-87). Branch name suggestion: `feature/phase2-analytics`. Tier: likely Large.
+3. **First Phase 2 prerequisite (optional but recommended):** pick up `task_ab9d75ba` — per-panel operator_id recovery. Phase 2's per-operator yield query needs this; doing it now lets `test_runs.operator_id` flip back to `NOT NULL`.
+4. **Then Phase 2 deliverables:** yield-over-time helper, failure Pareto, SPC chart helpers, z-score anomaly baseline, Streamlit Pages (Overview / Yield / Failure Pareto / SPC / Anomalies). See `.claude/templates/tiering.md` for tier choice.
+5. **Owner: push the local-only Phase 1b commit** (`efddc9f`) when convenient: `git push origin feature/phase1b-parser`, then open PR `feature/phase1b-parser → dev`.
+
+### Documents updated this session
+- [x] `SESSION_LOG.md` (Phase 1b entry at top)
+- [x] `DECISION_LOG.md` (3 new entries: schema shape, operator_id nullable, re-ingest guard)
+- [ ] `BUG_LOG.md` (no new entries this session; deferred items went to spawn_task chips)
+- [x] `ROADMAP.md` (6/7 Phase 1b boxes ticked, status log line added)
+- [x] `CLAUDE.md` (Phase 1b → ✅ Complete; Phase 2 → 🟡 Up next; session log line)
+- [x] `pyproject.toml` (single-line `parser` script entry)
+- [x] `docs/plans/2026-06-14-brief.md` (NEW)
+- [x] `docs/plans/2026-06-14-plan.md` (NEW, includes Revision 1)
+- [x] `docs/plans/2026-06-14-triple-check.md` (NEW)
+- [x] `docs/plans/2026-06-14-manual-qa.md` (NEW)
+- [x] `docs/logs/AGENT_HANDOFF_LOG.md` (this entry)
+
+---
+
 ### Handoff: Phase 1a → Phase 1b — 2026-06-13
 
 **From:** Claude Code parent (Phase 1a session — 10-step session-workflow loop + same-day BUG-002/003 fix sprint)
