@@ -272,3 +272,61 @@ def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
     ).fetchone()[0]
     con.close()
     assert runs2 == 1, f"Successful retry must persist exactly one runs row, got {runs2}"
+
+
+def test_partial_multi_file_failure_rolls_back_earlier_panels(
+    small_batch_log, tmp_path, monkeypatch
+):
+    """BUG-008: when _ingest_batch_log succeeds on early files then raises on a later
+    one, the earlier files' panels/test_runs/measurements MUST be rolled back. Without
+    a transaction the partial state would remain, and a retry would hit
+    PRIMARY KEY conflicts on panels.panel_serial instead of completing cleanly.
+    """
+    import duckdb
+    from flying_probe_copilot.parser import ingest as ingest_mod
+    from flying_probe_copilot.parser.cli import main
+
+    # Ensure the run dir has multiple log files so "early success then late failure" is meaningful
+    assert len(small_batch_log.boards) >= 3, (
+        "Test requires a multi-file run; small_batch_log fixture has too few boards"
+    )
+
+    run_dir = _write_run(tmp_path, small_batch_log, "small")
+    db_path = tmp_path / "bug008.duckdb"
+
+    real = ingest_mod._ingest_batch_log
+    call_count = {"n": 0}
+
+    def _succeed_then_boom(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] >= 3:
+            raise RuntimeError("simulated late-file ingest failure")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ingest_mod, "_ingest_batch_log", _succeed_then_boom)
+    ret = main(["--input", str(run_dir), "--db", str(db_path)])
+    assert ret == 1, f"Mid-loop exception must yield exit 1, got {ret}"
+
+    # The transaction must have rolled back the 2 earlier-file successes
+    con = duckdb.connect(str(db_path))
+    panels = con.execute("SELECT COUNT(*) FROM panels").fetchone()[0]
+    test_runs = con.execute("SELECT COUNT(*) FROM test_runs").fetchone()[0]
+    measurements = con.execute("SELECT COUNT(*) FROM measurements").fetchone()[0]
+    runs = con.execute("SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]).fetchone()[0]
+    con.close()
+    assert panels == 0, f"BUG-008: rollback failed — {panels} panel rows survived"
+    assert test_runs == 0, f"BUG-008: rollback failed — {test_runs} test_run rows survived"
+    assert measurements == 0, f"BUG-008: rollback failed — {measurements} measurement rows survived"
+    assert runs == 0, f"runs row must not be persisted on failure, got {runs}"
+
+    # Retry without the patch — must succeed cleanly, no PK conflicts
+    monkeypatch.setattr(ingest_mod, "_ingest_batch_log", real)
+    ret2 = main(["--input", str(run_dir), "--db", str(db_path)])
+    assert ret2 == 0, f"Retry after rollback must succeed (exit 0), got {ret2}"
+
+    con = duckdb.connect(str(db_path))
+    panels = con.execute("SELECT COUNT(*) FROM panels").fetchone()[0]
+    con.close()
+    assert panels == len(small_batch_log.boards), (
+        f"Retry must insert all {len(small_batch_log.boards)} panels, got {panels}"
+    )

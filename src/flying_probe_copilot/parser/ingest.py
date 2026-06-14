@@ -468,6 +468,13 @@ def ingest_run_directory(
     BUG-006: the ``runs`` row is inserted AFTER the per-file loop completes, so
     a parse/insert failure mid-ingest does not leave a stuck ``runs`` row that
     would block re-ingest via the CLI pre-flight guard.
+
+    BUG-008: the entire ingest runs in a single explicit transaction. Any
+    exception triggers a ROLLBACK so all earlier-file fact rows (``panels``,
+    ``test_runs``, ``measurements``, ``failures``) are discarded along with the
+    omitted ``runs`` row. Without this, a partial multi-file failure would
+    leave earlier panels committed, then a retry would pass the runs-row guard
+    and hit PRIMARY KEY conflicts on ``panels.panel_serial``.
     """
     run_dir = Path(run_dir)
     run_id = run_dir.name  # e.g. 'run_2026-04-01T08-30-00-000000'
@@ -494,50 +501,63 @@ def ingest_run_directory(
         failure=_max_or("failures", "failure_id"),
     )
 
-    # Ensure board dim row
-    _ensure_board_dim(con, board_profile_id)
+    # BUG-008: wrap the entire ingest in a single transaction so any failure
+    # rolls back ALL fact-table inserts (not just the runs row).
+    con.execute("BEGIN TRANSACTION")
+    try:
+        # Ensure board dim row (rolls back too if the transaction aborts, which
+        # is fine — INSERT OR IGNORE on retry is idempotent).
+        _ensure_board_dim(con, board_profile_id)
 
-    # Walk log files (BEFORE inserting the runs row, per BUG-006)
-    logs_dir = run_dir / "logs"
-    log_files = sorted(logs_dir.glob("*.log")) if logs_dir.exists() else []
+        # Walk log files (BEFORE inserting the runs row, per BUG-006)
+        logs_dir = run_dir / "logs"
+        log_files = sorted(logs_dir.glob("*.log")) if logs_dir.exists() else []
 
-    for log_path in log_files:
-        try:
-            batch_log, parse_report = parse_log_file(log_path, encoding=encoding)
-        except Exception as exc:
-            report.notes.append(f"Failed to parse {log_path.name}: {exc}")
-            report.parse_errors += 1
-            continue
+        for log_path in log_files:
+            try:
+                batch_log, parse_report = parse_log_file(log_path, encoding=encoding)
+            except Exception as exc:
+                report.notes.append(f"Failed to parse {log_path.name}: {exc}")
+                report.parse_errors += 1
+                continue
 
-        report.parse_errors += len(parse_report.errors)
-        report.files_processed += 1
+            report.parse_errors += len(parse_report.errors)
+            report.files_processed += 1
 
-        p, tr, m, f = _ingest_batch_log(
-            con, batch_log, run_id, board_profile_id, counters
+            p, tr, m, f = _ingest_batch_log(
+                con, batch_log, run_id, board_profile_id, counters
+            )
+            report.panels_inserted += p
+            report.test_runs_inserted += tr
+            report.measurements_inserted += m
+            report.failures_inserted += f
+
+        # Insert run-level row LAST. If anything above raised, control flow
+        # jumps to the except block and this row is never written (BUG-006).
+        con.execute(
+            """
+            INSERT INTO runs
+                (run_id, board_profile_id, seed, fault_rate, fault_profile,
+                 panel_count, failing_boards)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                run_id,
+                board_profile_id,
+                int(manifest.get("seed", 0)),
+                float(manifest.get("fault_rate", 0.0)),
+                manifest.get("fault_profile", "random"),
+                int(manifest.get("panel_count", 0)),
+                int(manifest.get("failing_boards", 0)),
+            ],
         )
-        report.panels_inserted += p
-        report.test_runs_inserted += tr
-        report.measurements_inserted += m
-        report.failures_inserted += f
-
-    # Insert run-level row LAST. If anything above raised, this row is never
-    # written and the CLI re-ingest guard will permit a retry (BUG-006).
-    con.execute(
-        """
-        INSERT INTO runs
-            (run_id, board_profile_id, seed, fault_rate, fault_profile,
-             panel_count, failing_boards)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            run_id,
-            board_profile_id,
-            int(manifest.get("seed", 0)),
-            float(manifest.get("fault_rate", 0.0)),
-            manifest.get("fault_profile", "random"),
-            int(manifest.get("panel_count", 0)),
-            int(manifest.get("failing_boards", 0)),
-        ],
-    )
+    except Exception:
+        # Roll back EVERY insert (panels, test_runs, measurements, failures,
+        # dim-table INSERT-OR-IGNOREs) so the DB is byte-identical to its
+        # pre-call state. The CLI catches the re-raised exception and returns
+        # exit 1; the operator can then re-run after fixing the cause.
+        con.execute("ROLLBACK")
+        raise
+    con.execute("COMMIT")
 
     return report

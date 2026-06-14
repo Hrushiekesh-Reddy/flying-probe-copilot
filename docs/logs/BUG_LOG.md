@@ -14,6 +14,17 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-008] Partial multi-file ingest failure left earlier files' fact rows committed, blocking retry with PK conflicts (P2) — RESOLVED 2026-06-14
+
+**Discovered:** 2026-06-14
+**Phase:** Phase 1b — PR #9 follow-up Bugbot review (comment id 3410321846, medium severity) on the BUG-006 fix
+**File(s):** `src/flying_probe_copilot/parser/ingest.py:489-555` (post-BUG-006 / pre-BUG-008)
+**Symptom:** After the BUG-006 fix (deferring the `runs` INSERT to after the loop), a mid-loop failure no longer left a stranded `runs` row — but earlier successful files' `panels` / `test_runs` / `measurements` / `failures` rows were still committed because each insert was an implicit autocommit. The CLI re-ingest guard then correctly allowed retry, but the retry hit PRIMARY KEY conflicts on `panels.panel_serial` (and the surrogate-PK fact tables, since counters were re-initialised from MAX+1 but earlier panel serials already existed).
+**Root Cause:** No explicit transaction wrapping. DuckDB defaults to autocommit on each `con.execute(...)`, so partial state survived the function-level exception. The BUG-006 fix solved only the runs-row stickiness, not the broader atomicity gap.
+**Fix:** Wrapped the entire ingest body (after manifest parse + counter init) in `con.execute("BEGIN TRANSACTION")` / `con.execute("COMMIT")` with a `try/except` that runs `con.execute("ROLLBACK"); raise` on any failure. The dim-table `INSERT OR IGNORE` calls roll back too, but that's safe — the next retry's `INSERT OR IGNORE` is idempotent. Surrogate-PK counters are re-derived from MAX+1 on each call, so retry-after-rollback starts fresh.
+**Verification:** `tests/test_parser/test_cli.py::test_partial_multi_file_failure_rolls_back_earlier_panels` monkeypatches `_ingest_batch_log` to succeed on the first two calls and raise on the third, then asserts `SELECT COUNT(*) FROM panels / test_runs / measurements / runs` all return 0 after the failure. Then lifts the patch, retries, and asserts `panels` count equals the full board count (proving no PK conflicts on retry). 185/185 tests pass; ingest.py coverage held at 100%.
+**Time to resolve:** ~15 min.
+
 ## [BUG-007] Parser-rebuilt PanelInstance hardcodes shift="A" and line_id="LINE-A" (P2) — OPEN, deferred to Phase 2
 
 **Discovered:** 2026-06-14
