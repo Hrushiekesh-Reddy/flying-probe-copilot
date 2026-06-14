@@ -5,6 +5,80 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-14 — Phase 1b: DuckDB schema shape (boards + panels split, global components, persisted limits, ParseReport, runs metadata)
+
+**Decision:** The Phase 1b DuckDB schema uses 9 tables organised as 5 dimension + 1 metadata + 3 fact:
+
+- **Dimensions:** `boards` (board profiles only — small/medium/large + their BOM metadata; ~3 rows ever), `panels` (per-serial unit-under-test instances; one row per panel ever produced), `operators` (per `operator_id` seen in `@BATCH`), `components` (global per `(board_profile_id, refdes)` — N=~120 for small, ~450 for medium, ~1600 for large — looked up at ingest with `INSERT OR IGNORE` on the `UNIQUE` index), `tests` (per `(board_profile_id, block_designator, record_type)`).
+- **Metadata:** `runs` (one row per generator run-directory ingested; columns sourced from `manifest.json` plus the directory basename as `run_id` and `ingested_at` defaulted to `CURRENT_TIMESTAMP`).
+- **Facts:** `test_runs` (one per `@BTEST` record per panel), `measurements` (one per `@A-*` / `@D-T` / `@TS` / `@TJET` / `@PF` record, with type-specific nullable columns including `limit_high`/`limit_low`/`limit_nominal` from `@LIM2`/`@LIM3`), `failures` (denormalized convenience table: one row per non-PASS measurement, with `panel_serial` + `board_profile_id` carried for fast Pareto without joins).
+
+The parser returns a structured `ParseReport` (errors + notes + record_count) rather than logging silently — testable, audit-friendly.
+
+**Why:** All four decisions came from the Phase 1b brief's Step 2 explore + the owner's pre-plan answers:
+
+1. *boards (profile) vs panels (instance) split:* "yield by board over last week" reads naturally as per-profile aggregation for a manufacturing engineer (small profile = X% yield); per-serial yield would be 100%/0% noise. The split keeps the semantic clean and lets the same `panels` table back per-serial drill-downs in Phase 2 dashboards.
+2. *Components global per (profile, refdes):* per-panel rows would explode the components table 100–1000× and make cross-panel "how does R12 behave?" queries expensive. Global per (profile, refdes) keeps the dim stable.
+3. *Limits persisted as nullable columns:* +3 nullable floats per measurement row is cheap. Without them, Phase 2 "which measurements failed because spec tightened" queries would have to re-parse logs or re-derive from the spec — both lossy.
+4. *ParseReport object:* testable assertions on error counts + line numbers; matches the brief's "captured in a `parse_report` or logged" success criterion line.
+5. *runs metadata table from manifest:* free during ingest; enables cross-run comparison queries ("compare fault rates across runs") and is the natural anchor for the re-ingest guard (#WARNING-13 below).
+
+**Rejected:**
+- *Single `boards` table conflating profile + instance* — wrong semantics for the named exit query; would have forced per-serial yield aggregation.
+- *Per-panel `components` rows* — table size explosion + duplicate-key handling pain on every ingest.
+- *Skip limits* — irrecoverable for downstream Pareto analysis.
+- *Silent error logging instead of ParseReport* — untestable.
+- *Skip manifest ingest* — single-run-only parser, no cross-run comparison.
+
+**Test contracts pinned:**
+- `tests/test_parser/test_schema.py::test_init_database_creates_all_9_tables` — `TABLES` constant length == 9; `SHOW TABLES` set-equals constant.
+- `tests/test_parser/test_schema.py::test_each_table_has_expected_columns` — per-table column shape audit.
+- `tests/test_parser/test_ingest.py::test_ingest_components_global_per_profile_refdes` — re-ingesting the same panel twice leaves `components` row-count unchanged for that profile.
+
+**Revisit:** End of Phase 2. If the failures denormalization shows drift symptoms (e.g. `failures.board_profile_id` differs from the joined `panels.board_profile_id`), add a constraint or a periodic reconciliation query. If the surrogate-PK Python counter approach proves slow on >1M-row ingests, swap to DuckDB sequences.
+
+---
+
+## 2026-06-14 — Phase 1b: `test_runs.operator_id` nullable; per-panel operator recovery deferred to Phase 2
+
+**Decision:** `test_runs.operator_id` is declared `VARCHAR` (nullable), not `VARCHAR NOT NULL`. The parser populates it from the single `@BATCH.operator_id` field on the per-board log file. Per-panel operator recovery (which the generator currently does NOT preserve in per-board logs) is deferred to Phase 2.
+
+**Why:** Per-board `.log` files contain `@BATCH.operator_id` once. The generator's `cli.py:140` uses `boards[0].panel.operator_id` for that field — so every per-board file in a run inherits the first panel's operator. The actual per-panel `PanelInstance.operator_id` is preserved only in `results.json` / `results.csv`, which the brief explicitly excluded from ingest. Three repair options were considered:
+- Edit the generator to add `operator_id` to `@BTEST` — out of Phase 1b scope (generator edits prohibited).
+- Read `results.json` as a sidecar during ingest — violates the brief's "log files only" promise.
+- Use `@BATCH.operator_id` and document the degradation — chosen.
+
+Making the column nullable converts a silent-degraded-data risk into an explicit "this column may be incomplete" contract, which downstream analytics + dashboards can opt into respecting.
+
+**Rejected:**
+- *`NOT NULL` constraint:* would have crashed ingest on the first panel of any run that didn't expose an operator anywhere — and silently degraded data on every run that did, since every panel in a run gets the same operator.
+- *Generator change in Phase 1b:* out of scope, scope-creep risk.
+- *`results.json` sidecar read:* violates the brief's CSV/JSON-not-ingested commitment.
+
+**Test contract:** No specific test for nullability today; the schema's column declaration + `init_database` idempotency tests verify the column is `VARCHAR` without a `NOT NULL` modifier. Phase 2's operator-id repair will need a dedicated test.
+
+**Revisit:** Phase 2 first session. Decide whether to extend `@BTEST` (generator change) or to ingest `results.json` as an authorized sidecar. Either path lets the column flip to `NOT NULL` if we want strict integrity.
+
+---
+
+## 2026-06-14 — Phase 1b: re-ingest guarded at CLI, not at schema (single-run idempotency contract)
+
+**Decision:** The parser CLI does a pre-flight `SELECT 1 FROM runs WHERE run_id = ?` before any insert. If the run is already present, the CLI exits with code 2 and a stderr message. The schema itself is NOT idempotent on fact tables (`panels`, `test_runs`, `measurements`, `failures` would all PK-conflict or duplicate on re-insert). Dimension tables use `INSERT OR IGNORE` semantics (`boards`, `operators`, `components`, `tests` — shared across runs).
+
+**Why:** Two options were on the table — make the entire ingest idempotent (UPSERT everywhere) or guard at the CLI. The guard approach is simpler for v1: it surfaces a clear error to the operator ("this run is already ingested; use --overwrite in Phase 2"), prevents accidental double-counting in yield/Pareto queries, and avoids the complexity of teaching every fact table how to dedup against an in-progress ingest. UPSERT-everywhere would also have masked partial-ingest failures (half a run already in, second attempt silently completes the other half).
+
+**Rejected:**
+- *UPSERT every table:* hides partial failures and over-promises idempotency on facts that genuinely shouldn't double-count.
+- *Silently allow duplicates and let Phase 2 dedup at query time:* poisons analytics until the dedup layer ships.
+- *No re-ingest support at all (exit code 0 + skip):* hides operator intent — the operator may have wanted to re-ingest to refresh after a parser bug fix.
+
+**Test contracts:**
+- `tests/test_parser/test_cli.py::test_cli_exits_with_code_2_when_run_already_ingested` — pin the CLI behaviour.
+
+**Revisit:** Phase 2. Add `--overwrite` flag that performs `DELETE FROM <table> WHERE run_id = ?` across fact tables before re-inserting. Or add `--append` that ignores the guard and lets duplicates accumulate (useful for stress testing).
+
+---
+
 ## 2026-06-14 — Fault correlation wired through `generate_blocks` (addendum to 2026-06-13)
 
 **Decision:** The refdes-numerical clustering heuristic documented in the 2026-06-13 entry below now actually fires during panel generation. `generate_blocks` (in `src/flying_probe_copilot/generator/blocks.py`) picks the primary failing component as before, then calls a new `_pick_correlated_failures(primary, profile, rng)` helper that performs per-candidate Bernoulli secondary-failure draws against same-family components. The candidate draw uses `rate = BASELINE_SECONDARY_RATE * correlation_multiplier(primary, candidate)` with `BASELINE_SECONDARY_RATE = 0.3`, and the draw is **only performed when `correlation_multiplier > 1.0`** (i.e., for ±3 refdes neighbors). Far candidates and cross-family candidates get no secondary draw.
