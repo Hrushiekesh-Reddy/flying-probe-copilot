@@ -57,14 +57,14 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 - [x] DuckDB schema: dimension tables (boards, panels, operators, components, tests) + fact tables (test_runs, measurements, failures) + runs metadata table (9 tables total)
 - [x] Parser ingests generator output reliably
 - [x] CLI: `uv run parser --input=data/synthetic/<run_dir>/ --db=data/db/flying-probe.duckdb`
-- [ ] Sample SQL queries documented in `notebooks/01-queries.ipynb` (deferred — small standalone doc task, surfaced via spawn_task chip)
+- [x] Sample SQL queries documented in `notebooks/01-queries.ipynb` (canonical yield-by-board-last-7-days exit query + 5 representative analytics queries: failure Pareto by record_type, per-shift yield, per-operator yield, top-10 failing refdes, btest_status distribution)
 - [x] Parser tests: round-trip integrity (generator → parser → DB → match)
 - [x] Error handling for malformed lines (log + skip, don't crash)
 
 ### Exit criteria
 "Yield by board over last week" query returns correct result. Round-trip test passes for ≥99% of generator output.
 
-**Status (2026-06-14):** 6/7 deliverables complete (notebook deferred). 179 tests passing / 0 failing / 97% total coverage; parser 97%, db 100%. Round-trip test asserts count + per-panel start_ts equality. Yield query test passes with a deterministic 2-week × 2-profile fixture (last-week window with `>=` boundary semantics). 10-step session-workflow loop ran end-to-end.
+**Status (2026-06-14):** 7/7 deliverables complete. 179 tests passing / 0 failing / 97% total coverage; parser 97%, db 100%. Round-trip test asserts count + per-panel start_ts equality. Yield query test passes with a deterministic 2-week × 2-profile fixture (last-week window with `>=` boundary semantics). Notebook `notebooks/01-queries.ipynb` authored against a 20-panel small-profile sample DB (`data/db/sample.duckdb`, gitignored via `*.duckdb`); every code cell smoke-tested in-process against the live DB. 10-step session-workflow loop ran end-to-end.
 
 ---
 
