@@ -36,16 +36,33 @@ Severity:
 **Verification:** `test_available_profiles_returns_size_ascending_order` passes; manual QA Test 6 shows ordered list.
 **Time to resolve:** in progress (estimated 5 min, this session).
 
-## [BUG-001] Web-research subagent cached proprietary Keysight PDF + Virinco LGPL source in `.cache_research/` (P1) — OPEN
+## [BUG-001] Web-research subagent cached proprietary Keysight PDF + Virinco LGPL source in `.cache_research/` (P1) — RESOLVED 2026-06-13
 
 **Discovered:** 2026-06-13
 **Phase:** Phase 1a — Step 2 (Explore)
-**File(s):** `.cache_research/LogRecordFormat.pdf`, `.cache_research/LogRecordFormat.txt`, `.cache_research/Importer.cs`, `.cache_research/UnitMapper.cs`, `.cache_research/README.md`
-**Symptom:** Step 2's external-research subagent (general-purpose, web-enabled) downloaded the Keysight "i3070 Log Record Format" PDF and its extracted text, plus three files from the Virinco WATS-Client-Converter repo (LGPL-3.0), into a working `.cache_research/` directory at the repo root. None of these files were in `.gitignore` at the time; a `git add .` could have committed proprietary Keysight content into the repo, violating CLAUDE.md hard guardrail #3 ("No proprietary Keysight documentation copied wholesale").
-**Root Cause:** The subagent was instructed to do public-sources research with citations. It correctly fetched material to read it, but persisted the raw downloads at the repo root instead of in `~/.cache/` or `%TEMP%`. The guardrail was not part of its charter.
-**Fix (in-session, immediate):** (a) Added `.cache_research/` to `.gitignore` so it cannot enter the repo accidentally; (b) entire directory will be deleted after Step 3 (Plan) consumes the information; (c) future Explore-style external-research charters must include "do not persist downloaded source material at the repo root — use `%TEMP%` and write a citation-only report."
-**Verification:** `git check-ignore .cache_research/LogRecordFormat.pdf` returns the file as ignored; `.cache_research/` deleted at end of session and absence verified before commit at Step 8.
-**Time to resolve:** ~5 min (gitignore + BUG_LOG entry); cleanup deferred to Step 8.
+**File(s):** `.cache_research/LogRecordFormat.pdf`, `.cache_research/LogRecordFormat.txt`, `.cache_research/Importer.cs`, `.cache_research/UnitMapper.cs`, `.cache_research/README.md`, plus stray `flying-probe-copilot.cache_researchImporter.cs` (malformed path concatenation)
+**Symptom:** Step 2's external-research subagent (general-purpose, web-enabled) downloaded the Keysight "i3070 Log Record Format" PDF and its extracted text, plus three files from the Virinco WATS-Client-Converter repo (LGPL-3.0), into a working `.cache_research/` directory at the repo root. A separate `flying-probe-copilot.cache_researchImporter.cs` artifact also appeared, evidence of a path-concatenation bug in the subagent's file-saving code. None of these files were in `.gitignore` at the time; a `git add .` could have committed proprietary Keysight content into the repo, violating CLAUDE.md hard guardrail #3 ("No proprietary Keysight documentation copied wholesale").
+**Root Cause:** The subagent was instructed to do public-sources research with citations. It correctly fetched material to read it, but persisted the raw downloads at the repo root instead of in `~/.cache/` or `%TEMP%`. The guardrail was not part of its charter. The stray artifact additionally indicates the subagent built file paths by string-concatenating "<project-name>" + ".cache_research" + "<filename>" instead of a platform-correct path join.
+**Fix:**
+  In-session (2026-06-13):
+    (a) Added `.cache_research/` to `.gitignore`;
+    (b) deleted `.cache_research/` and the stray `flying-probe-copilot.cache_researchImporter.cs` artifact;
+    (c) noted the issue in DECISION_LOG.
+  Process improvement (2026-06-13, this entry's resolution):
+    (d) Added an "External Research / Web Download Policy" block to the Explorer charter in `.claude/skills/session-workflow/SKILL.md` (Step 2) requiring `%TEMP%\agent-research\<session>\` (Win) or `~/.cache/agent-research/<session>/` (Unix) for any caching, citation-only reports, no copying of LGPL/GPL/proprietary source, mandatory cleanup with a `Cleanup:` line in the report, and an explicit STOP-on-bad-path rule that catches the path-concatenation bug pattern.
+    (e) Added a matching charter block to `.claude/skills/deep-research/SKILL.md` Step 2 ("Charter for every fan-out search agent") and reinforced in the Research quality rules.
+    (f) Added a one-line summary to `.claude/rules/session-workflow.md` Hard rules.
+    (g) Added matching rows to the Subagent charter summary table.
+    (h) Source of truth for these edits is `E:\hrk-agent-starter\` (the portable kit) — all three files updated there and propagated here, so future stamps of new projects inherit the policy automatically.
+**Verification:**
+  - `.cache_research/` and stray artifact removed from working tree (in-session, 2026-06-13).
+  - `.cache_research/` present in `.gitignore`: verified.
+  - Charter updated in both `E:\hrk-agent-starter\` (source of truth) and `E:\flying-probe-copilot\` (this project), files:
+    `.claude\skills\session-workflow\SKILL.md` (Step 2 + summary table),
+    `.claude\skills\deep-research\SKILL.md` (Step 2 + quality rules),
+    `.claude\rules\session-workflow.md` (Hard rules).
+  - Behavioural verification deferred to next external-research session: confirm the spawned subagent (i) writes only to `%TEMP%\agent-research\<session>\`, (ii) returns a `Cleanup:` line, (iii) the post-session `git status` shows no new files under the repo root and no path-mangled artifacts.
+**Time to resolve:** ~5 min (in-session mitigation, 2026-06-13) + ~30 min (process improvement: charter language drafted, applied to starter + project, 2026-06-13).
 
 ---
 
