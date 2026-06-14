@@ -29,6 +29,35 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ## Sessions
 
+### 2026-06-14 — Phase 1a meta — branch: feature/exec-agent-and-templates
+
+**Goal:** Reduce token cost of the 10-step multi-agent loop by (a) adding a dedicated, tool-restricted execution sub-agent and (b) formalizing tier-based step selection plus a context-cache brief for sub-agents.
+**Outcome:** Done — four governance files added under `.claude/`. No source code touched. No phase deliverables affected.
+
+### Done
+- `.claude/agents/exec.md` — dedicated Step-5 execution sub-agent. Tool allowlist: `Read, Write, Edit, Glob, Grep, Bash, TaskCreate, TaskList, TaskUpdate, TaskGet, mcp__ccd_session__spawn_task, mcp__4d8ab89c-...query-docs, mcp__4d8ab89c-...resolve-library-id`. Pinned to `sonnet`. Hard-restricted from spawning further sub-agents, web access, browser/desktop control, plan-mode toggling, and nested workflows.
+- `.claude/templates/sub-agent-brief.md` — context-cache brief template. Parent fills once per session and pastes verbatim into every sub-agent dispatch. Targets 3-5k input-token saving per dispatch and enables prompt-cache prefix reuse across the 4 sub-agents of a Large-tier loop.
+- `.claude/templates/tiering.md` — four-tier task classification (Trivial / Small / Medium / Large), five-minute decision rule, worked examples for this repo, and the mid-session escalation protocol (STOP → log tier escalation → reset brief → restart at the new tier's correct step).
+- `.claude/templates/prompt-caching.md` — mechanics of Anthropic prompt caching, five practical rules for cache-friendly sessions, annotated session timeline, anti-patterns. Estimated savings: 30–50% input tokens on Medium/Large loops when rules are followed.
+
+### Decisions
+- Dedicated `exec` sub-agent over relying on `execute-plan` skill alone — see DECISION_LOG (tool restrictions enforce scope where a skill can only advise).
+- Tier-based step selection over uniform full-loop — see DECISION_LOG.
+- Context-cache brief block as standard sub-agent prompt prefix — see DECISION_LOG.
+
+### Bugs
+- None.
+
+### Out-of-scope items found
+- `.claude/skills/session-workflow/SKILL.md` does not yet reference the new templates. Wiring this in is a follow-up — surfaced to owner, deferred.
+
+### Next session should
+1. Decide whether to wire `session-workflow/SKILL.md` to reference `tiering.md` + `sub-agent-brief.md` so the loop actually uses them, or leave as documentation-only.
+2. Resume Phase 1a — synthetic HP3070 log generator design (Step 1 brief → Step 2 explore of `specs/synthetic-log-generator.md`).
+3. First Phase 1a session is a good candidate to dogfood the new exec agent + brief template on a Medium-tier task.
+
+---
+
 ### 2026-06-13 — Phase 1a — branch: feature/gitignore-data-synthetic-v2
 
 **Goal:** Broaden `data/synthetic/` ignore pattern so 20–50 MB bulk generator outputs (results.csv/json from 1k-panel runs) cannot accidentally enter the repo via `git add .`.
