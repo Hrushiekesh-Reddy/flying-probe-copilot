@@ -4,6 +4,35 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-14 — Phase 1a — branch: feature/lexical-test-via-generate-blocks
+
+**Goal:** Close the coverage gap Bugbot flagged in PR #3 review (comment id 3409766434, medium severity): `tests/test_generator/test_lexical_compliance.py` built panels with a hardcoded 4-block fixture (shorts + R12 + D1 + U7) — the pre-BUG-002 shape — so after the BUG-002 fix the lexical/grammar assertion never actually exercised the real CLI block-generation path (`generate_blocks`) that emits 51 / 201 / 801 blocks per panel for small / medium / large.
+**Outcome:** Done. 98 / 98 tests pass; 94% coverage held. The four lexical tests now validate ~2,376 emitted blocks of real-CLI-path output (was ~152).
+
+### Done
+- Rewrote `tests/test_generator/test_lexical_compliance.py`:
+  - New helper `_build_batch_log_via_cli_path(...)` mirrors `cli._build_batch_log` exactly — `generate_blocks(profile, outcome, panel_seed)` per panel, `panel_seed = seed * 1000 + idx`, change-point midway through the window, 12-second board duration.
+  - Replaced the 3 old tests with 4 new ones: `test_{small,medium,large}_profile_cli_path_output_passes_grammar` + `test_drift_profile_cli_path_output_passes_grammar`. Coverage now spans all 3 profiles (was small + medium only) and runs grammar.validate over every emitted block.
+  - Added `_assert_blocks_scale_with_profile(batch_log, profile_name)` helper as a regression guard — fails loudly if `generate_blocks` ever silently shrinks back to a sample-sized output. Requires ≥ `profile.component_count + 1` blocks per board (one shorts + one per component).
+  - Dropped the old 4-block fixture builder entirely. Task statement said "if useful"; per-record lexical patterns are already covered by `tests/test_generator/test_grammar.py`, so keeping the fixture would duplicate coverage without adding signal.
+- Counts validated per run: small × 3 panels × ≥51 blocks ≈ 153; medium × 2 × ≥201 ≈ 402; large × 1 × ≥801 ≈ 801; drift (small) × 20 × ≥51 ≈ 1020. Total ≈ 2,376 real-path blocks vs the prior 152.
+
+### Decisions
+- Did **not** keep a "minimal sanity" 4-block test (the task offered that as optional). Per-record grammar coverage already lives in `test_grammar.py`; a second 4-block test in `test_lexical_compliance.py` would have duplicated it without adding signal.
+- Used `_assert_blocks_scale_with_profile` rather than an exact-count assertion. `generate_blocks` deterministically emits exactly `component_count + 1` blocks today, but using `>=` keeps the test resilient to future additions (extra `@TJET` / `@PF` blocks, etc.) while still catching any BUG-002-style regression to a tiny hardcoded sample.
+
+### Bugs
+- None new. Closes the coverage gap that let BUG-002 land in PR #1.
+
+### Out-of-scope (logged, not fixed)
+- None this session.
+
+### Next session
+- PR `feature/lexical-test-via-generate-blocks` → `dev`. Reference Bugbot comment id 3409766434 in the PR body.
+- Resume Phase 1b — Parser & DuckDB schema (the next pending phase).
+
+---
+
 ## 2026-06-14 — Phase 1a — branch: feature/wire-fault-correlation
 
 **Goal:** Fix the bug Bugbot flagged in PR #3 review (comment id 3409766432, medium severity): `correlation_multiplier` and `correlated_failure_rate` (in `src/flying_probe_copilot/generator/faults.py`) were defined and unit-tested but never invoked from the CLI output path, so the documented clustered-failure Pareto curves never appeared in generator output.
