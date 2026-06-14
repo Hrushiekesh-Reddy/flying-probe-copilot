@@ -19,7 +19,7 @@ dependencies = [
 
 [project.scripts]
 generator = "flying_probe_copilot.generator.cli:main"
-# parser entry deferred until Phase 1b — see docs/ROADMAP.md
+parser = "flying_probe_copilot.parser.cli:main"
 
 [build-system]
 requires      = ["hatchling"]
