@@ -39,6 +39,7 @@ One entry per work session. Written at session end before committing. Newest ent
 - `.claude/templates/sub-agent-brief.md` — context-cache brief template. Parent fills once per session and pastes verbatim into every sub-agent dispatch. Targets 3-5k input-token saving per dispatch and enables prompt-cache prefix reuse across the 4 sub-agents of a Large-tier loop.
 - `.claude/templates/tiering.md` — four-tier task classification (Trivial / Small / Medium / Large), five-minute decision rule, worked examples for this repo, and the mid-session escalation protocol (STOP → log tier escalation → reset brief → restart at the new tier's correct step).
 - `.claude/templates/prompt-caching.md` — mechanics of Anthropic prompt caching, five practical rules for cache-friendly sessions, annotated session timeline, anti-patterns. Estimated savings: 30–50% input tokens on Medium/Large loops when rules are followed.
+- `.claude/templates/work-instructions.md` — plain-English work instructions for the owner (non-programmer). Walks through tier selection, session opening, brief filling, prompt-caching habits, a full Medium-tier session script, and a daily checklist. Cross-links to the other template files.
 
 ### Decisions
 - Dedicated `exec` sub-agent over relying on `execute-plan` skill alone — see DECISION_LOG (tool restrictions enforce scope where a skill can only advise).
