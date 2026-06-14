@@ -71,6 +71,7 @@ After any code change, before committing:
 ## Git & commit policy
 
 - **Never commit directly to `main` or `dev`.** Feature branches only.
+- **Feature PRs target `dev`, never `main` directly.** Promotion to `main` happens via a separate `dev → main` PR at phase boundaries. (The one-time exception during the 2026-06-13 Phase 0 cleanup is logged in `DECISION_LOG.md` and is not the default.)
 - **Never force-push** (`--force`, `--force-with-lease`, `-f`).
 - **Never `git reset --hard`** without explicit owner approval.
 - **Never `git clean -f`** without explicit owner approval.
