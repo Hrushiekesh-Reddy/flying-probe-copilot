@@ -14,6 +14,21 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-004] Shift letter drawn randomly per panel; shift-C wrap snap dropped raw_ts onto wrong overnight window (P2) — RESOLVED 2026-06-14
+
+**Discovered:** 2026-06-14
+**Phase:** Phase 1a — post-merge (PR #3 Bugbot review, comment id 3409766436, low severity)
+**File(s):** `src/flying_probe_copilot/generator/schedule.py:105-128` (pre-fix)
+**Symptom:** `generate_panel_schedule` drew a shift letter (A/B/C) uniformly at random per panel, then snapped to that shift's start hour on the *raw draw's* calendar day. The wrap-correction block for shift C was a literal `pass` — a no-op. Result: a raw timestamp at e.g. 02:00 on day X randomly assigned to shift C was snapped to (day X, 22:00) + 0–8 h, ~20 hours away from the raw draw and inside a *different* shift-C instance than the one that physically contained the raw timestamp. The shift-letter assignment was effectively decoupled from the raw chronology.
+**Root Cause:** Two compounding problems. (a) The shift letter was drawn from `rng.choices(...)` rather than derived from `ts.hour`, so the assigned label had no physical relationship to the raw draw's time-of-day. (b) The shift-C wrap correction was implemented as a commented-out intent (`pass`) — i.e. never implemented.
+**Fix:** Adopted option A from the PR thread. New module-level helpers `_shift_for_hour(hour)` and `_shift_window_start(ts, shift)`; `generate_panel_schedule` now derives `shift = _shift_for_hour(ts.hour)` and anchors the snap to `_shift_window_start(ts, shift)`, which steps back one calendar day when `shift == "C"` and `ts.hour < 6`. The unused `_shift_start_for` helper and the now-unreferenced `time` import were removed. Docstring updated to drop the weekday-shift weighting language (which was implicit and lost when we stopped drawing the shift randomly).
+**Verification:** Three new regression tests in `tests/test_generator/test_schedule.py`:
+  - `test_panel_shift_is_derived_from_raw_timestamp_hour` — narrow 02:00–03:00 window must produce only shift-C panels. RED-confirmed under the bug, passes after fix.
+  - `test_snapped_timestamp_lies_within_assigned_shift_window` — contract: each panel's hour-of-day must lie in its shift's window.
+  - `test_shift_C_panel_in_early_morning_anchors_to_previous_day_window` — for every shift-C panel with `hour < 6`, the (previous-day 22:00, +8h) window must contain it.
+  Full suite: 101/101 pass; total coverage 95% (schedule.py 91%, up from 85%).
+**Time to resolve:** ~35 min (RED → GREEN → cleanup).
+
 ## [BUG-002] Generator hardcodes 4 test records per board regardless of profile (P0) — RESOLVED 2026-06-13
 
 **Discovered:** 2026-06-13

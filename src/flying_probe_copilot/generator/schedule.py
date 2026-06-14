@@ -19,7 +19,7 @@ schedule is byte-reproducible.
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from random import Random
 
 from .models import PanelInstance
@@ -49,14 +49,28 @@ def _line_id_for_index(idx: int, n_lines: int) -> str:
     return f"LINE-{letter}"
 
 
-def _shift_start_for(date: datetime, shift_letter: str) -> datetime:
-    """Return the datetime at which ``shift_letter`` starts on ``date``."""
-    start_hour, _ = _SHIFT_WINDOWS[shift_letter]
-    base = datetime.combine(date.date(), time(hour=start_hour))
-    if shift_letter == "C" and start_hour >= 22 and date.hour < 6:
-        # date is already inside the wrap-around portion; back up to 22:00 of previous day
-        base -= timedelta(days=1)
-    return base
+def _shift_for_hour(hour: int) -> str:
+    """Return the shift letter (A/B/C) whose hour-of-day window contains ``hour``."""
+    if 6 <= hour < 14:
+        return "A"
+    if 14 <= hour < 22:
+        return "B"
+    return "C"  # 22-23 or 0-5
+
+
+def _shift_window_start(ts: datetime, shift: str) -> datetime:
+    """Return the start datetime of the shift-window instance that physically
+    contains ``ts``.
+
+    For shifts A and B the window starts at 06:00 / 14:00 on ``ts.date()``.
+    For shift C the window wraps midnight: when ``ts.hour < 6``, the
+    containing window started at 22:00 on the *previous* calendar day.
+    """
+    start_hour = _SHIFT_WINDOWS[shift][0]
+    if shift == "C" and ts.hour < 6:
+        prev = ts - timedelta(days=1)
+        return datetime(prev.year, prev.month, prev.day, 22, 0, 0)
+    return datetime(ts.year, ts.month, ts.day, start_hour, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -77,10 +91,14 @@ def generate_panel_schedule(
     """Generate ``count`` ``PanelInstance`` records spanning ``[start, end)``.
 
     Distribution rules:
-      * Each panel is assigned to a shift letter (A/B/C), weighted toward
-        weekday A & B shifts; weekend production is lower.
-      * Timestamps within a shift cluster around its start hour with a small
-        random offset (0..7h59m) so the hour-of-day matches the shift window.
+      * Raw timestamps are drawn uniformly over ``[start, end)``. Each
+        panel's shift letter (A/B/C) is then *derived* from the raw draw's
+        hour-of-day, so the snapped timestamp always lands inside the same
+        shift-window instance that physically contained the raw draw.
+      * Timestamps are snapped within their shift's 8h window (0..7h59m
+        offset from the window's start). Shift C wraps midnight, so an
+        early-morning raw draw anchors to the previous calendar day's 22:00
+        window-start.
       * Operators rotate every 60-180 panels.
       * Lines are assigned round-robin in chronological emission order.
       * testplan_rev (returned via ``test_program_versions``) holds for
@@ -102,28 +120,20 @@ def generate_panel_schedule(
     raw_seconds = sorted(rng.uniform(0.0, span_seconds) for _ in range(count))
     raw_datetimes = [start + timedelta(seconds=s) for s in raw_seconds]
 
-    # 2. Snap each timestamp into its shift bucket: pick a shift weighted by
-    #    weekday (weekend = 0.3x weight on all shifts), then place within
-    #    that shift's 8-hour window.
+    # 2. Derive each panel's shift from its raw timestamp's hour-of-day,
+    #    then snap within that shift's 8-hour window. Anchoring to the raw
+    #    draw (rather than re-drawing the shift uniformly) keeps the snapped
+    #    timestamp inside the *same* shift-window instance that physically
+    #    contained the raw draw — critical for shift C, whose window wraps
+    #    midnight.
     shift_letters: list[str] = []
     snapped_timestamps: list[datetime] = []
     for ts in raw_datetimes:
-        is_weekday = ts.weekday() < 5
-        # Weekday shift weights heavily favour A and B (day shifts).
-        if is_weekday:
-            weights = [0.40, 0.35, 0.25]   # A, B, C
-        else:
-            weights = [0.35, 0.35, 0.30]   # weekend slightly flatter
-        shift = rng.choices(["A", "B", "C"], weights=weights, k=1)[0]
-        start_hour, length = _SHIFT_WINDOWS[shift]
-        offset_minutes = rng.randint(0, length * 60 - 1)
-        snapped = datetime(
-            ts.year, ts.month, ts.day, start_hour, 0, 0
-        ) + timedelta(minutes=offset_minutes)
-        if shift == "C" and snapped.hour < 6:
-            # Shift C wraps midnight: ensure we end on the same logical day
-            # the raw ts was on; the hour-of-day will be 22..05 inclusive.
-            pass
+        shift = _shift_for_hour(ts.hour)
+        window_start = _shift_window_start(ts, shift)
+        length_hours = _SHIFT_WINDOWS[shift][1]
+        offset_minutes = rng.randint(0, length_hours * 60 - 1)
+        snapped = window_start + timedelta(minutes=offset_minutes)
         shift_letters.append(shift)
         snapped_timestamps.append(snapped)
 

@@ -76,6 +76,39 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-14 — Phase 1a — branch: feature/fix-shift-snap-overnight
+
+**Goal:** Fix the shift-snap overnight bug flagged in PR #3 Bugbot review (comment id 3409766436, low severity). `generate_panel_schedule` drew a shift letter uniformly per panel and snapped to that shift's start hour on the raw draw's calendar day; the `if shift == "C" and snapped.hour < 6: pass` wrap-correction was a no-op. So a raw_ts at 02:00 randomly assigned to shift C landed in the SAME day's 22:00–05:59 window — ~20 hours away from the raw draw and in a different shift-C instance than the one that physically contained the raw_ts.
+**Outcome:** Done. Option A (derive shift from raw_ts.hour) applied. 101/101 tests pass; total coverage 95%.
+
+### Done
+- `src/flying_probe_copilot/generator/schedule.py`:
+  - Added module-level helpers `_shift_for_hour(hour)` and `_shift_window_start(ts, shift)`. The latter steps back one calendar day when `shift == "C"` and `ts.hour < 6`, anchoring the snap to the overnight window that physically contains the raw draw.
+  - Rewrote step 2 of `generate_panel_schedule` to derive the shift letter from `ts.hour` and snap within that window. Dropped the random-draw + weekday-weighting branch.
+  - Removed dead helper `_shift_start_for` (referenced nowhere after the rewrite) and the now-unused `time` import.
+  - Updated the docstring's "Distribution rules" to describe the derive-then-snap flow and the shift-C wrap behaviour.
+- `tests/test_generator/test_schedule.py` — three new regression tests:
+  - `test_panel_shift_is_derived_from_raw_timestamp_hour` (RED-first, then GREEN): a narrow 02:00–03:00 window must yield only shift-C panels. Under the bug this got mixed A/B/C labels.
+  - `test_snapped_timestamp_lies_within_assigned_shift_window`: contract check that every panel's hour-of-day lies in its declared shift's window.
+  - `test_shift_C_panel_in_early_morning_anchors_to_previous_day_window`: for every shift-C panel with `hour < 6`, the 8h window starting at `(timestamp.date - 1day) 22:00` must contain it.
+- BUG-004 logged in `docs/logs/BUG_LOG.md` with RED-confirmation note.
+
+### Decisions
+- Picked option A (derive shift from raw_ts.hour) over option B (keep random draw, subtract a day for the wrap case). A removes a whole class of "raw vs snapped chronology drift" failures, not just the one Bugbot flagged. Trade-off: lost the explicit weekday-shift weighting (A=0.40, B=0.35, C=0.25 weekday / 0.35,0.35,0.30 weekend). Under fix A the shift split inherits uniformly from the raw_ts hour distribution (~1/3 each). Existing `test_timestamps_cluster_in_three_shifts` and `test_timestamps_weekday_heavy` both still pass — the latter because raw_ts uniform → 5/7 ≈ 71.4% weekday share, above the test's ≥70% floor.
+- Did not pre-weight raw timestamps by hour to re-impose the old shift split. The PR thread mentioned that as an option to "preserve the weekday-weighted distribution", but the weights were small and the realism payoff is marginal versus the extra complexity. Park for a later realism pass if needed.
+
+### Bugs
+- BUG-004 (this session, resolved).
+
+### Out-of-scope (logged, not fixed)
+- None this session.
+
+### Next session
+- PR `feature/fix-shift-snap-overnight` → `dev`. Reference Bugbot comment id 3409766436 in the PR body.
+- Resume Phase 1b — Parser & DuckDB schema.
+
+---
+
 ## 2026-06-14 — Phase 1a — branch: feature/lexical-test-via-generate-blocks
 
 **Goal:** Close the coverage gap Bugbot flagged in PR #3 review (comment id 3409766434, medium severity): `tests/test_generator/test_lexical_compliance.py` built panels with a hardcoded 4-block fixture (shorts + R12 + D1 + U7) — the pre-BUG-002 shape — so after the BUG-002 fix the lexical/grammar assertion never actually exercised the real CLI block-generation path (`generate_blocks`) that emits 51 / 201 / 801 blocks per panel for small / medium / large.
