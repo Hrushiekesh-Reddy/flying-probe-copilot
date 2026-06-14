@@ -29,6 +29,65 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ## Sessions
 
+### 2026-06-13 — Phase 1a — branch: feature/phase1a-generator
+
+**Goal:** Build `src/flying_probe_copilot/generator/` — synthetic HP3070 / Keysight i3070 ICT log generator, lexically conformant to the real Log Record Format, CLI-driven, with full TDD test suite.
+
+**Outcome:** Done — all Phase 1a code deliverables (ROADMAP lines 32-41) complete. 81 tests passing, 94% coverage on generator subpackage. Performance: 1000 small-profile panels generated in ~1 s (target ≤30 s). Format target was revised mid-session from the originally-drafted simplified-text-report to the real Keysight Log Record Format after Step 2 public-sources research found authoritative format reference via the Virinco WATS-Client-Converter mirror.
+
+### Done
+- **Branch housekeeping (Phase 0 cleanup):** dropped 1 stash + deleted 2 obsolete branches + merged 3 in-flight feature branches (`fix/commit-uv-lock`, `feature/gitignore-data-synthetic-v2`, `feature/pyproject-dependency-groups`) → main + synced dev; created `feature/phase1a-generator` from cleaned main
+- **`uv` standalone installed** at `C:\Users\kanju\.local\bin\uv.exe` via Astral installer (off-PATH `python -m uv` retained for the current shell)
+- **Spec revision** (`specs/synthetic-log-generator.md`): rewrote "Output format overview" and "Data model" sections to match the real Keysight i3070 Log Record Format — record-oriented `{@PREFIX|field|...}` syntax, numeric status codes, scientific-notation floats, CRLF Windows-1252 by default, `@LIM2` / `@LIM3` limit subrecords, full `@BTEST` status vocabulary
+- **Generator module** (`src/flying_probe_copilot/generator/`, 9 source files, ~1,617 LOC): `models.py` (pydantic v2 + IntEnums + `derive_btest_status` precedence helper + tagged-union validator), `profiles.py` (small/medium/large), `schedule.py` (3-shift clustering / weekday-heavy / stable operators / ISO-week serials), `faults.py` (4 profiles + refdes-neighbor correlation heuristic), `grammar.py` (regex grammar derived from format chapter), `cli.py` (argparse with 12 flags), `renderers/{log.py, csv_.py, json_.py}`
+- **Test suite** (`tests/test_generator/`, 11 test files + conftest, 81 tests): models 14, profiles 7, schedule 6, grammar 15, faults 10, renderers 13, cli 5, lexical_compliance 3, btest_status_derivation 4, seed_reproducibility 3, no_real_data_leak 1
+- **`pyproject.toml`:** removed Phase 1b `parser` script entry (re-add at Phase 1b); added `pydantic>=2.0` and `pyyaml>=6.0` explicit dependencies
+- **`uv.lock`** regenerated
+- **`.gitignore`** added `.cache_research/` rule
+- **10-step session-workflow loop completed:** brief (Step 1) → 2-subagent explore (Step 2 — local-scout + external-research) → plan v1 (Step 3) → red-team verify (Step 4: 3 BLOCKERs + 6 WARNINGs all resolved in plan Revision 1) → execute (Step 5: TDD with executor subagent) → independent verify (Step 6: returned FAIL — caught 2 contract drifts) → triple-check (Step 7: parent independently confirmed; applied 3 surgical corrections in-place)
+- **Step 7 parent corrections:** expanded `_PRECEDENCE` from 5 → 10 categories with forward-extensibility placeholders (Revision 1 #BLOCKER-3 contract); tightened failure-mode distribution tolerance ±4pp → ±2pp (Revision 1 #WARNING-5 contract); deleted stray `flying-probe-copilot.cache_researchImporter.cs` artifact (continuation of BUG-001 cleanup)
+
+### Decisions (see DECISION_LOG for full reasoning)
+- **Log format target:** real Keysight Log Record Format (not the originally-drafted simplified text format)
+- **BTEST status derivation rule:** categorical precedence (SHORTS → ANALOG → DIGITAL → PIN → TJET → POLARITY → CCHK → FUNCTIONAL → POWER → UNCATEGORIZED)
+- **Branch merge fast-path:** one-time owner-approved exception — 3 in-flight feature branches merged direct to `main` instead of via `dev`
+- **Fault correlation heuristic:** refdes-numerical clustering (no net-graph in v1 data model)
+- **CLI config UX:** CLI flags + saved `config.yaml` in run directory (no input YAML file in v1)
+- **Data-model framework:** pydantic v2 (not dataclasses)
+
+### Bugs
+- **BUG-001 logged:** web-research subagent persisted Keysight PDF + Virinco LGPL C# source at repo root during Step 2. Mitigated this session (`.cache_research/` gitignored; all artifacts deleted; stray run-on-name artifact also removed). Process improvement (Explore charter update for future projects) surfaced via spawn_task chip at session end.
+
+### Addendum (post-commit `db546e3`, same-day BUG-002 + BUG-003 fix sprint)
+
+Owner ran Step 9 manual QA. Test 5 (board profiles → distinct log sizes) and the test 8 CSV inspection together exposed a major realism gap: `cli.py::_build_blocks` hardcoded a representative 4-block test set (shorts + R12 + D1 + U7) for every panel, so small/medium/large profiles all produced ~410-byte logs instead of scaling to ~5K / ~20K / ~80K. Test 6 also revealed `available_profiles()` returned alphabetical order ("large, medium, small") instead of the size order quoted in every doc.
+
+**BUG-002 (P0)** and **BUG-003 (P3)** logged in `BUG_LOG.md`. Both fixed in-session via a focused executor sprint:
+- New `src/flying_probe_copilot/generator/blocks.py` (~245 LOC) — `generate_blocks(profile, outcome, seed)` reads `profile.component_mix` and emits one `shorts` block + N analog/digital blocks (R/C/L→A-RES/A-CAP/A-IND with LIM3; D→A-DIO with LIM2; Q→A-NPN with LIM2; U→D-T digital). Realistic refdes (`R1..R{count_R}`, etc.). Failing-component family chosen from `outcome.mode`.
+- `cli.py` swapped from `_build_blocks` (~50 lines deleted) to `generate_blocks(profile, outcome, panel_seed)`.
+- `profiles.py::available_profiles()` returns explicit size-order `["small","medium","large"]`.
+- New `tests/test_generator/test_blocks.py` with 11 tests (count by profile, mix matches `component_mix` exactly per seed, refdes diversity, seed reproducibility on `model_dump_json`, pass-measured-within-limits / fail-outside, failing-component-family-matches-mode, shorts-only-failure-doesn't-fail-analog).
+- Verified sanity: small/medium/large `.log` sizes now ~4.7K / 18.2K / 73.5K (ratio 1:3.9:15.7 vs component-count 50:200:800 = 1:4:16). Refdes diversity confirmed (R1..R25 for small, not all R12).
+
+**Final test count: 92 passing / 0 failing / 94% coverage** (was 81 / 94%). Both bugs marked RESOLVED in BUG_LOG with verification notes.
+
+QA Test 6 cosmetic question and Test 7 fail were both QA-script issues, not implementation:
+- Test 6: error message DID name unknown profile + list valid. Ordering fixed (BUG-003).
+- Test 7: bytes[0..40] showed the @BATCH header preamble only — no line break in that window. Implementation is verified by automated `test_emits_utf8_lf_when_encoding_flag_set` (binary-mode read).
+- Test 4: PowerShell `Select-Object -Last 1` picks alphabetically-last run dir, not chronologically-last. Fault injection IS working (visible in Test 8 CSV: SYN-2026W17-00005 has `btest_status=8`).
+
+Manual QA script (`docs/plans/2026-06-13-manual-qa.md`) was not re-revised — its Test 5 expectation that profiles produce distinct sizes is now correct given the BUG-002 fix; Tests 4/6/7 minor wording fixes can be applied next session if owner agrees.
+
+### Next session should
+1. Begin Phase 1b — Parser & DuckDB schema (ROADMAP lines 49-65)
+2. Write `src/flying_probe_copilot/parser/` that ingests generator output (real-format `.log` files)
+3. Define DuckDB schema: dimension tables (boards, panels, operators, components, tests) + fact tables (test_runs, measurements, failures)
+4. Round-trip integrity test: generator → parser → DuckDB → query == expected
+5. Re-add `parser` script entry to `pyproject.toml` (removed this session)
+6. Owner: push 11 pre-existing commits + Phase 1a commit + BUG-002/003 fix commit to origin when convenient
+
+---
+
 ### 2026-06-13 — Phase 1a — branch: feature/gitignore-data-synthetic-v2
 
 **Goal:** Broaden `data/synthetic/` ignore pattern so 20–50 MB bulk generator outputs (results.csv/json from 1k-panel runs) cannot accidentally enter the repo via `git add .`.
@@ -60,7 +119,7 @@ One entry per work session. Written at session end before committing. Newest ent
 ### Done
 - `pyproject.toml` written with full dep set (duckdb, chromadb, sentence-transformers, rank-bm25, google-generativeai, streamlit, plotly, python-dotenv) + dev deps (pytest, pytest-cov)
 - Merged feature/pyproject-init → dev → main
-- Keysight i3070 manuals confirmed downloaded locally (off-git, owner's machine)
+- Keysight i3070 manuals NOT downloaded (owner does not have them; deferred — Phase 1a Step 2 research used the publicly-mirrored format chapter via the Virinco WATS-Client-Converter repo). Earlier entry on this line incorrectly read "confirmed downloaded"; corrected during the Phase 1a session.
 - ROADMAP.md Phase 0: 9/9 boxes ticked; status log updated
 - CLAUDE.md: phase status updated to Phase 1a In progress
 

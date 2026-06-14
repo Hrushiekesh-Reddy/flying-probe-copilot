@@ -99,10 +99,39 @@ FIXTURES_AVAILABLE: [list from conftest.py]
 OPEN_QUESTIONS: [anything ambiguous that the parent must decide]
 DO_NOT_TOUCH: [files that look relevant but must NOT change]
 CRITICAL_FILES: [approval-gated files this task may need]
+
+EXTERNAL RESEARCH / WEB DOWNLOAD POLICY (applies whenever this subagent — or
+any general-purpose subagent — is given web/fetch tools to gather external
+material):
+
+- NEVER persist downloaded source material (PDFs, source files, archives,
+  HTML dumps) at the repo root or anywhere inside the project working tree.
+- Use the OS scratch location for any disk caching:
+    Windows:  %TEMP%\agent-research\<session-id>\
+    Unix:     ~/.cache/agent-research/<session-id>/
+  Construct the path with the platform-correct join — never concatenate
+  "<project-name>" + ".cache_research" + "<filename>". If a write path you
+  are about to use does NOT start with the scratch root above, STOP and
+  report the path-construction bug instead of retrying.
+- The final report MUST contain only citations (URLs / DOIs) and short
+  paraphrased extracts — NEVER copied source material, NEVER wholesale
+  PDF-to-text dumps, NEVER copy-pasted source files.
+- Third-party source code (especially LGPL / GPL / AGPL / proprietary) MUST
+  be cited by repo URL + commit hash (or release tag + file path) only.
+  Never copy it into the project working tree, even temporarily, even into
+  a gitignored folder.
+- Cached files MUST be deleted before this subagent returns. The report
+  MUST include a "Cleanup:" line listing what was removed and from where
+  ("Cleanup: 5 files removed from %TEMP%\agent-research\sess-2026-06-13\").
 ```
 
 Parent reads the Explorer's full output before moving to Step 3.
 If open questions exist: resolve them with the owner before planning.
+If the Explorer was given web/fetch tools (i.e., the External Research /
+Web Download Policy applied) and the report is missing a `Cleanup:` line —
+or its Cleanup path is inside the repo — treat the explore output as
+compromised and re-run before planning. A purely read-only Explorer that
+never fetched external material is not expected to emit a Cleanup line.
 
 ---
 
@@ -470,7 +499,8 @@ Passing: N | Failing: N | Coverage: X%
 
 | Role | Can read | Can write | Hard limits |
 |------|----------|-----------|-------------|
-| Explorer | All docs, source, specs | Nothing | No edits ever |
+| Explorer | All docs, source, specs | Nothing in repo; scratch only in `%TEMP%` / `~/.cache/agent-research/` | No edits ever; no downloads to repo; cleanup before return |
+| External-research (general-purpose w/ web tools) | Public web; same scratch as above | Same scratch only | Citations + paraphrase only in report; no copied source / PDFs / LGPL-GPL code in repo |
 | Plan Reviewer | Plan doc only | Nothing | No fixes, concerns only |
 | Executor | Plan, tests, source | Source + tests | Plan steps ONLY, log out-of-scope |
 | Verifier | Plan, changed files, test results | Execution report | No code edits |

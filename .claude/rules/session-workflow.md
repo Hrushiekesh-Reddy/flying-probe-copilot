@@ -31,6 +31,7 @@
 - **Push only if owner requests.**
 - **No execution before approved plan.** Steps 4 + owner "go ahead" gate Step 5.
 - **TDD in Step 5:** Red → Green → Refactor per step. No implementation without a failing test.
+- **External-research cache:** any subagent with web/fetch tools writes downloads to `%TEMP%\agent-research\<session>\` (Windows) or `~/.cache/agent-research/<session>/` (Unix) — never under the repo. Reports carry citations + short paraphrase only; third-party source (LGPL/GPL/proprietary) is cited by URL + commit hash, never copied. Cleanup before return is mandatory and must be stated in the report. (See BUG-001, 2026-06-13.)
 
 ---
 

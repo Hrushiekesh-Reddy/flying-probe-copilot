@@ -94,3 +94,6 @@ models/
 
 # --- Claude Code internal ---
 __perm_test
+
+# --- Research cache (proprietary refs; never commit) ---
+.cache_research/
