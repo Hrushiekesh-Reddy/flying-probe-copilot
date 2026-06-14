@@ -8,9 +8,11 @@ module replaces that with ``generate_blocks(profile, outcome, seed)``, which:
 * Emits exactly one ``shorts`` block first (status reflects outcome.mode).
 * Emits one block per component in ``profile.component_mix`` with realistic
   refdes (``R1..R{N_R}``, ``C1..``, etc.) and record-type matching the prefix.
-* Marks exactly one component as failing iff the outcome demands it, picking
-  the failing family from a mode -> family-set map (e.g. ``DIGITAL`` -> ``U``,
-  ``ANALOG_OOL`` -> R/C/L).
+* Marks a *primary* failing component from a mode -> family-set map (e.g.
+  ``DIGITAL`` -> ``U``, ``ANALOG_OOL`` -> R/C/L), then rolls Bernoulli
+  secondary failures against refdes neighbors (±3 within the same family) via
+  ``faults.correlation_multiplier``, so a failing panel typically marks a
+  cluster of 1–4 adjacent components rather than just one.
 * Threads every stochastic choice through ``random.Random(seed)`` so the
   output is byte-reproducible.
 """
@@ -19,7 +21,7 @@ from __future__ import annotations
 
 from random import Random
 
-from .faults import PanelOutcome
+from .faults import PanelOutcome, correlation_multiplier
 from .models import (
     AnalogRecord,
     AnalogStatus,
@@ -34,6 +36,18 @@ from .models import (
     ShortsStatus,
     TestBlock,
 )
+
+
+# Baseline conditional secondary-failure rate. When a primary component fails,
+# every other component in the same family is offered a Bernoulli draw at
+# ``BASELINE_SECONDARY_RATE * correlation_multiplier(primary, candidate)`` —
+# but ONLY when the multiplier exceeds 1.0 (i.e., the candidate is a ±3 refdes
+# neighbor of the primary). Far candidates (multiplier == 1.0) get no draw,
+# which is what makes the aggregate Pareto curve visibly clustered instead of
+# diluted by uniform secondary noise across the whole family. See the
+# DECISION_LOG entry "2026-06-14 — Fault correlation wired through
+# generate_blocks" for the rationale.
+BASELINE_SECONDARY_RATE = 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +209,39 @@ def _build_digital_block(index: int, failing: bool, rng: Random) -> TestBlock:
     )
 
 
+def _pick_correlated_failures(
+    primary: tuple[str, int],
+    profile: BoardProfile,
+    rng: Random,
+) -> set[tuple[str, int]]:
+    """Return the set of secondary (prefix, idx) failures correlated to ``primary``.
+
+    For each component in the *same family* as ``primary``, consult
+    ``faults.correlation_multiplier`` and — only when it exceeds 1.0 — make a
+    Bernoulli draw at ``BASELINE_SECONDARY_RATE * multiplier``. The primary
+    itself is excluded from the candidate set. Candidates are iterated in
+    ascending refdes index so RNG draws are deterministic under a fixed seed.
+
+    Restricting the draw to multiplier > 1.0 (rather than applying baseline to
+    every same-family component) is what makes the failure Pareto visibly
+    clustered: far candidates produce no secondary noise that would dilute the
+    ±3 cluster around the primary.
+    """
+    prefix, primary_idx = primary
+    count = profile.component_mix.get(prefix, 0)
+    secondaries: set[tuple[str, int]] = set()
+    primary_refdes = f"{prefix}{primary_idx}"
+    for idx in range(1, count + 1):
+        if idx == primary_idx:
+            continue
+        multiplier = correlation_multiplier(primary_refdes, f"{prefix}{idx}")
+        if multiplier <= 1.0:
+            continue
+        if rng.random() < BASELINE_SECONDARY_RATE * multiplier:
+            secondaries.add((prefix, idx))
+    return secondaries
+
+
 def _pick_failing_component(
     outcome: PanelOutcome,
     profile: BoardProfile,
@@ -246,9 +293,12 @@ def generate_blocks(
        is the insertion order of ``component_mix`` (locked by profile def);
        within each family the index runs ``1..N``.
 
-    Exactly one component-block is marked failing iff the outcome's failure
-    mode targets a component family (see ``_MODE_TO_PREFIXES``). A SHORTS-only
-    failure leaves every component-block passing.
+    A primary failing component is selected per ``_MODE_TO_PREFIXES``; refdes
+    neighbors of the primary (±3 within the same family) then receive Bernoulli
+    secondary-failure draws via ``_pick_correlated_failures``, so a single
+    failing panel typically marks a *cluster* of adjacent components as failing
+    rather than just one. A SHORTS-only failure leaves every component-block
+    passing.
 
     Reproducibility: every stochastic choice routes through
     ``random.Random(seed)``.
@@ -271,16 +321,22 @@ def generate_blocks(
         )
     ]
 
-    # Decide which (prefix, index) — if any — gets the failure. We draw this
-    # BEFORE iterating the mix so the per-component RNG state is independent
-    # of the choice draw (which keeps the byte-identical-output contract).
-    failing_target = _pick_failing_component(outcome, profile, rng)
+    # Decide which (prefix, index) — if any — gets the primary failure, then
+    # roll secondary correlated failures against the same family. Both draws
+    # happen BEFORE iterating the mix so the per-component builder RNG state
+    # is independent of the choice draws.
+    primary_target = _pick_failing_component(outcome, profile, rng)
+    if primary_target is None:
+        failing_targets: set[tuple[str, int]] = set()
+    else:
+        failing_targets = {primary_target}
+        failing_targets.update(_pick_correlated_failures(primary_target, profile, rng))
 
     # Walk the component mix in the profile's declared order. For each prefix,
     # emit count blocks with refdes prefix1..prefix{count}.
     for prefix, count in profile.component_mix.items():
         for idx in range(1, count + 1):
-            is_failing = failing_target == (prefix, idx)
+            is_failing = (prefix, idx) in failing_targets
             if prefix == "U":
                 blocks.append(_build_digital_block(idx, is_failing, rng))
             else:

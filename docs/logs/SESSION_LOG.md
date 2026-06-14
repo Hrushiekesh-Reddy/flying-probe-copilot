@@ -4,6 +4,37 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-14 — Phase 1a — branch: feature/wire-fault-correlation
+
+**Goal:** Fix the bug Bugbot flagged in PR #3 review (comment id 3409766432, medium severity): `correlation_multiplier` and `correlated_failure_rate` (in `src/flying_probe_copilot/generator/faults.py`) were defined and unit-tested but never invoked from the CLI output path, so the documented clustered-failure Pareto curves never appeared in generator output.
+**Outcome:** Done. All 97 tests pass; correlation now fires in `generate_blocks`.
+
+### Done
+- New helper `_pick_correlated_failures(primary, profile, rng)` in `src/flying_probe_copilot/generator/blocks.py` — performs per-candidate Bernoulli secondary-failure draws against same-family components using `correlation_multiplier`. Gated on `multiplier > 1.0` so far candidates contribute no secondary noise.
+- New constant `BASELINE_SECONDARY_RATE = 0.3` in `blocks.py`.
+- `generate_blocks` now accumulates primary + secondaries in a `failing_targets` set; each component block checks set membership rather than `== primary_target`.
+- 3 new tests in `tests/test_generator/test_blocks.py`:
+  - `test_neighbor_fail_rate_elevated_vs_far_when_primary_pinned`
+  - `test_failure_pareto_clusters_around_primary_under_correlation`
+  - `test_correlation_secondary_fails_stay_within_same_family`
+- All 11 pre-existing block tests still pass (they used `>= 1` patterns for failing-block counts, so multi-fail panels are compatible).
+- Module docstring and `generate_blocks` docstring updated to reflect "cluster of 1–4 adjacent components" rather than "exactly one component."
+- DECISION_LOG addendum added (2026-06-14 — Fault correlation wired through `generate_blocks`) documenting the integration choice (multiplier-gated draws), the rationale, the rejected alternatives, and the test contracts pinned.
+
+### Decisions
+- Apply baseline secondary rate **only when `correlation_multiplier > 1.0`** (i.e., only to ±3 refdes neighbors). Far candidates and cross-family candidates skip the draw entirely. Full reasoning in DECISION_LOG.
+- `BASELINE_SECONDARY_RATE = 0.3` — empirically the lowest value that meets the Pareto test thresholds while keeping per-failing-panel fail counts in the 1–4 range.
+- Test design uses `monkeypatch` to pin the primary picker, which makes the clustering signal cleanly testable. Without pinning, uniform-primary-draw across 100 R components would aggregate back toward uniform.
+
+### Out-of-scope (logged, not fixed)
+- None this session.
+
+### Next session
+- Owner manual QA: optional. Generate a 1000-panel run with the medium profile and visually inspect the per-refdes failure distribution to confirm clustering looks reasonable in real output. Defer to Phase 2 analytics surface if not needed standalone.
+- PR `feature/wire-fault-correlation` → `dev`. Reference Bugbot comment id 3409766432 in the PR body.
+
+---
+
 ## Template
 
 ```

@@ -247,3 +247,143 @@ def test_shorts_only_failure_does_not_fail_analog():
         "SHORTS-only outcome must not fail analog/digital blocks (got "
         f"{[b.record.designator for b in other_failures]})"
     )
+
+
+# ---------------------------------------------------------------------------
+# Within-panel fault correlation — wired through generate_blocks.
+#
+# Bug: prior to this change, ``_pick_failing_component`` marked exactly one
+# component as failing per panel and ``correlation_multiplier`` /
+# ``correlated_failure_rate`` (defined in ``faults.py``) were never invoked
+# from the CLI output path. The realistic clustered-failure Pareto curves the
+# heuristic was designed to produce never appeared in generator output.
+#
+# These tests pin the contract that the multiplier is now applied: when the
+# primary failing component is known, refdes-numerical neighbors (±1, ±3 in
+# the same family) must show elevated fail counts vs far components.
+# ---------------------------------------------------------------------------
+
+
+def _count_failed_designators(blocks_iter):
+    """Iterate over an iterable of blocks and count fails by designator."""
+    counts: Counter[str] = Counter()
+    for block in blocks_iter:
+        if isinstance(block.record, AnalogRecord):
+            if block.record.status != AnalogStatus.PASS:
+                counts[block.record.designator] += 1
+        elif isinstance(block.record, DigitalRecord):
+            if block.record.status != DigitalStatus.PASS:
+                counts[block.record.designator] += 1
+    return counts
+
+
+def test_neighbor_fail_rate_elevated_vs_far_when_primary_pinned(monkeypatch):
+    """Pin primary=R50; over 500 ANALOG_OOL panels R49 must fail more than R10.
+
+    This is the headline correlation contract: the ±1 refdes neighbor of the
+    primary failure should have a materially higher empirical fail rate than
+    a far component in the same family. Without correlation wired in, both
+    rates are zero (only the primary fails), so this test fails RED.
+    """
+    from flying_probe_copilot.generator import blocks as blocks_mod
+
+    monkeypatch.setattr(
+        blocks_mod, "_pick_failing_component", lambda outcome, profile, rng: ("R", 50)
+    )
+
+    profile = get_profile("medium")
+    outcome = _outcome_for("ANALOG_OOL")
+
+    counts: Counter[str] = Counter()
+    for seed in range(500):
+        counts.update(_count_failed_designators(generate_blocks(profile, outcome, seed)))
+
+    r49 = counts["R49"]
+    r51 = counts["R51"]
+    r10 = counts["R10"]
+
+    assert r49 > r10, (
+        f"R49 (±1 neighbor) must fail more than R10 (far). Got R49={r49}, R10={r10}."
+    )
+    assert r51 > r10, (
+        f"R51 (±1 neighbor) must fail more than R10 (far). Got R51={r51}, R10={r10}."
+    )
+    assert r49 + r51 >= 3 * max(1, r10), (
+        f"Combined ±1 neighbors should be ≥3× the far rate (a generous margin "
+        f"that survives stochastic noise). Got R49+R51={r49 + r51}, R10={r10}."
+    )
+
+
+def test_failure_pareto_clusters_around_primary_under_correlation(monkeypatch):
+    """1000 panels, primary pinned to R50: top-3 failing refdes account for >30% of fails.
+
+    With correlation off (RED), top-3 = {R50, <two random Rs>} and total fails
+    ≈ 1000 (only the primary fails per panel), so R50 alone is ~100% of fails
+    and the heuristic produces no extra clustering — the Pareto question is
+    not meaningfully testable. With correlation on, neighbors accumulate extra
+    fails and the top-3 still dominate by a wide margin precisely because the
+    ±1 boost is concentrated on R49/R51.
+
+    The threshold of 30% is well below the empirical share with the chosen
+    baseline (which puts the top-3 share at >50% in practice) and well above
+    what any uniform-noise model would produce — so it's a robust regression
+    guard.
+    """
+    from flying_probe_copilot.generator import blocks as blocks_mod
+
+    monkeypatch.setattr(
+        blocks_mod, "_pick_failing_component", lambda outcome, profile, rng: ("R", 50)
+    )
+
+    profile = get_profile("medium")
+    outcome = _outcome_for("ANALOG_OOL")
+
+    counts: Counter[str] = Counter()
+    for seed in range(1000):
+        counts.update(_count_failed_designators(generate_blocks(profile, outcome, seed)))
+
+    total = sum(counts.values())
+    top3 = counts.most_common(3)
+    top3_share = sum(c for _, c in top3) / total
+
+    top3_names = {name for name, _ in top3}
+
+    assert "R50" in top3_names, (
+        f"Pinned primary R50 must be in the top-3 failing refdes. Top-3: {top3}"
+    )
+    assert top3_names & {"R49", "R51"}, (
+        f"At least one ±1 neighbor of R50 must be in the top-3 failing refdes. "
+        f"Top-3: {top3}"
+    )
+    assert top3_share > 0.30, (
+        f"Top-3 failing refdes must account for >30% of all failures under "
+        f"correlation. Got {top3_share:.2%} from {top3} (total fails: {total})."
+    )
+
+
+def test_correlation_secondary_fails_stay_within_same_family(monkeypatch):
+    """Pin DIGITAL primary=U8; over 500 seeded panels, every fail must be a U_.
+
+    Cross-family correlation must not exist: ``correlation_multiplier`` returns
+    1.0 across prefixes, so an R/C/L block must never get a secondary fail when
+    the primary is a U. This protects the existing
+    ``test_failing_component_family_matches_outcome_mode_digital`` contract
+    against accidental cross-family leakage through the new correlation pass.
+    """
+    from flying_probe_copilot.generator import blocks as blocks_mod
+
+    monkeypatch.setattr(
+        blocks_mod, "_pick_failing_component", lambda outcome, profile, rng: ("U", 8)
+    )
+
+    profile = get_profile("medium")
+    outcome = _outcome_for("DIGITAL")
+
+    counts: Counter[str] = Counter()
+    for seed in range(500):
+        counts.update(_count_failed_designators(generate_blocks(profile, outcome, seed)))
+
+    non_u = [d for d in counts if not d.startswith("U")]
+    assert non_u == [], (
+        f"DIGITAL primary must produce only U-family fails. Cross-family fails: {non_u}"
+    )

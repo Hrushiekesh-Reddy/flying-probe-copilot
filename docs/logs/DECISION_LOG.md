@@ -5,6 +5,28 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-14 — Fault correlation wired through `generate_blocks` (addendum to 2026-06-13)
+
+**Decision:** The refdes-numerical clustering heuristic documented in the 2026-06-13 entry below now actually fires during panel generation. `generate_blocks` (in `src/flying_probe_copilot/generator/blocks.py`) picks the primary failing component as before, then calls a new `_pick_correlated_failures(primary, profile, rng)` helper that performs per-candidate Bernoulli secondary-failure draws against same-family components. The candidate draw uses `rate = BASELINE_SECONDARY_RATE * correlation_multiplier(primary, candidate)` with `BASELINE_SECONDARY_RATE = 0.3`, and the draw is **only performed when `correlation_multiplier > 1.0`** (i.e., for ±3 refdes neighbors). Far candidates and cross-family candidates get no secondary draw.
+
+**Why:** PR #1 landed `correlation_multiplier` and `correlated_failure_rate` in `faults.py` with unit tests, but they were never invoked from the CLI output path. `_pick_failing_component` marked exactly one component as failing per panel, so the realistic clustered-failure Pareto curves the heuristic was designed to produce never appeared in real generator output. Bugbot caught this in PR #3 review (comment id 3409766432, medium severity). The fix wires the existing heuristic into the panel-construction pipeline so it actually does its job.
+
+The "multiplier > 1.0 only" gate matters: applying the baseline to every same-family component (multiplier == 1.0 for far candidates) would produce uniform secondary noise across the whole family and visually dilute the ±3 cluster around the primary. Gating on multiplier > 1.0 keeps far candidates clean and lets the Pareto curve show real clustering. `correlation_multiplier`'s contract is unchanged; only the *integration interprets* a 1.0 return as "no secondary draw."
+
+**Rejected:**
+- **Apply baseline to all same-family candidates** (uniform secondary rate, neighbors only get a multiplicative bump). Produces no visible aggregate Pareto signal — far candidates outnumber near ones and their cumulative secondary fails wash out the cluster.
+- **Bias the primary draw with the multiplier instead of doing secondary Bernoulli draws.** Changes what `_pick_failing_component` *means* (no longer uniform across the family) and complicates seed-reproducibility tests. Per-panel secondary draws keep the primary draw clean and add clustering as a separate orthogonal layer.
+- **Higher baseline (e.g. 0.5).** Empirically reaches the same Pareto target but makes failing panels dominated by 3–5 simultaneous component fails, which over-states realistic FP/ICT failure patterns. 0.3 was chosen as the lowest value that comfortably meets the test thresholds in `tests/test_generator/test_blocks.py` while keeping per-failing-panel fail counts in the 1–4 range.
+
+**Test contracts pinned (`tests/test_generator/test_blocks.py`):**
+- `test_neighbor_fail_rate_elevated_vs_far_when_primary_pinned` — 500 seeded panels with primary monkeypatched to R50: combined R49+R51 fail counts ≥ 3× R10 fail count.
+- `test_failure_pareto_clusters_around_primary_under_correlation` — 1000 seeded panels with primary monkeypatched to R50: top-3 failing refdes account for >30% of all failures (and the top-3 must include R50 plus at least one ±1 neighbor).
+- `test_correlation_secondary_fails_stay_within_same_family` — 500 seeded DIGITAL panels with primary pinned to U8: zero cross-family secondary fails.
+
+**Revisit:** When Phase 2 analytics surface the failure Pareto. If clustering looks too tight (always exactly R50 ±1) or too loose (per-panel fail counts ≥5), retune `BASELINE_SECONDARY_RATE` rather than the multiplier table — the multiplier is the heuristic's public contract.
+
+---
+
 ## 2026-06-14 — Dedicated `exec` sub-agent with hard tool restrictions
 
 **Decision:** Step 5 of the 10-step session-workflow uses a dedicated `exec` sub-agent defined at `.claude/agents/exec.md`, with a tool allowlist enforced by the agent definition itself. Other sub-agent roles (Explore, Plan-Reviewer, Verifier) continue to use the built-in `Explore` agent type or the existing skills.
