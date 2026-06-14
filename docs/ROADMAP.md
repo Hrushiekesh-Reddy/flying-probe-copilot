@@ -29,20 +29,22 @@ All boxes checked. Owner can describe project goals, scope, and guardrails from 
 **Goal:** Generate realistic HP3070-style test reports from configurable parameters.
 
 ### Deliverables
-- [ ] `src/flying_probe_copilot/generator/` module
-- [ ] Data models for: Board, Panel, TestRun, Test, Measurement
-- [ ] Configurable parameters: board profile, panel count, fault injection rate, drift rate, operator IDs, line ID
-- [ ] At least 3 board profiles (small / medium / large component counts)
-- [ ] Output formats: `.log` (text report), `.csv` (structured), `.json` (machine-readable)
-- [ ] Fault injection covering: opens, shorts, out-of-tolerance analog, missing components, digital failures
-- [ ] CLI entry point: `uv run generator --board-profile=medium --count=100 --out=data/synthetic/`
-- [ ] Unit tests: schema validity, fault rate within tolerance, output parseability
-- [ ] README section in generator module documenting the format
+- [x] `src/flying_probe_copilot/generator/` module
+- [x] Data models for: Board, Panel, TestRun, Test, Measurement (pydantic v2 + 6 IntEnums + tagged-union validator)
+- [x] Configurable parameters: board profile, panel count, fault injection rate, drift rate, operator IDs, line ID
+- [x] At least 3 board profiles (small / medium / large component counts)
+- [x] Output formats: `.log` (real Keysight Log Record Format), `.csv` (flat), `.json` (structured)
+- [x] Fault injection covering: opens, shorts, out-of-tolerance analog, missing components, digital failures (4 profiles: random / drift / cluster / process-change)
+- [x] CLI entry point: `uv run generator --board-profile=medium --count=100 --out=data/synthetic/`
+- [x] Unit tests: 81 tests covering schema, fault distribution (±2pp / 10K panels), lexical compliance, seed reproducibility, BTEST derivation, sentinel-string guardrail; 94% line coverage
+- [ ] README section in generator module documenting the format (deferred — small standalone doc task)
 
 ### Exit criteria
 Generator produces 1,000 logs in <30 seconds; output passes parseability test; visual inspection of a sample log by an experienced engineer would not immediately flag it as fake.
 
-See `specs/synthetic-log-generator.md` for the full spec.
+**Status (2026-06-13):** 8/9 deliverables complete. 1000 small-profile panels generated in ~1 s (well under target). Output passes `grammar.validate()` lexical-compliance check across small/medium/drift runs. Visual-inspection criterion deferred to Step 9 manual QA. README documentation deliverable deferred to a follow-up doc-only session.
+
+See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to target the real Keysight Log Record Format).
 
 ---
 
@@ -138,3 +140,4 @@ A recruiter can land on the repo, watch the demo gif, read the case study, and u
 
 - 2026-06-13 — Phase 0 started.
 - 2026-06-13 — Phase 0: 8/9 deliverables done. Keysight manuals not yet downloaded. Log format will be researched from public sources in Phase 1a Step 2 (Explore).
+- 2026-06-13 — Phase 1a: 8/9 deliverables done in a single session. Synthetic HP3070 / Keysight i3070 ICT log generator complete. Format target revised mid-session to real Keysight Log Record Format (authoritative reference found via Virinco public mirror). 81 tests passing, 94% coverage, 1000 panels in ~1 s. README deliverable deferred to a follow-up doc session.
