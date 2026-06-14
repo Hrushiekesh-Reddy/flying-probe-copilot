@@ -4,6 +4,33 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-14 — Governance fix — branch: feature/abs-hook-paths
+
+**Goal:** Close the spawned task from the Phase 1b notebook session: flip the three hook commands in `.claude/settings.json` to absolute, cwd-invariant paths so a stray `cd <subdir>` mid-session can never hard-block the shell again. Stamp the same fix upstream into `E:\hrk-agent-starter\` so future projects don't inherit the bug. Tier: Small (config + docs only).
+**Outcome:** Done. Smoke-tested in-session. Owner approved Option A (`${CLAUDE_PROJECT_DIR}` substitution) and stamping upstream.
+
+### Done
+- **Branch:** `feature/abs-hook-paths` from `origin/dev` (PR #9 had landed already, so `dev` was current).
+- **`flying-probe-copilot/.claude/settings.json`** — rewrote all three `command` values from `python .claude/hooks/<file>.py` to `python ${CLAUDE_PROJECT_DIR}/.claude/hooks/<file>.py` (`block_dangerous_git.py`, `plan_approval_gate.py`, `doc_reminder_stop.py`).
+- **`E:\hrk-agent-starter\.claude\settings.json`** — identical edit. `stamp.ps1` line 173 copies `.claude/` verbatim (only `{{PROJECT_NAME}}` / `{{PERM_BRANCHES}}` / `{{PERM_BRANCHES_SET}}` tokens get substituted at stamp time), so every future stamped project picks up the fix without further intervention.
+- **Smoke test (same session as the edit):** ran `cd notebooks && pwd && cd ..` immediately after the edit landed. Both `cd`s and the `pwd` succeeded with no hook error. Under the bug this exact sequence is what killed the Phase 1b notebook session's shell mid-turn — proves the harness DOES substitute `${CLAUDE_PROJECT_DIR}` on this Windows machine, so Option A is sufficient and Option B (hard-coded path) is not needed.
+- **DECISION_LOG entry** (2026-06-14, "`${CLAUDE_PROJECT_DIR}` hook paths") added with full A-vs-B rationale, what was rejected, verification, and revisit condition.
+
+### Decisions
+- **Option A over Option B** — `${CLAUDE_PROJECT_DIR}` over hard-coded `E:/flying-probe-copilot/...`. Portability for the hrk-agent-starter stamping workflow was the deciding factor; hard-coded paths would break the moment a stamped project lived at a different absolute path. Owner confirmed via interactive question.
+
+### Bugs
+- Closes the agent-side bug logged in the Phase 1b notebook session's SESSION_LOG entry (mid-session `cd notebooks/` → relative hook path → hard-block on every subsequent shell tool call). The retroactive proof is that the smoke test ran without hitting it.
+
+### Out-of-scope (logged, not fixed)
+- None this session.
+
+### Next session
+1. Phase 2 — Analytics & dashboard (ROADMAP lines 69-87). The Phase 2 prep brief / plan already exist as untracked drafts under `docs/plans/`.
+2. Or resolve the second spawned task (`task_2d7519b6` — Phase 2: per-panel shift / line_id / operator) before starting Phase 2 proper so that per-shift / per-line analytics aren't placeholder data on day one.
+
+---
+
 ## 2026-06-14 — Phase 1b — branch: feature/phase1b-notebook
 
 **Goal:** Close the deferred Phase 1b notebook deliverable — `notebooks/01-queries.ipynb` documenting the canonical exit-criterion query plus a small set of representative analytics queries against the 9-table DuckDB schema. Tier: Small (no multi-agent loop; doc-only task per `.claude/templates/tiering.md`).

@@ -5,6 +5,32 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-14 — `.claude/settings.json` hook paths use `${CLAUDE_PROJECT_DIR}` (Option A)
+
+**Decision:** All three hook commands in `.claude/settings.json` were changed from relative paths to project-root-relative absolute paths using the harness-substituted `${CLAUDE_PROJECT_DIR}` env var. Same fix stamped upstream into `E:\hrk-agent-starter\.claude\settings.json` so future stamps don't carry the bug.
+
+```diff
+-"command": "python .claude/hooks/block_dangerous_git.py"
++"command": "python ${CLAUDE_PROJECT_DIR}/.claude/hooks/block_dangerous_git.py"
+```
+
+(and similarly for `plan_approval_gate.py` + `doc_reminder_stop.py`).
+
+**Why:** Relative paths in hook commands resolve against the shell session's cwd, not the project root. A single `cd notebooks/` mid-session shifts the resolved path to `notebooks/.claude/hooks/...`, which doesn't exist. The hook then errors with `No such file or directory`, exit code 1, and the harness treats that as a hard block on every subsequent Bash + PowerShell tool call. The sticky cwd persists across tool calls in the same shell session, so once the bug fires the only recovery is a fresh prompt (which resets the harness cwd). This actually happened mid-session on 2026-06-14 during the Phase 1b notebook session and killed the rest of the shell work for that turn (see BUG_LOG BUG-007 placement and SESSION_LOG entry for the notebook session).
+
+`${CLAUDE_PROJECT_DIR}` is set by the Claude Code harness to the project root regardless of the shell session's current directory, so substituting it into the hook command produces an absolute path that's invariant under cwd drift.
+
+**Rejected:**
+- **Option B — hard-coded `python E:/flying-probe-copilot/.claude/hooks/...`.** Bulletproof on Windows even if `${CLAUDE_PROJECT_DIR}` substitution ever silently failed, but locks the path to one machine and one directory. The hrk-agent-starter portable kit stamps `.claude/settings.json` into every future project verbatim; hard-coded paths would break the moment a stamped project lives at a different path. Kept as a documented fallback if A ever fails on this Windows machine.
+- **Wrap each hook script in a wrapper that does its own `cd` to project root.** Adds a layer of indirection inside the hook itself and still requires every hook script author to remember the discipline. Fixing the *config* (one place) beats fixing the *contract* (every hook).
+- **Leave it broken and just train myself to never `cd` into a subdir mid-session.** Discipline can't be enforced; the agent is the one running `cd` and surrenderingt control. The first `cd` into any sub-directory is a session-killer.
+
+**Verification:** Smoke test in the same session as the edit — `cd notebooks && pwd && cd ..` succeeded immediately after the change. Under the bug this sequence hard-blocked with `PreToolUse:Bash hook error: ... No such file or directory`. The smoke test proves the harness IS substituting `${CLAUDE_PROJECT_DIR}` on this Windows machine, so Option A is sufficient.
+
+**Revisit:** If a future Claude Code release ever changes `${CLAUDE_PROJECT_DIR}` substitution behaviour, or if the kit gets stamped on a non-Windows platform that handles the variable differently. The fallback to Option B is documented above; switching is a one-line edit per command.
+
+---
+
 ## 2026-06-14 — Phase 1b: DuckDB schema shape (boards + panels split, global components, persisted limits, ParseReport, runs metadata)
 
 **Decision:** The Phase 1b DuckDB schema uses 9 tables organised as 5 dimension + 1 metadata + 3 fact:
