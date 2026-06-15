@@ -21,19 +21,21 @@
 
 ---
 
-## The Loop — 10 Steps
+## The Loop — 12 Steps
 
 ```
 Step 1  Document        ← PARENT         Requirements capture, session brief
 Step 2  Explore         ← SUB-AGENT      What/Why/Where/When structured map
 Step 3  Plan            ← PARENT ONLY    Goal Contract + ordered steps (never delegated)
-Step 4  Verify Plan     ← SUB-AGENT      Adversarial red-team of the plan
-Step 5  Execute         ← SUB-AGENT      TDD implementation, strict guardrails
-Step 6  Verify Exec     ← SUB-AGENT      Execution report vs plan
-Step 7  Triple Check    ← PARENT ONLY    Found vs Planned vs Executed (independent)
-Step 8  Documentation   ← PARENT         Git ops, logs, out-of-scope bugs
-Step 9  Manual QA       ← PARENT guided  Hands-on test with owner
-Step 10 Feedback + Handoff ← PARENT      Collect feedback, write AGENT_HANDOFF_LOG
+Step 4  Test-Case Plan  ← SUB-AGENT      Behavior-level test plan (test-generator role)
+Step 5  Verify Plan     ← SUB-AGENT      Adversarial red-team of the plan + test plan
+Step 6  Decision Gate   ← PARENT ONLY    Owner approval: Decision Index + Coverage Check + per-decision detail
+Step 7  Execute         ← SUB-AGENT      TDD implementation, strict guardrails
+Step 8  Verify Exec     ← SUB-AGENT      Execution report vs plan
+Step 9  Triple Check    ← PARENT ONLY    Found vs Planned vs Executed (independent)
+Step 10 Documentation   ← PARENT         Git ops, logs, out-of-scope bugs
+Step 11 Manual QA       ← PARENT guided  Hands-on test with owner
+Step 12 Feedback + Handoff ← PARENT      Collect feedback, write AGENT_HANDOFF_LOG
 ```
 
 ---
@@ -172,23 +174,61 @@ CONSTRAINTS:  [branch rule, TDD-first, critical file approvals, phase discipline
 - Phase discipline: [confirm phase-N only]
 ```
 
-**Rule: No execution starts until this document exists and is approved.**
+**Rule: No execution starts until this document exists, has a Test-Case Plan (Step 4),
+survives the adversarial review (Step 5), and clears the Decision Gate (Step 6).**
 
 ---
 
-## Step 4 — Verify Plan (SUB-AGENT: Plan Reviewer, adversarial)
+## Step 4 — Test-Case Plan (SUB-AGENT: Test Planner / test-generator role)
 
-**Purpose:** A fresh agent with no attachment to the plan tries to break it.
+**Purpose:** Decide WHAT to test — by behavior, not implementation — before the plan is
+locked. A fresh `test-generator`-role sub-agent reads the plan and lists the test cases
+each deliverable must satisfy. This is the *design* of the test surface; the actual
+RED-first stubs are still written during Execute (Step 7). Runs AFTER the plan exists
+and BEFORE the adversarial plan review, so the reviewer can red-team both together.
+
+Charter for Test Planner sub-agent:
+```
+MISSION:    From the plan's Goal Contract and What/Why/Where/When table, enumerate the
+            test cases that prove each deliverable works — described by observable
+            behavior (inputs → expected outputs/effects), never by implementation detail.
+
+ALLOWED:    Read the plan (docs/plans/), existing tests, fixtures, and the target
+            interface. Produce a behavior-level test-case list. Note coverage gaps.
+
+PROHIBITED: No production code. No test implementation — no stubs, no asserts yet.
+            No edits to source or the plan. Flag plan gaps; do not fix them yourself.
+
+DELIVERABLE: A Test-Case Plan saved to docs/plans/YYYY-MM-DD-test-plan.md:
+  - One row per behavior: case name | input / precondition | expected result | deliverable it proves
+  - Happy paths, edge cases (empty / null / max / malformed), and error paths per unit
+  - An explicit "untestable by automation" list (these become Manual QA cases in Step 11)
+  - Coverage gaps or ambiguities the plan must resolve before approval
+```
+
+The parent attaches the Test-Case Plan to the plan so Step 5 red-teams BOTH, and Step 7
+implements the cases RED-first (see `/test-generator`).
+
+---
+
+## Step 5 — Verify Plan (SUB-AGENT: Plan Reviewer, adversarial)
+
+**Purpose:** A fresh agent with no attachment to the plan tries to break it — the plan
+and the Test-Case Plan together.
 
 Charter:
 ```
 ROLE: Adversarial plan reviewer. Your job is to find problems, not validate.
 
-READ: docs/plans/YYYY-MM-DD-plan.md
+READ:
+- docs/plans/YYYY-MM-DD-plan.md
+- docs/plans/YYYY-MM-DD-test-plan.md
 
 LOOK FOR:
 - Scope creep: does any step touch something outside OUT-OF-SCOPE?
 - Missing edge cases: what inputs/states does the plan not cover?
+- Test gaps: does the Test-Case Plan miss a behavior, edge case, or error path
+  the plan introduces? Are any "expected results" vague or unobservable?
 - Phase violations: does any step implement a future-phase deliverable?
 - Wrong branch: would any step commit to a permanent branch?
 - Missing fixtures: do the tests reference fixtures that don't exist yet?
@@ -203,16 +243,66 @@ VERDICT: APPROVE / APPROVE WITH CHANGES / BLOCK
 ```
 
 Parent reads the reviewer's output and:
-- For each BLOCKER: resolve in the plan before proceeding
+- For each BLOCKER: resolve in the plan / test-plan before proceeding
 - For each WARNING: note the resolution or accepted risk
 - For each MINOR: note and continue
-- Update `docs/plans/YYYY-MM-DD-plan.md` with resolutions
+- Update `docs/plans/YYYY-MM-DD-plan.md` and the test-plan with resolutions
 
-**Present the updated plan to owner before Step 5. Get explicit "go ahead".**
+**Resolve all BLOCKERs, then take the updated plan to the Decision Gate (Step 6).**
 
 ---
 
-## Step 5 — Execute (SUB-AGENT: Executor, strict guardrails)
+## Step 6 — Owner Approval + Decision Gate (PARENT ONLY — never delegated)
+
+**Purpose:** No execution begins until the owner has seen *every* decision the plan
+contains and had the chance to veto each one. A simple "go ahead" is not enough — a long
+plan is easy to skim, so the parent must surface the decisions explicitly. This step is
+the parent's job and is never delegated to a sub-agent.
+
+The `plan_approval_gate.py` hook fires an advisory 5-point checklist (branch / TDD /
+scope / decisions logged / critical-file sign-off) the moment the owner signals approval.
+That hook is the *reminder*; this step is the *procedure* the parent then runs, in order.
+
+> **Stop on approval.** When the owner says "go ahead / approved / proceed / build it",
+> run no Shell, edits, commits, or sub-agents until this gate completes.
+
+### 6a — Decision Index (first, required)
+List EVERY decision in the plan, numbered, one line each, with its recommended option.
+Do not omit a decision because it seems minor or because you have a strong default.
+```
+DECISION INDEX — N decisions across M sections
+1. (Section <name>) <decision in plain English> — Recommended: <option>
+2. (Section <name>) <decision in plain English> — Recommended: <option>
+```
+If the plan genuinely contains zero decisions, say so explicitly.
+
+### 6b — Coverage Check (required)
+Prove no plan section was skipped. Enumerate every section/phase and list the decision
+numbers it holds — or the literal words "no decisions here".
+```
+COVERAGE CHECK
+- <Section A>: decisions #1, #2
+- <Section B>: no decisions here
+- <Section C>: decision #3
+```
+A section that performs an irreversible action or touches a critical file but is absent
+from the Index is a **gate failure** — fix the Index before continuing.
+
+### 6c — Per-decision detail (required, for each indexed decision)
+1. **Problem** — 2–4 sentences, plain English: what could go wrong and why it matters.
+2. **Options** — only choices allowed by `.claude/rules/agent-conduct.md` and the
+   critical-file rules (no auto-commit/push the owner didn't ask for; no critical-file
+   edits without an approval path).
+3. **Repercussions** — one line per option: what happens if they pick it.
+4. **Recommendation** — mark **Recommended: <option>** with a plain reason (safety,
+   gate, scope).
+
+Wait for the owner's answers (or an explicit "use your recommendations") before Step 7.
+Apply the answers; if scope changed, adjust the plan. Only then proceed to Execute.
+
+---
+
+## Step 7 — Execute (SUB-AGENT: Executor, strict guardrails)
 
 **Purpose:** Build what the plan says. Nothing more, nothing less.
 
@@ -254,7 +344,7 @@ PRODUCE at end:
 
 ---
 
-## Step 6 — Verify Execution (SUB-AGENT: Verifier)
+## Step 8 — Verify Execution (SUB-AGENT: Verifier)
 
 **Purpose:** Independent check that execution actually did what the executor claimed.
 
@@ -303,7 +393,7 @@ FAIL — [specific items that don't match]
 
 ---
 
-## Step 7 — Triple Check (PARENT ONLY — independent, never delegated)
+## Step 9 — Triple Check (PARENT ONLY — independent, never delegated)
 
 **Purpose:** Parent reads everything independently and runs the triple comparison.
 This step is what catches executor drift, report inflation, and plan gaps.
@@ -311,24 +401,24 @@ Parent does NOT re-read the execution log before checking the code — check cod
 
 **Do in this order:**
 
-### 7a — Read the actual code/tests independently
+### 9a — Read the actual code/tests independently
 ```
 Open each file that was supposed to change.
 Read it. Note what you actually see.
 Do NOT read the executor's log yet.
 ```
 
-### 7b — Read the plan's SUCCESS-WHEN criteria
+### 9b — Read the plan's SUCCESS-WHEN criteria
 ```
 What did the plan say would be true when done?
 ```
 
-### 7c — Read the executor's report + verifier's report
+### 9c — Read the executor's report + verifier's report
 ```
 What did they claim was done?
 ```
 
-### 7d — Triple Comparison
+### 9d — Triple Comparison
 
 Produce this comparison table:
 
@@ -362,14 +452,14 @@ EXECUTED vs PLANNED: [match or gap — did executor follow the plan?]
 ### Verdict
 CLEAN — all three align. Proceed to documentation.
   OR
-DRIFT — [specific delta]. Return to step 5 or 6 to resolve before documenting.
+DRIFT — [specific delta]. Return to step 7 or 8 to resolve before documenting.
 ```
 
 **If DRIFT: do not proceed. Resolve first. Document why in DECISION_LOG.**
 
 ---
 
-## Step 8 — Documentation (PARENT)
+## Step 10 — Documentation (PARENT)
 
 **Purpose:** Lock in the record of what happened and surface anything the owner needs to know.
 
@@ -377,7 +467,7 @@ Do in this order:
 
 1. **Session log** — add entry to `docs/logs/SESSION_LOG.md`
 2. **Decision log** — add any architectural decisions made this session
-3. **Bug log** — verify any out-of-scope bugs found in step 5 are in `docs/logs/BUG_LOG.md`
+3. **Bug log** — verify any out-of-scope bugs found in step 7 are in `docs/logs/BUG_LOG.md`
 4. **Roadmap** — tick any deliverables completed
 5. **CLAUDE.md** — update session log line
 
@@ -412,11 +502,12 @@ Do in this order:
 
 ---
 
-## Step 9 — Manual QA (PARENT guided)
+## Step 11 — Manual QA (PARENT guided)
 
 **Purpose:** Owner tests the actual running output. Code passing tests ≠ feature working.
 
-Parent prepares a Manual QA script:
+Parent prepares a Manual QA script. Start from the "untestable by automation" list the
+Test-Case Plan flagged in Step 4 — those cases land here.
 
 ```markdown
 ## Manual QA — YYYY-MM-DD
@@ -442,11 +533,11 @@ If FAIL: log the failure in BUG_LOG.md and decide: fix now (new mini-loop) or lo
 
 ---
 
-## Step 10 — Feedback + Agent Handoff (PARENT)
+## Step 12 — Feedback + Agent Handoff (PARENT)
 
 **Purpose:** Capture what happened so the next agent (or next session) starts fully informed.
 
-### 10a — Collect feedback from owner
+### 12a — Collect feedback from owner
 
 Ask:
 1. "Did the output match what you expected?"
@@ -455,7 +546,7 @@ Ask:
 
 Note the answers — they shape the next session's Step 1.
 
-### 10b — Write Agent Handoff Log
+### 12b — Write Agent Handoff Log
 
 Add entry to `docs/logs/AGENT_HANDOFF_LOG.md`:
 
@@ -501,17 +592,20 @@ Passing: N | Failing: N | Coverage: X%
 |------|----------|-----------|-------------|
 | Explorer | All docs, source, specs | Nothing in repo; scratch only in `%TEMP%` / `~/.cache/agent-research/` | No edits ever; no downloads to repo; cleanup before return |
 | External-research (general-purpose w/ web tools) | Public web; same scratch as above | Same scratch only | Citations + paraphrase only in report; no copied source / PDFs / LGPL-GPL code in repo |
-| Plan Reviewer | Plan doc only | Nothing | No fixes, concerns only |
+| Test Planner | Plan, tests, fixtures, interface | Test-Case Plan doc | No code, no test impl, no plan edits |
+| Plan Reviewer | Plan + test-plan docs | Nothing | No fixes, concerns only |
 | Executor | Plan, tests, source | Source + tests | Plan steps ONLY, log out-of-scope |
 | Verifier | Plan, changed files, test results | Execution report | No code edits |
 
-**Parent agent owns:** Steps 1, 3, 7, 8, 9, 10 — never delegated.
+**Parent agent owns:** Steps 1, 3, 6, 9, 10, 11, 12 — never delegated. (Step 6, the
+Decision Gate, and Step 9, the Triple Check, are the two checkpoints the parent must
+run itself.)
 
 ---
 
 ## Fast path (single-file, doc edits, typos)
 
-Skip steps 2–6. Still mandatory: step 7 (read what you did), step 8 (log + commit), step 10 (handoff note if session continues).
+Skip steps 2–8. Still mandatory: step 9 (read what you did), step 10 (log + commit), step 12 (handoff note if session continues).
 
 ---
 
@@ -521,6 +615,6 @@ Any agent (parent or sub-agent) that finds a bug outside the current plan's scop
 1. Add it to `docs/logs/BUG_LOG.md` immediately — not at session end
 2. Note it in their output
 3. Continue working — do NOT fix it
-4. Parent surfaces it via `spawn_task` in Step 8
+4. Parent surfaces it via `spawn_task` in Step 10
 
 **Silent out-of-scope fixes are prohibited.** They expand blast radius without review.
