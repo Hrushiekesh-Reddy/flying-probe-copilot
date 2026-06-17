@@ -22,7 +22,7 @@ def _validate(text: str):
 def test_grammar_accepts_minimal_batch_btest():
     text = (
         "{@BATCH|BRD-X|A|1|1||ICT|BAT-0001|OP-007|ICT01|TP-001|A|PNL-X|A}\r\n"
-        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\r\n"
+        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\r\n"
     )
     assert _validate(text) == []
 
@@ -108,7 +108,7 @@ def test_grammar_rejects_non_scientific_float():
 
 def test_grammar_rejects_invalid_timestamp_length():
     text = (
-        "{@BTEST|SYN-2026W14-00001|0|2604010830|12|0|all|0|0|0|260401083012||1|OP-001}\r\n"
+        "{@BTEST|SYN-2026W14-00001|0|2604010830|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\r\n"
     )
     errors = _validate(text)
     assert errors, "expected 10-digit timestamp to be rejected (need 12)"
@@ -126,10 +126,10 @@ def test_grammar_rejects_a_res_with_lim2_instead_of_lim3():
 def test_grammar_accepts_btest_13_field_and_14_field_forms():
     """13-field @BTEST (no parent_panel_id) and 14-field (with parent_panel_id) must both pass."""
     thirteen = (
-        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\r\n"
+        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\r\n"
     )
     fourteen = (
-        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|PNL-X-001}\r\n"
+        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A|PNL-X-001}\r\n"
     )
     assert _validate(thirteen) == []
     assert _validate(fourteen) == []

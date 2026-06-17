@@ -89,6 +89,8 @@ Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <
 
 **Status (2026-06-16):** Phase 2 kicked off with a pre-analytics data-quality task. Per-panel operator-id repair landed (BUG-009 resolved, BUG-007 operator half closed). `@BTEST` now carries mandatory per-panel `operator_id` at field 12; `test_runs.operator_id` flipped to `VARCHAR NOT NULL`; per-operator analytics now sit on real data, not the batch-level placeholder. 196 tests passing, 97% coverage. Branch: `feature/per-panel-operator`. Shift + line_id half of BUG-007 still open — pick path next session. Analytics module / Streamlit not yet started.
 
+**Status (2026-06-17):** BUG-007 **FULLY RESOLVED**. Path A applied to the remaining two fields: `@BTEST` gains mandatory `shift: Literal["A","B","C"]` at field 13 and `line_id: str` at field 14; `_make_board_log` reads `btest.shift` / `btest.line_id`. Schema already `NOT NULL` for both — no flip needed. 200 tests passing, 97% coverage. Per-shift + per-operator + per-line analytics now all sit on real per-panel data. PR `feature/per-panel-operator` → `dev` closes both halves of BUG-007 in one feature PR. Analytics module / Streamlit still pending — pick that up next.
+
 ---
 
 ## Phase 3 — RAG Co-Pilot Layer (Week 7-8)

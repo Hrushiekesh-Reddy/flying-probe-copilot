@@ -59,6 +59,8 @@ def sample_batch_log():
         end_ts=260401083012,
         board_number=1,
         operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
 
     blocks = [
@@ -257,6 +259,8 @@ class TestLogRenderer:
             end_ts=260401083002,
             board_number=1,
             operator_id="OP-007",
+            shift="A",
+            line_id="LINE-A",
         )
         board_log = BoardLog(panel=panel, btest=btest, blocks=blocks)
         batch = BatchRecord(

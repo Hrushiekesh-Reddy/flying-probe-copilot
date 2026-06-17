@@ -118,6 +118,8 @@ def test_btest_record_status_uses_intenum():
         end_ts=260401083012,
         board_number=1,
         operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     assert btr.status == 0
     assert btr.status is BTESTStatus.PASS
@@ -156,6 +158,67 @@ def test_btest_record_operator_id_rejects_empty_string():
             end_ts=260401083012,
             board_number=1,
             operator_id="",
+            shift="A",
+            line_id="LINE-A",
+        )
+
+
+def test_btest_record_requires_shift_field():
+    """BoardTestRecord must require an explicit shift field (BUG-007 close)."""
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BoardTestRecord(
+            board_id="SYN-X",
+            status=BTESTStatus.PASS,
+            start_ts=260401083000,
+            duration_s=12,
+            end_ts=260401083012,
+            board_number=1,
+            operator_id="OP-001",
+            line_id="LINE-A",
+        )
+
+
+def test_btest_record_shift_rejects_invalid_letter():
+    """BoardTestRecord.shift must be Literal['A','B','C']."""
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BoardTestRecord(
+            board_id="SYN-X",
+            status=BTESTStatus.PASS,
+            start_ts=260401083000,
+            duration_s=12,
+            end_ts=260401083012,
+            board_number=1,
+            operator_id="OP-001",
+            shift="D",  # not in Literal["A","B","C"]
+            line_id="LINE-A",
+        )
+
+
+def test_btest_record_line_id_rejects_empty_string():
+    """BoardTestRecord.line_id must reject empty string (Field min_length=1)."""
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BoardTestRecord(
+            board_id="SYN-X",
+            status=BTESTStatus.PASS,
+            start_ts=260401083000,
+            duration_s=12,
+            end_ts=260401083012,
+            board_number=1,
+            operator_id="OP-001",
+            shift="A",
+            line_id="",
         )
 
 

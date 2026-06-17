@@ -294,6 +294,8 @@ def test_parse_tjet_record_two_digit_status(tmp_path):
         end_ts=260401083012,
         board_number=1,
         operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     tjet = TestJetRecord(status=TwoDigitStatus.PASS, pin_count=48, designator="TJET1")
     tb = TestBlock(block=BlockRecord(designator="TJET1", status=0), record=tjet)
@@ -361,6 +363,8 @@ def test_parse_pf_record_outer_only_subrecord_ignored(tmp_path):
         end_ts=260401083012,
         board_number=1,
         operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     pf = PinsFailedRecord(
         designator="U1",
@@ -433,6 +437,8 @@ def test_pin_list_backslash_count_is_literal_not_escape(tmp_path):
         end_ts=260401083012,
         board_number=1,
         operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     pf = PinsFailedRecord(
         designator="U1",
@@ -632,7 +638,7 @@ def test_parse_log_file_ts_subrecords_noted_not_crashed(tmp_path):
     # Minimal log with a @TS-S subrecord (these come from ShortsRecord detail)
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-TEST-TS01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-TEST-TS01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|SHORTS|0}\n"
         "{@TS|0|0|0|0|shorts_test}\n"
         "{@TS-S|NODE1|0|0}\n"
@@ -653,7 +659,7 @@ def test_parse_log_file_no_batch_record_returns_unknown_batch(tmp_path):
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
     log_content = (
-        "{@BTEST|SYN-TEST-NB01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-TEST-NB01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -673,11 +679,11 @@ def test_parse_log_file_multiple_boards_flushed_correctly(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-MULTI-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-MULTI-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
-        "{@BTEST|SYN-MULTI-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001}\n"
+        "{@BTEST|SYN-MULTI-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R2|0}\n"
         "{@A-RES|0|+2.200000E+03|R2}\n"
         "{@LIM3|+2.200000E+03|+2.420000E+03|+1.980000E+03}\n"
@@ -699,12 +705,12 @@ def test_parse_log_file_bad_btest_timestamp_skips_board(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Board 1: bad timestamp
-        "{@BTEST|SYN-BAD-TS|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
+        "{@BTEST|SYN-BAD-TS|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
         # Board 2: valid timestamp
-        "{@BTEST|SYN-GOOD-TS|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-GOOD-TS|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|C1|0}\n"
         "{@A-CAP|0|+1.000000E-07|C1}\n"
         "{@LIM3|+1.000000E-07|+1.100000E-07|+9.000000E-08}\n"
@@ -753,7 +759,7 @@ def test_parse_log_file_skips_tjet_pf_when_btest_bad_timestamp(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Bad BTEST timestamp
-        "{@BTEST|SYN-BAD-SKIP|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
+        "{@BTEST|SYN-BAD-SKIP|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|TJET1|0}\n"
         "{@TJET|00|48|TJET1}\n"    # Must be skipped
         "{@BLOCK|U1|0}\n"
@@ -777,7 +783,7 @@ def test_parse_log_file_pending_analog_flushed_at_file_end(tmp_path):
     # the @BLOCK+@A-RES combination should produce a parse error on the dangling analog
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-EOF-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-EOF-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         # No @LIM3 follows — file ends with pending analog
@@ -797,9 +803,9 @@ def test_parse_log_file_btest_skip_second_btest_records_error(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Board 1: bad timestamp → btest_skip=True
-        "{@BTEST|SYN-BAD-01|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
+        "{@BTEST|SYN-BAD-01|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001|A|LINE-A}\n"
         # Board 2: another @BTEST while skipping → error recorded
-        "{@BTEST|SYN-GOOD-02|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-GOOD-02|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -855,7 +861,7 @@ def test_parse_block_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1}\n"  # Missing status field
     )
     log_path = tmp_path / "block_few.log"
@@ -870,7 +876,7 @@ def test_parse_digital_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|U1|0}\n"
         "{@D-T|0|0}\n"  # Only 2 fields — need ≥5
     )
@@ -886,7 +892,7 @@ def test_parse_shorts_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|SHORTS|0}\n"
         "{@TS|0|0}\n"  # Only 2 fields — need ≥5
     )
@@ -902,7 +908,7 @@ def test_parse_tjet_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|TJET1|0}\n"
         "{@TJET|00}\n"  # Only 1 field — need ≥3
     )
@@ -918,7 +924,7 @@ def test_record_without_pending_block_does_not_crash(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@D-T|0|0|0|0|U1}\n"  # No preceding @BLOCK
         "{@TS|0|0|0|0|shorts_test}\n"  # No preceding @BLOCK
         "{@TJET|00|48|TJET1}\n"  # No preceding @BLOCK
@@ -937,7 +943,7 @@ def test_pending_analog_flushed_when_new_block_arrives(tmp_path):
     # @A-RES followed by @BLOCK without @LIM3 — pending analog must be flushed
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@BLOCK|C1|0}\n"  # arrives while R1 analog pending — must flush
@@ -961,11 +967,11 @@ def test_parse_log_file_pending_analog_flushed_on_new_btest(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         # @LIM3 not provided — new @BTEST arrives while R1 analog is pending
-        "{@BTEST|SYN-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001}\n"
+        "{@BTEST|SYN-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|C1|0}\n"
         "{@A-CAP|0|+1.000000E-07|C1}\n"
         "{@LIM3|+1.000000E-07|+1.100000E-07|+9.000000E-08}\n"
@@ -1001,7 +1007,7 @@ def test_parse_btest_extracts_operator_id_from_field_12(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-BATCH|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-OP-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-XYZ}\n"
+        "{@BTEST|SYN-OP-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-XYZ|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -1027,7 +1033,7 @@ def test_make_board_log_uses_btest_operator_not_batch_operator(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-BATCH|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-PANEL-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-PANEL}\n"
+        "{@BTEST|SYN-PANEL-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-PANEL|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -1053,7 +1059,7 @@ def test_parser_emits_no_batch_level_operator_note(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"

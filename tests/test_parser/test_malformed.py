@@ -24,7 +24,7 @@ def test_unbalanced_brace_logged_and_skipped_not_crash(tmp_path):
     # imbalance (which would swallow subsequent records).
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-TEST-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BTEST|SYN-TEST-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|INVALID_STATUS|+1.000000E+04|R1}\n"  # INVALID status → parse error
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"

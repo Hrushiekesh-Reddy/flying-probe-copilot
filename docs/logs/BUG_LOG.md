@@ -46,9 +46,15 @@ Severity:
 **Verification:** `tests/test_parser/test_cli.py::test_partial_multi_file_failure_rolls_back_earlier_panels` monkeypatches `_ingest_batch_log` to succeed on the first two calls and raise on the third, then asserts `SELECT COUNT(*) FROM panels / test_runs / measurements / runs` all return 0 after the failure. Then lifts the patch, retries, and asserts `panels` count equals the full board count (proving no PK conflicts on retry). 185/185 tests pass; ingest.py coverage held at 100%.
 **Time to resolve:** ~15 min.
 
-## [BUG-007] Parser-rebuilt PanelInstance hardcodes shift="A" and line_id="LINE-A" (P2) — PARTIALLY RESOLVED 2026-06-16 (operator_id half closed; shift + line_id remain open)
+## [BUG-007] Parser-rebuilt PanelInstance hardcoded shift="A" and line_id="LINE-A" (P2) — FULLY RESOLVED 2026-06-17
 
-**Update 2026-06-16:** The `operator_id` half of this bug-family is now closed via Path A — see BUG-009 (Resolved 2026-06-16). The parser's `_make_board_log` no longer hardcodes the operator; it reads from `@BTEST.operator_id` and `test_runs.operator_id` is `VARCHAR NOT NULL`. The `shift="A"` and `line_id="LINE-A"` literals at `src/flying_probe_copilot/parser/log_parser.py:621-622` remain — those two fields are still not emitted in per-board `.log` files. The next session will either (a) extend `@BTEST` further with `shift` + `line_id`, or (b) flip `panels.shift` + `panels.line_id` to nullable + write NULL where unknown. Notebook Query 3 still carries the placeholder caveat; Query 4's caveat is now closed.
+**Update 2026-06-16:** The `operator_id` half of this bug-family was closed via Path A — see BUG-009.
+
+**Update 2026-06-17 (FULL CLOSE):** Path A applied to the remaining two fields. `@BTEST` extended with mandatory `shift: Literal["A","B","C"]` at positional index 13 and `line_id: str = Field(min_length=1)` at index 14 (`parent_panel_id` shifted to optional index 15). `BoardTestRecord` carries both; the generator CLI passes `shift=panel.shift, line_id=panel.line_id`; the renderer emits them at the new positions; the grammar regex accepts `\|[ABC]\|{_FIELD}` between operator_id and the optional parent_panel_id; the parser's `_parse_btest` extracts `fields[13]` and `fields[14]`; `_make_board_log` reads `btest.shift` and `btest.line_id` instead of the placeholder literals. `panels.shift` and `panels.line_id` were already `NOT NULL` in the schema — no schema flip needed; the bug was silent-wrong-data, not nullability.
+
+**Verification:** `tests/test_parser/test_ingest.py::test_multi_shift_multi_line_run_distinct_per_panel` constructs 4 panels with explicitly distinct `(shift, line_id)` tuples spanning all three shift letters and four different line_ids, runs them through `render_log → ingest_run_directory`, and asserts the `panels.shift` / `panels.line_id` values in DuckDB match the in-memory `PanelInstance` exactly for every panel_serial. Plus three model-layer tests: shift is required, shift rejects letters outside `Literal["A","B","C"]`, and `line_id` rejects empty string. 200 passing, 0 failing, 97% coverage.
+
+**Notebook Query 3 (per-shift yield) caveat closed** alongside Query 4's earlier close — both per-shift and per-operator analytics now sit on real per-panel data.
 
 **Discovered:** 2026-06-14
 **Phase:** Phase 1b — PR #9 Bugbot review (comment id 3410306157, medium severity)

@@ -4,6 +4,38 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-17 — Phase 2 — branch: feature/per-panel-operator (follow-up commit, BUG-007 fully closed)
+
+**Goal:** Close the remaining `shift` + `line_id` half of BUG-007 fast, on the same branch as yesterday's operator_id repair, so a Phase 2 branch waiting elsewhere can rebase onto real per-panel shift + line_id data.
+**Outcome:** Done. Path A applied verbatim: `@BTEST` gains mandatory `shift: Literal["A","B","C"]` at field 13 and `line_id: str = Field(min_length=1)` at field 14; wired through models → CLI → renderer → grammar → parser. Schema was already `NOT NULL` for both columns, so no schema flip — the bug was silent-wrong-data, not nullability. 200 passing, 0 failing, 97% coverage. BUG-007 → **FULLY RESOLVED**.
+
+### Done
+- **Source edits (6 files):** `models.py` (added 2 fields on `BoardTestRecord` between `operator_id` and `parent_panel_id`); `cli.py` (passes `shift=panel.shift, line_id=panel.line_id`); `renderers/log.py` (emits at positions 13/14); `grammar.py` (`_BTEST` regex extended; shift constrained to `[ABC]`); `parser/log_parser.py` (`_parse_btest` min-field 13→15; extracts `fields[13]`/`fields[14]`; `_make_board_log` reads `btest.shift`/`btest.line_id` instead of literals `"A"`/`"LINE-A"`; `parent_panel_id` shifts to `fields[15]`).
+- **Test edits (6 files):** bulk auto-patch of 12 `BoardTestRecord(...)` blocks across `tests/test_parser/` + `tests/test_generator/` to add `shift="A", line_id="LINE-A"` kwargs (regex-based, missed 2 cases with multi-kwargs-per-line — patched by hand); bulk auto-patch of 30 hardcoded `@BTEST|` literals in `test_log_parser.py` / `test_malformed.py` / `test_grammar.py` from 13/14-field form to 15/16-field form by splitting on `|`, inserting `A`/`LINE-A` after the operator_id segment.
+- **New tests (4):** `test_btest_record_requires_shift_field`, `test_btest_record_shift_rejects_invalid_letter`, `test_btest_record_line_id_rejects_empty_string` (model-layer guards), plus `test_multi_shift_multi_line_run_distinct_per_panel` in `test_ingest.py` (end-to-end: 4 panels with distinct (operator, shift, line_id) tuples → `render_log` → `ingest_run_directory` → assert `panels.shift` / `panels.line_id` match `PanelInstance` per panel).
+- **Docs:** BUG_LOG BUG-007 → "FULLY RESOLVED 2026-06-17" (full Path-A description); notebook `01-queries.ipynb` Query 3 markdown caveat closed; SESSION_LOG (this entry); CLAUDE.md session-log line below.
+
+### Decisions
+- **No new branch.** Stayed on `feature/per-panel-operator` because both halves of BUG-007 close in one feature-PR, owner explicitly asked for speed, and the next session already has a Phase 2 branch waiting to rebase. PR title can be renamed at PR time if needed.
+- **Skipped full 12-step loop.** Mechanical application of the same Path A pattern that was red-teamed and proven 2026-06-16 on operator_id. TDD discipline preserved (failing tests first via missing kwargs / wrong field counts → fix code → all green) but no separate brief/plan/red-team. Logged here for audit.
+- **No schema flip.** `panels.shift` and `panels.line_id` were already `NOT NULL` in `db/schema.py`. The bug was the parser writing constant placeholder values; once the parser reads real values the schema's existing constraints catch it.
+- **Multi-shift/line test by manual construction.** Same pattern as the operator_id multi-test from 2026-06-16 — explicit distinct `(operator, shift, line_id)` tuples; goes through real `render_log → ingest_run_directory`; tests the contract directly without depending on `generate_panel_schedule`'s probabilistic rotation.
+- **Regex patcher missed 2 BoardTestRecord blocks** that had multiple kwargs on the same line (no leading newline before `operator_id=`). Caught by the pytest run, patched by hand. Lesson: regex patch tools need to handle both line-per-kwarg and compact multi-kwarg styles.
+
+### Bugs
+- **BUG-007 RESOLVED** — both halves now closed (operator_id closed 2026-06-16 / BUG-009; shift + line_id closed today).
+
+### Out-of-scope (logged, not fixed)
+- BUG-010 (TestJetRecord PytestCollectionWarning) — chip already pending from yesterday.
+
+### Next session
+1. Manual QA on the combined fix (operator + shift + line_id end-to-end). Yesterday's QA script `docs/plans/2026-06-16-phase2-operator-manual-qa.md` is still valid for the operator half; either extend it or accept the new `test_multi_shift_multi_line_run_distinct_per_panel` test as automated coverage.
+2. PR `feature/per-panel-operator` → `dev` (now closes both halves of BUG-007 in one PR).
+3. Rebase the waiting Phase 2 branch onto the merged commit.
+4. Then Phase 2 analytics proper (`src/flying_probe_copilot/analytics/` + Streamlit skeleton).
+
+---
+
 ## 2026-06-16 — Phase 2 — branch: feature/per-panel-operator
 
 **Goal:** First Phase 2 task — close the per-panel operator-id data-degradation gap deferred from Phase 1b (DECISION_LOG 2026-06-14, BUG-007 operator half). Path A: extend `@BTEST` with a mandatory `operator_id` field and flip `test_runs.operator_id` to `VARCHAR NOT NULL`, wired end-to-end through models → CLI → renderer → grammar → parser → ingest. Tier: Medium. 12-step workflow loop (the plan was authored under the prior 10-step workflow; the upgrade landed cleanly because the 10-step "Step 4 red-team / Revision 1" maps to the 12-step "Step 5 Verify Plan" and the embedded per-step RED test cases cover the 12-step "Step 4 Test-Case Plan").

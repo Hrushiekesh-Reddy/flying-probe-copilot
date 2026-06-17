@@ -206,11 +206,13 @@ def _parse_batch(fields: list[str]) -> BatchRecord:
 
 def _parse_btest(fields: list[str]) -> tuple[BoardTestRecord, datetime, datetime]:
     """Parse @BTEST fields into (BoardTestRecord, start_dt, end_dt)."""
-    if len(fields) < 13:
-        raise ValueError(f"@BTEST: expected ≥13 fields, got {len(fields)}: {fields}")
+    if len(fields) < 15:
+        raise ValueError(f"@BTEST: expected ≥15 fields, got {len(fields)}: {fields}")
     start_dt = _parse_yymmddhhmmss(int(fields[2]))
     end_dt = _parse_yymmddhhmmss(int(fields[9]))
     operator_id = fields[12]
+    shift = fields[13]
+    line_id = fields[14]
     btest = BoardTestRecord(
         board_id=fields[0],
         status=BTESTStatus(int(fields[1])),
@@ -225,7 +227,9 @@ def _parse_btest(fields: list[str]) -> tuple[BoardTestRecord, datetime, datetime
         status_qualifier=fields[10] if len(fields) > 10 else "",
         board_number=int(fields[11]) if len(fields) > 11 else 1,
         operator_id=operator_id,
-        parent_panel_id=fields[13] if len(fields) > 13 else None,
+        shift=shift,
+        line_id=line_id,
+        parent_panel_id=fields[15] if len(fields) > 15 else None,
     )
     return btest, start_dt, end_dt
 
@@ -618,8 +622,8 @@ def _make_board_log(
         panel_position=btest.board_number,
         board_profile_id="unknown",
         operator_id=btest.operator_id,
-        line_id="LINE-A",
-        shift="A",
+        line_id=btest.line_id,
+        shift=btest.shift,
         timestamp=start_dt or datetime(2026, 1, 1),
     )
     return BoardLog(panel=panel, btest=btest, blocks=blocks)

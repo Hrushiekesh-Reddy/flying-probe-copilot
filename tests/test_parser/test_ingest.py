@@ -401,7 +401,7 @@ def test_ingest_tjet_and_pf_blocks_produce_measurements(in_mem_db, tmp_path):
     btest = BoardTestRecord(
         board_id="SYN-2026W30-001", status=BTESTStatus.PASS,
         start_ts=260720080000, duration_s=120, end_ts=260720082000,
-        board_number=1, operator_id="OP-001",
+        board_number=1, operator_id="OP-001", shift="A", line_id="LINE-A",
     )
     tjet_block = TestBlock(
         block=BlockRecord(designator="TJET1", status=0),
@@ -473,7 +473,7 @@ def test_ingest_bad_btest_timestamp_skips_test_run(in_mem_db, tmp_path):
     btest = BoardTestRecord(
         board_id="SYN-2026W31-001", status=BTESTStatus.PASS,
         start_ts=999999999999, duration_s=120, end_ts=999999999999,
-        board_number=1, operator_id="OP-001",
+        board_number=1, operator_id="OP-001", shift="A", line_id="LINE-A",
     )
     shorts_block = TestBlock(
         block=BlockRecord(designator="TS1", status=0),
@@ -598,6 +598,8 @@ def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
             end_ts=int(f"260401080{i:01d}12"),
             board_number=i,
             operator_id=op_id,
+            shift="A",
+            line_id="LINE-A",
         )
         boards.append(BoardLog(panel=panel, btest=btest, blocks=[]))
 
@@ -652,5 +654,117 @@ def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
         f"All ingested operator_ids must be in operators dim; "
         f"ingested={ingested_ops}, dim={op_ids}"
     )
+
+    con.close()
+
+
+def test_multi_shift_multi_line_run_distinct_per_panel(tmp_path):
+    """Multi-panel run with distinct per-panel shift + line_id must ingest with distinct panels.shift / panels.line_id.
+
+    Constructs 4 boards with explicitly distinct (shift, line_id) tuples to
+    prove the parser sources per-panel shift + line_id from @BTEST (the
+    BUG-007 fix), not from the hardcoded placeholders that lived in
+    _make_board_log before this commit.
+
+    Success criterion: each panel_serial's panels.shift and panels.line_id
+    match the @BTEST.shift and @BTEST.line_id from its log file.
+    """
+    import json as json_module
+    from datetime import datetime
+    from flying_probe_copilot.db.schema import init_database
+    from flying_probe_copilot.generator.models import (
+        BatchLog, BatchRecord, BoardLog, BoardTestRecord, BTESTStatus,
+        PanelInstance,
+    )
+    from flying_probe_copilot.generator.renderers.log import render_log
+    from flying_probe_copilot.parser.ingest import ingest_run_directory
+    import duckdb
+
+    con = duckdb.connect(":memory:")
+    init_database(con)
+
+    distinct_panels = [
+        ("OP-001", "A", "LINE-1"),
+        ("OP-002", "B", "LINE-2"),
+        ("OP-003", "C", "LINE-3"),
+        ("OP-004", "A", "LINE-4"),
+    ]
+    batch_record = BatchRecord(
+        uut_type="BRD-SMALL", uut_rev="A", fixture_id=1, testhead_num=1,
+        process_step="ICT", batch_id="BAT-MULTI",
+        operator_id="OP-001", controller="ICT01", testplan_id="TP-001",
+        testplan_rev="v1.0", parent_panel_type="PNL-SMALL", parent_panel_rev="A",
+    )
+    boards = []
+    for i, (op_id, shift, line_id) in enumerate(distinct_panels, start=1):
+        panel = PanelInstance(
+            serial=f"SYN-MULTI-{i:05d}",
+            panel_position=i,
+            board_profile_id="small",
+            operator_id=op_id,
+            line_id=line_id,
+            shift=shift,
+            timestamp=datetime(2026, 4, 1, 8, i * 5, 0),
+        )
+        btest = BoardTestRecord(
+            board_id=f"SYN-MULTI-{i:05d}",
+            status=BTESTStatus.PASS,
+            start_ts=int(f"260401080{i:01d}00"),
+            duration_s=12,
+            end_ts=int(f"260401080{i:01d}12"),
+            board_number=i,
+            operator_id=op_id,
+            shift=shift,
+            line_id=line_id,
+        )
+        boards.append(BoardLog(panel=panel, btest=btest, blocks=[]))
+    batch_log = BatchLog(batch=batch_record, boards=boards)
+
+    run_dir = tmp_path / "run_multi_shift_line_test"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir()
+    for board in batch_log.boards:
+        single = BatchLog(batch=batch_log.batch, boards=[board])
+        render_log(single, logs_dir / f"{board.panel.serial}.log", encoding="utf-8")
+    manifest = {
+        "panel_count": 4,
+        "fault_rate": 0.0,
+        "fault_profile": "random",
+        "seed": 0,
+        "board_profile": "small",
+        "failing_boards": 0,
+    }
+    (run_dir / "manifest.json").write_text(
+        json_module.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    report = ingest_run_directory(run_dir, con)
+    assert report.panels_inserted == 4
+
+    rows = con.execute(
+        "SELECT panel_serial, shift, line_id FROM panels ORDER BY panel_serial"
+    ).fetchall()
+    assert len(rows) == 4
+
+    distinct_shifts = {r[1] for r in rows}
+    assert distinct_shifts == {"A", "B", "C"}, (
+        f"Expected shifts A/B/C across the 4 panels, got {distinct_shifts} — "
+        "the parser must source shift from @BTEST per panel, not the LINE-A placeholder"
+    )
+    distinct_lines = {r[2] for r in rows}
+    assert distinct_lines == {"LINE-1", "LINE-2", "LINE-3", "LINE-4"}, (
+        f"Expected 4 distinct line_ids, got {distinct_lines}"
+    )
+
+    serial_to_expected = {
+        f"SYN-MULTI-{i:05d}": (s, l) for i, (_, s, l) in enumerate(distinct_panels, start=1)
+    }
+    for panel_serial, shift, line_id in rows:
+        exp_shift, exp_line = serial_to_expected[panel_serial]
+        assert (shift, line_id) == (exp_shift, exp_line), (
+            f"Panel {panel_serial}: expected (shift={exp_shift!r}, line={exp_line!r}), "
+            f"got (shift={shift!r}, line={line_id!r})"
+        )
 
     con.close()
