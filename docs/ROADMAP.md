@@ -87,6 +87,8 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 ### Exit criteria
 Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <2s on 100k records.
 
+**Status (2026-06-16):** Phase 2 kicked off with a pre-analytics data-quality task. Per-panel operator-id repair landed (BUG-009 resolved, BUG-007 operator half closed). `@BTEST` now carries mandatory per-panel `operator_id` at field 12; `test_runs.operator_id` flipped to `VARCHAR NOT NULL`; per-operator analytics now sit on real data, not the batch-level placeholder. 196 tests passing, 97% coverage. Branch: `feature/per-panel-operator`. Shift + line_id half of BUG-007 still open — pick path next session. Analytics module / Streamlit not yet started.
+
 ---
 
 ## Phase 3 — RAG Co-Pilot Layer (Week 7-8)

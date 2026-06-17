@@ -127,6 +127,7 @@ def _build_batch_log(args, profile_name: str) -> BatchLog:
             duration_s=12,
             end_ts=end_ts,
             board_number=1,
+            operator_id=panel.operator_id,
         )
         boards.append(BoardLog(panel=panel, btest=btest, blocks=blocks))
 

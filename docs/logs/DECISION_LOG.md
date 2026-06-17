@@ -85,6 +85,8 @@ Making the column nullable converts a silent-degraded-data risk into an explicit
 
 **Revisit:** Phase 2 first session. Decide whether to extend `@BTEST` (generator change) or to ingest `results.json` as an authorized sidecar. Either path lets the column flip to `NOT NULL` if we want strict integrity.
 
+> **Resolved 2026-06-16** — Path A landed via `feature/per-panel-operator` (see plan `docs/plans/2026-06-14-phase2-operator-plan.md` + brief `docs/plans/2026-06-14-phase2-operator-brief.md` + BUG_LOG entry BUG-009). `@BTEST` now carries a mandatory `operator_id` at positional index 12; `test_runs.operator_id` is `VARCHAR NOT NULL`; multi-operator runs ingest with per-panel-distinct operators (`tests/test_parser/test_ingest.py::test_multi_operator_run_distinct_operators_per_panel`). `results.json` sidecar path NOT taken — log files remain the single source of truth.
+
 ---
 
 ## 2026-06-14 — Phase 1b: re-ingest guarded at CLI, not at schema (single-run idempotency contract)

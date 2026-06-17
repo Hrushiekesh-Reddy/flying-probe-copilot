@@ -88,6 +88,8 @@ def test_parse_batch_record(small_batch_log):
         fname = f.name
     try:
         batch_log_parsed, report = parse_log_file(Path(fname))
+        # @BATCH.operator_id is a batch-level summary, not per-panel — per-panel
+        # operator is sourced from @BTEST.operator_id; see DECISION_LOG 2026-06-14.
         assert batch_log_parsed.batch.operator_id == small_batch_log.batch.operator_id
         assert batch_log_parsed.batch.batch_id == small_batch_log.batch.batch_id
         assert batch_log_parsed.batch.uut_type == small_batch_log.batch.uut_type
@@ -291,6 +293,7 @@ def test_parse_tjet_record_two_digit_status(tmp_path):
         duration_s=12,
         end_ts=260401083012,
         board_number=1,
+        operator_id="OP-001",
     )
     tjet = TestJetRecord(status=TwoDigitStatus.PASS, pin_count=48, designator="TJET1")
     tb = TestBlock(block=BlockRecord(designator="TJET1", status=0), record=tjet)
@@ -357,6 +360,7 @@ def test_parse_pf_record_outer_only_subrecord_ignored(tmp_path):
         duration_s=12,
         end_ts=260401083012,
         board_number=1,
+        operator_id="OP-001",
     )
     pf = PinsFailedRecord(
         designator="U1",
@@ -428,6 +432,7 @@ def test_pin_list_backslash_count_is_literal_not_escape(tmp_path):
         duration_s=12,
         end_ts=260401083012,
         board_number=1,
+        operator_id="OP-001",
     )
     pf = PinsFailedRecord(
         designator="U1",
@@ -627,7 +632,7 @@ def test_parse_log_file_ts_subrecords_noted_not_crashed(tmp_path):
     # Minimal log with a @TS-S subrecord (these come from ShortsRecord detail)
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-TEST-TS01|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-TEST-TS01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|SHORTS|0}\n"
         "{@TS|0|0|0|0|shorts_test}\n"
         "{@TS-S|NODE1|0|0}\n"
@@ -648,7 +653,7 @@ def test_parse_log_file_no_batch_record_returns_unknown_batch(tmp_path):
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
     log_content = (
-        "{@BTEST|SYN-TEST-NB01|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-TEST-NB01|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -668,11 +673,11 @@ def test_parse_log_file_multiple_boards_flushed_correctly(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-MULTI-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-MULTI-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
-        "{@BTEST|SYN-MULTI-002|0|260401093000|12|0|all|0|0|0|260401093012||1}\n"
+        "{@BTEST|SYN-MULTI-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001}\n"
         "{@BLOCK|R2|0}\n"
         "{@A-RES|0|+2.200000E+03|R2}\n"
         "{@LIM3|+2.200000E+03|+2.420000E+03|+1.980000E+03}\n"
@@ -694,12 +699,12 @@ def test_parse_log_file_bad_btest_timestamp_skips_board(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Board 1: bad timestamp
-        "{@BTEST|SYN-BAD-TS|0|999999999999|12|0|all|0|0|0|999999999999||1}\n"
+        "{@BTEST|SYN-BAD-TS|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
         # Board 2: valid timestamp
-        "{@BTEST|SYN-GOOD-TS|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-GOOD-TS|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|C1|0}\n"
         "{@A-CAP|0|+1.000000E-07|C1}\n"
         "{@LIM3|+1.000000E-07|+1.100000E-07|+9.000000E-08}\n"
@@ -748,7 +753,7 @@ def test_parse_log_file_skips_tjet_pf_when_btest_bad_timestamp(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Bad BTEST timestamp
-        "{@BTEST|SYN-BAD-SKIP|0|999999999999|12|0|all|0|0|0|999999999999||1}\n"
+        "{@BTEST|SYN-BAD-SKIP|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
         "{@BLOCK|TJET1|0}\n"
         "{@TJET|00|48|TJET1}\n"    # Must be skipped
         "{@BLOCK|U1|0}\n"
@@ -772,7 +777,7 @@ def test_parse_log_file_pending_analog_flushed_at_file_end(tmp_path):
     # the @BLOCK+@A-RES combination should produce a parse error on the dangling analog
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-EOF-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-EOF-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         # No @LIM3 follows — file ends with pending analog
@@ -792,9 +797,9 @@ def test_parse_log_file_btest_skip_second_btest_records_error(tmp_path):
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
         # Board 1: bad timestamp → btest_skip=True
-        "{@BTEST|SYN-BAD-01|0|999999999999|12|0|all|0|0|0|999999999999||1}\n"
+        "{@BTEST|SYN-BAD-01|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001}\n"
         # Board 2: another @BTEST while skipping → error recorded
-        "{@BTEST|SYN-GOOD-02|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-GOOD-02|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
@@ -831,12 +836,12 @@ def test_parse_log_file_file_undecodable_returns_empty_batchlog(tmp_path):
 
 
 def test_parse_btest_too_few_fields_produces_error(tmp_path):
-    """@BTEST with fewer than 12 fields produces a ParseError."""
+    """@BTEST with fewer than 13 fields produces a ParseError."""
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0}\n"  # Only 2 fields — need ≥12
+        "{@BTEST|SYN-001|0}\n"  # Only 2 fields — need ≥13
     )
     log_path = tmp_path / "btest_few.log"
     log_path.write_text(log_content, encoding="utf-8")
@@ -850,7 +855,7 @@ def test_parse_block_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1}\n"  # Missing status field
     )
     log_path = tmp_path / "block_few.log"
@@ -865,7 +870,7 @@ def test_parse_digital_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|U1|0}\n"
         "{@D-T|0|0}\n"  # Only 2 fields — need ≥5
     )
@@ -881,7 +886,7 @@ def test_parse_shorts_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|SHORTS|0}\n"
         "{@TS|0|0}\n"  # Only 2 fields — need ≥5
     )
@@ -897,7 +902,7 @@ def test_parse_tjet_too_few_fields_produces_error(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|TJET1|0}\n"
         "{@TJET|00}\n"  # Only 1 field — need ≥3
     )
@@ -913,7 +918,7 @@ def test_record_without_pending_block_does_not_crash(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@D-T|0|0|0|0|U1}\n"  # No preceding @BLOCK
         "{@TS|0|0|0|0|shorts_test}\n"  # No preceding @BLOCK
         "{@TJET|00|48|TJET1}\n"  # No preceding @BLOCK
@@ -932,7 +937,7 @@ def test_pending_analog_flushed_when_new_block_arrives(tmp_path):
     # @A-RES followed by @BLOCK without @LIM3 — pending analog must be flushed
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         "{@BLOCK|C1|0}\n"  # arrives while R1 analog pending — must flush
@@ -956,11 +961,11 @@ def test_parse_log_file_pending_analog_flushed_on_new_btest(tmp_path):
 
     log_content = (
         "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
-        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
         "{@BLOCK|R1|0}\n"
         "{@A-RES|0|+1.000000E+04|R1}\n"
         # @LIM3 not provided — new @BTEST arrives while R1 analog is pending
-        "{@BTEST|SYN-002|0|260401093000|12|0|all|0|0|0|260401093012||1}\n"
+        "{@BTEST|SYN-002|0|260401093000|12|0|all|0|0|0|260401093012||1|OP-001}\n"
         "{@BLOCK|C1|0}\n"
         "{@A-CAP|0|+1.000000E-07|C1}\n"
         "{@LIM3|+1.000000E-07|+1.100000E-07|+9.000000E-08}\n"
@@ -983,3 +988,98 @@ def test_tokenize_returns_correct_line_numbers(tmp_path):
     assert records[0][0] == "@BATCH" and records[0][2] == 1
     assert records[1][0] == "@BTEST" and records[1][2] == 2
     assert records[2][0] == "@BLOCK" and records[2][2] == 3
+
+
+# ---------------------------------------------------------------------------
+# Step 5.5 new tests — per-panel operator_id round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_parse_btest_extracts_operator_id_from_field_12(tmp_path):
+    """_parse_btest must extract operator_id from field[12] (13th field after @BTEST)."""
+    from flying_probe_copilot.parser.log_parser import parse_log_file
+
+    log_content = (
+        "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-BATCH|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
+        "{@BTEST|SYN-OP-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-XYZ}\n"
+        "{@BLOCK|R1|0}\n"
+        "{@A-RES|0|+1.000000E+04|R1}\n"
+        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
+    )
+    log_path = tmp_path / "op_id_test.log"
+    log_path.write_text(log_content, encoding="utf-8")
+
+    batch_log, report = parse_log_file(log_path)
+    assert len(report.errors) == 0, f"Unexpected errors: {report.errors}"
+    assert len(batch_log.boards) == 1
+    board = batch_log.boards[0]
+    assert board.btest.operator_id == "OP-XYZ", (
+        f"Expected btest.operator_id='OP-XYZ', got {board.btest.operator_id!r}"
+    )
+    assert board.panel.operator_id == "OP-XYZ", (
+        f"Expected panel.operator_id='OP-XYZ', got {board.panel.operator_id!r}"
+    )
+
+
+def test_make_board_log_uses_btest_operator_not_batch_operator(tmp_path):
+    """When @BATCH.operator_id differs from @BTEST.operator_id, per-panel wins."""
+    from flying_probe_copilot.parser.log_parser import parse_log_file
+
+    log_content = (
+        "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-BATCH|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
+        "{@BTEST|SYN-PANEL-TEST|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-PANEL}\n"
+        "{@BLOCK|R1|0}\n"
+        "{@A-RES|0|+1.000000E+04|R1}\n"
+        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
+    )
+    log_path = tmp_path / "batch_vs_panel_op.log"
+    log_path.write_text(log_content, encoding="utf-8")
+
+    batch_log, report = parse_log_file(log_path)
+    assert len(report.errors) == 0, f"Unexpected errors: {report.errors}"
+    assert batch_log.batch.operator_id == "OP-BATCH", (
+        f"@BATCH.operator_id must remain OP-BATCH, got {batch_log.batch.operator_id!r}"
+    )
+    assert len(batch_log.boards) == 1
+    board = batch_log.boards[0]
+    assert board.panel.operator_id == "OP-PANEL", (
+        f"panel.operator_id must be OP-PANEL (from @BTEST), got {board.panel.operator_id!r}"
+    )
+
+
+def test_parser_emits_no_batch_level_operator_note(tmp_path):
+    """The 'operator_id is batch-level' note must no longer appear in ParseReport.notes."""
+    from flying_probe_copilot.parser.log_parser import parse_log_file
+
+    log_content = (
+        "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001}\n"
+        "{@BLOCK|R1|0}\n"
+        "{@A-RES|0|+1.000000E+04|R1}\n"
+        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\n"
+    )
+    log_path = tmp_path / "no_batch_op_note.log"
+    log_path.write_text(log_content, encoding="utf-8")
+
+    batch_log, report = parse_log_file(log_path)
+    for note in report.notes:
+        assert "operator_id is batch-level" not in note, (
+            f"Stale 'operator_id is batch-level' note found: {note!r}"
+        )
+
+
+def test_parse_btest_12_field_old_format_is_rejected(tmp_path):
+    """A 12-field @BTEST (OLD format, missing operator_id) must produce a ParseError."""
+    from flying_probe_copilot.parser.log_parser import parse_log_file
+
+    log_content = (
+        "{@BATCH|BRD-SMALL|A|1|1||ICT|BAT-0042|OP-001|ICT01|TP-001|v1.0|PNL-SMALL|A}\n"
+        "{@BTEST|SYN-001|0|260401083000|12|0|all|0|0|0|260401083012||1}\n"
+    )
+    log_path = tmp_path / "old_12field.log"
+    log_path.write_text(log_content, encoding="utf-8")
+
+    batch_log, report = parse_log_file(log_path)
+    assert len(report.errors) > 0, (
+        "OLD 12-field @BTEST (no operator_id) must produce a ParseError (min field check < 13)"
+    )

@@ -401,7 +401,7 @@ def test_ingest_tjet_and_pf_blocks_produce_measurements(in_mem_db, tmp_path):
     btest = BoardTestRecord(
         board_id="SYN-2026W30-001", status=BTESTStatus.PASS,
         start_ts=260720080000, duration_s=120, end_ts=260720082000,
-        board_number=1,
+        board_number=1, operator_id="OP-001",
     )
     tjet_block = TestBlock(
         block=BlockRecord(designator="TJET1", status=0),
@@ -473,7 +473,7 @@ def test_ingest_bad_btest_timestamp_skips_test_run(in_mem_db, tmp_path):
     btest = BoardTestRecord(
         board_id="SYN-2026W31-001", status=BTESTStatus.PASS,
         start_ts=999999999999, duration_s=120, end_ts=999999999999,
-        board_number=1,
+        board_number=1, operator_id="OP-001",
     )
     shorts_block = TestBlock(
         block=BlockRecord(designator="TS1", status=0),
@@ -545,3 +545,112 @@ def test_ingest_parse_exception_captured_in_report(in_mem_db, tmp_path):
     assert any("simulated I/O failure" in note for note in report.notes), (
         f"Expected failure note in report.notes, got: {report.notes}"
     )
+
+
+def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
+    """Multi-panel run with distinct per-panel operators must ingest with distinct operator_ids.
+
+    Constructs 4 boards with explicitly distinct operators (OP-001..OP-004) to
+    prove the ingest layer writes per-panel operator_id from @BTEST, not the
+    batch-level @BATCH.operator_id.
+
+    Success criterion: each panel_serial's test_runs.operator_id == its @BTEST.operator_id.
+    """
+    import json as json_module
+    from datetime import datetime
+    from flying_probe_copilot.db.schema import init_database
+    from flying_probe_copilot.generator.models import (
+        BatchLog, BatchRecord, BoardLog, BoardTestRecord, BTESTStatus,
+        PanelInstance,
+    )
+    from flying_probe_copilot.generator.renderers.log import render_log
+    from flying_probe_copilot.parser.ingest import ingest_run_directory
+    import duckdb
+
+    con = duckdb.connect(":memory:")
+    init_database(con)
+
+    # Build 4 boards each with a distinct operator_id
+    distinct_ops = ["OP-001", "OP-002", "OP-003", "OP-004"]
+    batch_record = BatchRecord(
+        uut_type="BRD-SMALL", uut_rev="A", fixture_id=1, testhead_num=1,
+        process_step="ICT", batch_id="BAT-MULTI",
+        operator_id="OP-001",  # batch-level — parser should NOT use this per-panel
+        controller="ICT01", testplan_id="TP-001", testplan_rev="v1.0",
+        parent_panel_type="PNL-SMALL", parent_panel_rev="A",
+    )
+    boards = []
+    for i, op_id in enumerate(distinct_ops, start=1):
+        panel = PanelInstance(
+            serial=f"SYN-MULTI-{i:05d}",
+            panel_position=i,
+            board_profile_id="small",
+            operator_id=op_id,
+            line_id="LINE-A",
+            shift="A",
+            timestamp=datetime(2026, 4, 1, 8, i * 5, 0),
+        )
+        btest = BoardTestRecord(
+            board_id=f"SYN-MULTI-{i:05d}",
+            status=BTESTStatus.PASS,
+            start_ts=int(f"260401080{i:01d}00"),
+            duration_s=12,
+            end_ts=int(f"260401080{i:01d}12"),
+            board_number=i,
+            operator_id=op_id,
+        )
+        boards.append(BoardLog(panel=panel, btest=btest, blocks=[]))
+
+    batch_log = BatchLog(batch=batch_record, boards=boards)
+
+    # Write run directory
+    run_dir = tmp_path / "run_multi_op_test"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir()
+    for board in batch_log.boards:
+        single = BatchLog(batch=batch_log.batch, boards=[board])
+        render_log(single, logs_dir / f"{board.panel.serial}.log", encoding="utf-8")
+    manifest = {
+        "panel_count": 4,
+        "fault_rate": 0.0,
+        "fault_profile": "random",
+        "seed": 0,
+        "board_profile": "small",
+        "failing_boards": 0,
+    }
+    (run_dir / "manifest.json").write_text(
+        json_module.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    report = ingest_run_directory(run_dir, con)
+    assert report.panels_inserted == 4, f"Expected 4 panels, got {report.panels_inserted}"
+    assert report.test_runs_inserted == 4, f"Expected 4 test_runs, got {report.test_runs_inserted}"
+
+    rows = con.execute(
+        "SELECT panel_serial, operator_id FROM test_runs ORDER BY panel_serial"
+    ).fetchall()
+    assert len(rows) == 4
+    ingested_ops = {r[1] for r in rows}
+    assert len(ingested_ops) == 4, (
+        f"Expected 4 distinct operator_ids in test_runs, got {ingested_ops}"
+    )
+
+    # Each panel_serial's operator_id must match the per-panel @BTEST.operator_id
+    serial_to_panel_op = {b.panel.serial: b.panel.operator_id for b in batch_log.boards}
+    for panel_serial, operator_id in rows:
+        expected_op = serial_to_panel_op[panel_serial]
+        assert operator_id == expected_op, (
+            f"Panel {panel_serial}: expected operator_id={expected_op!r}, "
+            f"got {operator_id!r} — ingest must use @BTEST.operator_id, not @BATCH"
+        )
+
+    # operators dim must have all 4 distinct operators
+    op_rows = con.execute("SELECT operator_id FROM operators ORDER BY operator_id").fetchall()
+    op_ids = {r[0] for r in op_rows}
+    assert ingested_ops.issubset(op_ids), (
+        f"All ingested operator_ids must be in operators dim; "
+        f"ingested={ingested_ops}, dim={op_ids}"
+    )
+
+    con.close()

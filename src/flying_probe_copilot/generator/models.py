@@ -14,7 +14,7 @@ from datetime import datetime
 from enum import Enum, IntEnum
 from typing import Callable, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +206,7 @@ class BoardTestRecord(BaseModel):
     end_ts: int
     status_qualifier: str = ""
     board_number: int
+    operator_id: str = Field(min_length=1)
     parent_panel_id: str | None = None
 
 

@@ -58,6 +58,7 @@ def sample_batch_log():
         duration_s=12,
         end_ts=260401083012,
         board_number=1,
+        operator_id="OP-001",
     )
 
     blocks = [
@@ -255,6 +256,7 @@ class TestLogRenderer:
             duration_s=2,
             end_ts=260401083002,
             board_number=1,
+            operator_id="OP-007",
         )
         board_log = BoardLog(panel=panel, btest=btest, blocks=blocks)
         batch = BatchRecord(
@@ -281,6 +283,25 @@ class TestLogRenderer:
         # Fields: @BTEST | board_id | status | ...
         fields = btest_line[1:-1].split("|")  # strip { } then split
         assert fields[2] == "4", f"expected status field '4', got {fields[2]!r}"
+
+    def test_btest_renders_operator_id_at_position_12(self, sample_batch_log, tmp_path):
+        """operator_id must appear at index 13 in the pipe-split @BTEST line.
+
+        The @BTEST line starts with {@BTEST, so split[0]="@BTEST" and the first
+        field is split[1]=board_id. operator_id is the 13th field after @BTEST
+        (zero-indexed as field[12]), so split[13]=="OP-001".
+        """
+        from flying_probe_copilot.generator.renderers.log import render_log
+
+        out = tmp_path / "op_id_pos.log"
+        render_log(sample_batch_log, out)
+        text = out.read_text(encoding="cp1252")
+        btest_line = next(ln for ln in text.splitlines() if ln.startswith("{@BTEST"))
+        split = btest_line[1:-1].split("|")
+        assert split[13] == "OP-001", (
+            f"Expected operator_id 'OP-001' at split[13], got {split[13]!r}. "
+            f"Full split: {split}"
+        )
 
 
 # ===========================================================================

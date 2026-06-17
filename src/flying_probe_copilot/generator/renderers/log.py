@@ -99,6 +99,7 @@ def _render_btest(btr: BoardTestRecord) -> str:
         str(btr.end_ts),
         btr.status_qualifier,
         str(btr.board_number),
+        btr.operator_id,
     ]
     if btr.parent_panel_id is not None:
         fields.append(btr.parent_panel_id)

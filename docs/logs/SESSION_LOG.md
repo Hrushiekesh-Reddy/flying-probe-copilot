@@ -4,6 +4,44 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-16 — Phase 2 — branch: feature/per-panel-operator
+
+**Goal:** First Phase 2 task — close the per-panel operator-id data-degradation gap deferred from Phase 1b (DECISION_LOG 2026-06-14, BUG-007 operator half). Path A: extend `@BTEST` with a mandatory `operator_id` field and flip `test_runs.operator_id` to `VARCHAR NOT NULL`, wired end-to-end through models → CLI → renderer → grammar → parser → ingest. Tier: Medium. 12-step workflow loop (the plan was authored under the prior 10-step workflow; the upgrade landed cleanly because the 10-step "Step 4 red-team / Revision 1" maps to the 12-step "Step 5 Verify Plan" and the embedded per-step RED test cases cover the 12-step "Step 4 Test-Case Plan").
+**Outcome:** Done. 11 new tests, 196 passing, 0 failing, 97% total coverage (schema 100%, parser 97%, generator ≥90%). BUG-009 resolved; BUG-007 partially resolved (operator_id half closed; shift + line_id still open). Notebook Query 4 caveat closed; Query 3 caveat unchanged.
+
+### Done
+- **Branch:** `feature/per-panel-operator` (had brief + plan committed previously at `130b47c`; this session added all source + test edits and docs on top, single coherent change set, no mid-session commits).
+- **Source edits (7 files):** `src/flying_probe_copilot/generator/models.py` (mandatory `operator_id: str = Field(min_length=1)` on `BoardTestRecord` at positional index 12), `generator/cli.py` (passes `operator_id=panel.operator_id`), `generator/renderers/log.py` (`_render_btest` emits the new slot between `board_number` and the optional `parent_panel_id`), `generator/grammar.py` (`_BTEST` regex extended to 13/14-field form), `parser/log_parser.py` (`_parse_btest` extracts `fields[12]`, shifts `parent_panel_id` to `fields[13]`; `_make_board_log` lost its `batch_rec` parameter and reads `btest.operator_id`; "operator_id is batch-level" `report.notes.append` deleted; both `_make_board_log` call-sites updated to 4-arg signature), `parser/ingest.py:287` (one-line change — reads `btest.operator_id` not `batch_log.batch.operator_id`), `db/schema.py:91` (approval-gated; `VARCHAR` → `VARCHAR NOT NULL`; #WARNING-5 comment replaced with the new contract line).
+- **Test edits (10 files, 11 new tests):** `test_models.py` (+2: `test_btest_record_requires_operator_id`, `test_btest_record_operator_id_rejects_empty_string`), `test_cli.py` (+1: `test_build_batch_log_each_btest_uses_panel_operator`), `test_renderers.py` (+1: `test_btest_renders_operator_id_at_position_12`), `test_grammar.py` (+1: `test_grammar_btest_requires_operator_id_field`), `test_lexical_compliance.py` (kwarg propagation), `test_log_parser.py` (+4: `test_parse_btest_extracts_operator_id_from_field_12`, `test_make_board_log_uses_btest_operator_not_batch_operator`, `test_parser_emits_no_batch_level_operator_note`, `test_parse_btest_12_field_old_format_is_rejected`; plus bulk-update of every hardcoded `@BTEST|` literal to the 13-field form per Revision 1 BLOCKER B1), `test_ingest.py` (+1: `test_multi_operator_run_distinct_operators_per_panel` — constructs 4 boards with distinct operators, runs through `render_log → ingest_run_directory`, asserts `COUNT(DISTINCT operator_id) == 4` AND per-panel-serial operator match), `test_malformed.py` (literal update), `test_yield_query.py` (`NULL` → `'OP-001'` per Revision 1 BLOCKER B3), `test_schema.py` (+1: `test_test_runs_operator_id_is_not_null` using locked `DESCRIBE test_runs` 6-column introspection per Revision 1 WARNING W2).
+- **Doc edits:** DECISION_LOG 2026-06-14 nullable-operator entry footnoted with "Resolved 2026-06-16 — Path A landed"; BUG_LOG renumbered TestJetRecord-warning to BUG-010 (cosmetic OPEN/P3) and added BUG-009 (operator-id batch-level → Resolved 2026-06-16); BUG-007 header now reads "PARTIALLY RESOLVED 2026-06-16 (operator_id half closed; shift + line_id remain open)"; notebook `01-queries.ipynb` Query 4 markdown rewritten — caveat closed; Query 3 (per-shift) caveat untouched; ROADMAP Phase 2 status block updated; CLAUDE.md session-log line below.
+
+### Decisions
+- **Path A over Path B (results.json sidecar) over Path C (nullable now, fix later).** A was the brief's explicit owner pick. B violates the "log files are the single source of truth" promise from Phase 1b. C leaves the silent-wrong-data risk in place. Picking A inside the Phase 1b round-trip contract (counts + timestamps + now operators all match end-to-end) keeps the schema strict from day one of Phase 2 analytics.
+- **`@BATCH.operator_id` semantics unchanged.** Still set to `boards[0].panel.operator_id`. It's a batch-level summary — useful for "which operator started this batch" but no longer the parser's source of truth for per-panel attribution. Keeping it stable avoids breaking any future log consumer that depends on it.
+- **`Field(min_length=1)` at model layer.** Revision 1 WARNING W4. Grammar `_FIELD` accepts empty string by design (so `status_qualifier` can be empty); defence-in-depth lives at the Pydantic model layer.
+- **`_make_board_log` lost `batch_rec`.** Revision 1 WARNING W1. Lint-clean signature, no `# noqa` band-aid, both call-sites updated.
+- **Schema flip ordering.** Step 5.6 (ingest produces non-NULL values) before Step 5.7 (column declared `NOT NULL`). No intermediate state where tests would fail.
+- **Multi-operator regression test built by manual construction, not `generate_panel_schedule`.** The schedule helper rotates operators on `rng.randint(60, 200)` intervals — with only 4 panels they all fall in the first operator's window, making the assertion `len(set(operators)) == 4` flaky. Manual construction (4 boards each with explicit distinct operators, batch-level operator deliberately set to OP-001) is a sharper contract test: it disagrees @BATCH vs @BTEST, so a regression to "parser uses @BATCH" would fail the test loudly. Goes through the real `render_log → ingest_run_directory` pipe.
+- **BUG_LOG renumber.** Plan §6 MINOR M3 said BUG-009 = operator closure entry; exec sub-agent used BUG-009 for a separate cosmetic warning (TestJetRecord). Renumbered exec's entry to BUG-010, added the plan-intended BUG-009. No information lost.
+
+### Bugs
+- **BUG-009 resolved this session** (per-panel operator-id was always batch-level → fixed via Path A).
+- **BUG-007 partially resolved** (operator_id half closed; shift + line_id remain open as the next data-quality task).
+- **BUG-010 logged** (TestJetRecord cosmetic `PytestCollectionWarning` — P3, OPEN, spawn_task chip surfaced).
+
+### Out-of-scope (logged, not fixed)
+- **BUG-007 shift + line_id half** — Notebook Query 3 still carries the placeholder caveat. Path A could be extended (add `shift` + `line_id` to `@BTEST`) or we flip `panels.shift` + `panels.line_id` to nullable. Pick next session.
+- **BUG-010 TestJetRecord warning** — cosmetic noise on every pytest run. spawn_task chip surfaced.
+- **`data/db/sample.duckdb` regeneration** — gitignored; the notebook still loads against an old-schema DB because `CREATE TABLE IF NOT EXISTS` preserves the nullable column on existing files. Manual QA script (next step) documents the regen command for owner.
+
+### Next session
+1. Manual QA — owner runs `docs/plans/2026-06-16-phase2-operator-manual-qa.md` (regen sample DB → distinct-operator query → schema introspection check → smoke test). Sign-off.
+2. PR `feature/per-panel-operator` → `dev`. Address any Bugbot review on the way through.
+3. Decide BUG-007 shift + line_id path (extend @BTEST further OR flip schema columns to nullable). One session, Small/Medium tier.
+4. Then: Phase 2 analytics module + Streamlit dashboard (ROADMAP lines 76-86).
+
+---
+
 ## 2026-06-14 — Governance fix — branch: feature/abs-hook-paths
 
 **Goal:** Close the spawned task from the Phase 1b notebook session: flip the three hook commands in `.claude/settings.json` to absolute, cwd-invariant paths so a stray `cd <subdir>` mid-session can never hard-block the shell again. Stamp the same fix upstream into `E:\hrk-agent-starter\` so future projects don't inherit the bug. Tier: Small (config + docs only).

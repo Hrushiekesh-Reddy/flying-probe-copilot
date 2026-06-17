@@ -184,7 +184,7 @@ def two_week_db():
             "INSERT INTO test_runs "
             "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
             " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-            "VALUES (?, ?, ?, NULL, ?, ?, ?, 12, false, false, false, 1)",
+            "VALUES (?, ?, ?, 'OP-001', ?, ?, ?, 12, false, false, false, 1)",
             [seq, serial, run_id, status, start, end],
         )
 

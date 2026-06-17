@@ -55,10 +55,10 @@ _BATCH = re.compile(
     + r"\}$"
 )
 
-# @BTEST — 12 or 13 fields. Field count comes from the spec table.
+# @BTEST — 13 or 14 fields. Field count comes from the spec table.
 # Schema: board_id | status | start_ts | duration_s | multiple_test | log_level
 #         | log_set | learning | known_good | end_ts | status_qualifier
-#         | board_number [| parent_panel_id]
+#         | board_number | operator_id [| parent_panel_id]
 _BTEST = re.compile(
     r"^\{@BTEST"
     rf"\|{_FIELD}"                                         # board_id
@@ -73,6 +73,7 @@ _BTEST = re.compile(
     rf"\|{_TIMESTAMP}"                                     # end_ts
     rf"\|{_FIELD}"                                         # status_qualifier
     rf"\|\d+"                                              # board_number
+    rf"\|{_FIELD}"                                         # operator_id
     rf"(?:\|{_FIELD})?"                                    # optional parent_panel_id
     r"\}$"
 )

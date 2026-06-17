@@ -14,6 +14,27 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-010] `TestJetRecord` Pydantic model name causes PytestCollectionWarning on every test run (P3) — OPEN, deferred
+
+**Discovered:** 2026-06-16
+**Found during:** Phase 2 operator_id wiring session
+**File:line:** `src/flying_probe_copilot/generator/models.py:327`
+**Symptom:** pytest emits `PytestCollectionWarning: cannot collect test class 'TestJetRecord' because it has a __init__ constructor` for two test files (`test_log_parser.py`, `test_roundtrip.py`) that import from models. Not a test failure — just noise in every test run output.
+**Root Cause:** Pydantic model class name `TestJetRecord` begins with `Test`, so pytest's default collection heuristic tries to gather it as a test class.
+**Severity estimate:** P3 (cosmetic/noise — zero impact on correctness)
+**Fix:** NOT DONE — out of scope this session. Rename to `TJetRecord` in models.py + all usages, or add `python_classes` conftest filter to exclude it. spawn_task chip created at Step 10.
+
+## [BUG-009] `test_runs.operator_id` was always batch-level (per-panel operator-id lost in per-board logs) (P2) — RESOLVED 2026-06-16
+
+**Discovered:** 2026-06-14 (during Phase 1b PR #9 review; the column was declared nullable as the v1 workaround per DECISION_LOG 2026-06-14).
+**Phase:** Phase 2 — first task (per-panel operator-id repair), branch `feature/per-panel-operator`.
+**File(s):** `src/flying_probe_copilot/generator/models.py`, `cli.py`, `renderers/log.py`, `grammar.py`, `src/flying_probe_copilot/parser/log_parser.py`, `ingest.py`, `src/flying_probe_copilot/db/schema.py` (+ matching test files).
+**Symptom:** Per-board `.log` files carried `@BATCH.operator_id` once (one value per per-board log file, derived from `boards[0].panel.operator_id`). The parser sourced the per-panel operator from `@BATCH`, so every panel in a single run appeared under the same operator in `test_runs`. Per-operator yield queries (Notebook Query 4 and any Phase 2 dashboard depending on it) returned per-run-operator data, not true per-panel data.
+**Root Cause:** The Keysight Log Record Format @BTEST record as originally modelled had no operator field — only `board_id`, `status`, timestamps, and `board_number`. The generator's per-board renderer therefore had nowhere to write `panel.operator_id`. The Phase 1b parser, having nothing better to read, fell back to `@BATCH.operator_id` for per-panel attribution and the schema declared the column nullable to convert the silent data degradation into an explicit "may be incomplete" contract.
+**Fix:** Path A — generator extension. Added `operator_id: str = Field(min_length=1)` as a mandatory field at @BTEST positional index 12 (between `board_number` and the optional `parent_panel_id`). Wired through `BoardTestRecord`, the generator CLI builder (`cli._build_batch_log` now passes `operator_id=panel.operator_id`), the log renderer (`_render_btest` emits the new slot), the grammar regex (`_BTEST` accepts the 13/14-field form), the parser (`_parse_btest` extracts `fields[12]`; `_make_board_log` lost its `batch_rec` parameter and reads `btest.operator_id` directly), and the ingest layer (`ingest.py:287` reads `btest.operator_id`). Schema column flipped to `VARCHAR NOT NULL`. `@BATCH.operator_id` semantics unchanged — still set to `boards[0].panel.operator_id` for batch-level summary, but no longer the parser's source.
+**Verification:** 11 new tests covering each layer of the contract, including `test_multi_operator_run_distinct_operators_per_panel` which constructs 4 boards with explicitly distinct operators (OP-001..OP-004), drives them through `render_log → ingest_run_directory`, asserts `COUNT(DISTINCT operator_id) == 4` in `test_runs` and that each `panel_serial`'s ingested operator matches its `PanelInstance.operator_id`. Full suite: 196 passing, 0 failing, 97% coverage (schema 100%, parser 97%, generator ≥90%). The previously batch-level @BATCH assertion in `test_log_parser.py:91` still passes for the right reason (single-operator small fixture has `boards[0].panel.operator_id == panel.operator_id` for every panel by construction).
+**Time to resolve:** ~25 min exec sub-agent runtime + ~30 min parent review/triple-check. Closes the deferred decision in DECISION_LOG 2026-06-14 ("test_runs.operator_id nullable; per-panel operator recovery deferred to Phase 2").
+
 ## [BUG-008] Partial multi-file ingest failure left earlier files' fact rows committed, blocking retry with PK conflicts (P2) — RESOLVED 2026-06-14
 
 **Discovered:** 2026-06-14
@@ -25,7 +46,9 @@ Severity:
 **Verification:** `tests/test_parser/test_cli.py::test_partial_multi_file_failure_rolls_back_earlier_panels` monkeypatches `_ingest_batch_log` to succeed on the first two calls and raise on the third, then asserts `SELECT COUNT(*) FROM panels / test_runs / measurements / runs` all return 0 after the failure. Then lifts the patch, retries, and asserts `panels` count equals the full board count (proving no PK conflicts on retry). 185/185 tests pass; ingest.py coverage held at 100%.
 **Time to resolve:** ~15 min.
 
-## [BUG-007] Parser-rebuilt PanelInstance hardcodes shift="A" and line_id="LINE-A" (P2) — OPEN, deferred to Phase 2
+## [BUG-007] Parser-rebuilt PanelInstance hardcodes shift="A" and line_id="LINE-A" (P2) — PARTIALLY RESOLVED 2026-06-16 (operator_id half closed; shift + line_id remain open)
+
+**Update 2026-06-16:** The `operator_id` half of this bug-family is now closed via Path A — see BUG-009 (Resolved 2026-06-16). The parser's `_make_board_log` no longer hardcodes the operator; it reads from `@BTEST.operator_id` and `test_runs.operator_id` is `VARCHAR NOT NULL`. The `shift="A"` and `line_id="LINE-A"` literals at `src/flying_probe_copilot/parser/log_parser.py:621-622` remain — those two fields are still not emitted in per-board `.log` files. The next session will either (a) extend `@BTEST` further with `shift` + `line_id`, or (b) flip `panels.shift` + `panels.line_id` to nullable + write NULL where unknown. Notebook Query 3 still carries the placeholder caveat; Query 4's caveat is now closed.
 
 **Discovered:** 2026-06-14
 **Phase:** Phase 1b — PR #9 Bugbot review (comment id 3410306157, medium severity)

@@ -117,9 +117,46 @@ def test_btest_record_status_uses_intenum():
         duration_s=12,
         end_ts=260401083012,
         board_number=1,
+        operator_id="OP-001",
     )
     assert btr.status == 0
     assert btr.status is BTESTStatus.PASS
+
+
+def test_btest_record_requires_operator_id():
+    """BoardTestRecord must require operator_id — omitting it raises ValidationError."""
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BoardTestRecord(
+            board_id="SYN-2026W14-00001",
+            status=BTESTStatus.PASS,
+            start_ts=260401083000,
+            duration_s=12,
+            end_ts=260401083012,
+            board_number=1,
+            # operator_id deliberately omitted
+        )
+
+
+def test_btest_record_operator_id_rejects_empty_string():
+    """BoardTestRecord.operator_id must reject empty string (Field min_length=1)."""
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BoardTestRecord(
+            board_id="SYN-2026W14-00001",
+            status=BTESTStatus.PASS,
+            start_ts=260401083000,
+            duration_s=12,
+            end_ts=260401083012,
+            board_number=1,
+            operator_id="",
+        )
 
 
 def test_btest_status_intenum_includes_all_documented_codes():

@@ -206,10 +206,11 @@ def _parse_batch(fields: list[str]) -> BatchRecord:
 
 def _parse_btest(fields: list[str]) -> tuple[BoardTestRecord, datetime, datetime]:
     """Parse @BTEST fields into (BoardTestRecord, start_dt, end_dt)."""
-    if len(fields) < 12:
-        raise ValueError(f"@BTEST: expected ≥12 fields, got {len(fields)}: {fields}")
+    if len(fields) < 13:
+        raise ValueError(f"@BTEST: expected ≥13 fields, got {len(fields)}: {fields}")
     start_dt = _parse_yymmddhhmmss(int(fields[2]))
     end_dt = _parse_yymmddhhmmss(int(fields[9]))
+    operator_id = fields[12]
     btest = BoardTestRecord(
         board_id=fields[0],
         status=BTESTStatus(int(fields[1])),
@@ -223,7 +224,8 @@ def _parse_btest(fields: list[str]) -> tuple[BoardTestRecord, datetime, datetime
         end_ts=int(fields[9]),
         status_qualifier=fields[10] if len(fields) > 10 else "",
         board_number=int(fields[11]) if len(fields) > 11 else 1,
-        parent_panel_id=fields[12] if len(fields) > 12 else None,
+        operator_id=operator_id,
+        parent_panel_id=fields[13] if len(fields) > 13 else None,
     )
     return btest, start_dt, end_dt
 
@@ -433,10 +435,6 @@ def parse_log_file(
         try:
             if prefix == "@BATCH":
                 batch_rec = _parse_batch(fields)
-                report.notes.append(
-                    f"operator_id is batch-level, not per-panel — "
-                    f"per-panel recovery deferred to Phase 2"
-                )
 
             elif prefix == "@BTEST":
                 # Commit previous board if any
@@ -451,7 +449,7 @@ def parse_log_file(
                     boards.append(
                         _make_board_log(
                             current_btest, current_btest_start_dt, current_btest_end_dt,
-                            current_blocks, batch_rec,
+                            current_blocks,
                         )
                     )
                 elif current_btest is not None and btest_skip:
@@ -583,7 +581,7 @@ def parse_log_file(
         boards.append(
             _make_board_log(
                 current_btest, current_btest_start_dt, current_btest_end_dt,
-                current_blocks, batch_rec,
+                current_blocks,
             )
         )
     elif current_btest is None and btest_skip:
@@ -613,15 +611,13 @@ def _make_board_log(
     start_dt: datetime | None,
     end_dt: datetime | None,
     blocks: list[TestBlock],
-    batch_rec: BatchRecord | None,
 ) -> BoardLog:
     """Construct a BoardLog with a synthetic PanelInstance."""
-    op_id = batch_rec.operator_id if batch_rec else "OP-001"
     panel = PanelInstance(
         serial=btest.board_id,
         panel_position=btest.board_number,
         board_profile_id="unknown",
-        operator_id=op_id,
+        operator_id=btest.operator_id,
         line_id="LINE-A",
         shift="A",
         timestamp=start_dt or datetime(2026, 1, 1),

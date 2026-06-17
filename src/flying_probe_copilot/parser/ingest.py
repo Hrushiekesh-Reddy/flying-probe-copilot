@@ -15,8 +15,8 @@ Idempotency:
   - Fact tables (panels, runs, test_runs, measurements, failures) use strict
     INSERT. A pre-flight check in cli.py prevents re-ingesting the same run_id.
 
-Per #WARNING-5: test_runs.operator_id is populated from @BATCH.operator_id
-(batch-level, not per-panel). Noted in ParseReport.notes.
+test_runs.operator_id is populated from @BTEST.operator_id (per-panel), which
+is the authoritative source since @BTEST field 12 carries the operator for that board.
 """
 
 from __future__ import annotations
@@ -283,8 +283,8 @@ def _ingest_batch_log(
         )
         panels_inserted += 1
 
-        # Operator
-        operator_id = batch_log.batch.operator_id
+        # Operator — read from @BTEST (per-panel), not @BATCH (batch-level).
+        operator_id = btest.operator_id
         _ensure_operator(con, operator_id)
 
         # Convert timestamps
