@@ -26,12 +26,12 @@ def test_public_api_importable():
 
 
 def test_yield_row_dataclass_shape():
-    """A-02: YieldRow exposes exactly the 5 fields defined in L9, frozen=True."""
+    """A-02: YieldRow exposes exactly the 4 fields defined in L9, frozen=True."""
     from flying_probe_copilot.analytics import YieldRow
 
     fields = {f.name: f for f in dataclasses.fields(YieldRow)}
 
-    expected = {"group_key", "total", "passed", "yield_pct", "placeholder_fields"}
+    expected = {"group_key", "total", "passed", "yield_pct"}
     assert set(fields) == expected, (
         f"YieldRow field set mismatch: expected {expected}, got {set(fields)}"
     )
@@ -44,7 +44,7 @@ def test_yield_row_dataclass_shape():
     assert hints["yield_pct"].type in (float, "float"), "yield_pct must be float"
 
     # frozen=True check — assigning to a field should raise FrozenInstanceError
-    row = YieldRow(group_key="small", total=5, passed=4, yield_pct=80.0, placeholder_fields=())
+    row = YieldRow(group_key="small", total=5, passed=4, yield_pct=80.0)
     try:
         row.group_key = "other"  # type: ignore[misc]
         raise AssertionError("YieldRow must be frozen (immutable)")
@@ -53,12 +53,12 @@ def test_yield_row_dataclass_shape():
 
 
 def test_pareto_row_dataclass_shape():
-    """A-03: ParetoRow exposes exactly the 5 fields defined in L10, frozen=True."""
+    """A-03: ParetoRow exposes exactly the 4 fields defined in L10, frozen=True."""
     from flying_probe_copilot.analytics import ParetoRow
 
     fields = {f.name: f for f in dataclasses.fields(ParetoRow)}
 
-    expected = {"key", "count", "pct_of_total", "cumulative_pct", "placeholder_fields"}
+    expected = {"key", "count", "pct_of_total", "cumulative_pct"}
     assert set(fields) == expected, (
         f"ParetoRow field set mismatch: expected {expected}, got {set(fields)}"
     )
@@ -71,7 +71,7 @@ def test_pareto_row_dataclass_shape():
     assert hints["cumulative_pct"].type in (float, "float"), "cumulative_pct must be float"
 
     # frozen=True check
-    row = ParetoRow(key="A-RES", count=10, pct_of_total=50.0, cumulative_pct=50.0, placeholder_fields=())
+    row = ParetoRow(key="A-RES", count=10, pct_of_total=50.0, cumulative_pct=50.0)
     try:
         row.key = "other"  # type: ignore[misc]
         raise AssertionError("ParetoRow must be frozen (immutable)")

@@ -4,6 +4,35 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-18 — Phase 2 — branch: feature/analytics-drop-placeholder-markers
+
+**Goal:** Land the chipped follow-up from the morning housekeeping pass: drop the now-stale `placeholder_fields` markers from `YieldRow` / `ParetoRow`. Markers were added 2026-06-16 to flag BUG-007-affected columns; BUG-007 closed 2026-06-17, so every emitted tuple is `()` and the field has become a self-described lie ("placeholder" on real data). Tier: Small.
+**Outcome:** Done. Field dropped from both dataclasses; `_GROUP_BY_CONFIG` simplified from 3-tuple to 2-tuple; placeholder-specific tests (Y-08, P-12, P-13) retired; Y-09 / Y-10 / Y-11 refactored into plain group_by smoke tests asserting on real shift / line_id / operator_id data; Y-12 xfail comment cleaned up. 235 passing, 1 xfailed, 0 failing, 97% coverage (was 238/1xfailed pre-refactor; 3 retired tests account for the delta).
+
+### Done
+- **Source (3 files):** `src/flying_probe_copilot/analytics/models.py` (drop `placeholder_fields` from `YieldRow` + `ParetoRow`, prune module docstring), `analytics/yield_metrics.py` (collapse `_GROUP_BY_CONFIG` to `dict[str, tuple[str, str]]`, drop the unpack-and-pass, drop marker docstring section), `analytics/pareto.py` (drop `placeholder_fields=()` kwarg + marker docstring section).
+- **Tests (3 files):** `tests/test_analytics/test_yield.py` — Y-08 deleted; Y-09 / Y-10 / Y-11 renamed to `test_yield_by_{shift,line,operator}_returns_grouped_rows` with smoke assertions on real values (`{"A","B","C"}` for shift, `LINE-*` prefix for line, `OP-*` or `<unknown>` for operator); Y-12 xfail reason rewritten (no longer references "follow-up chip"). `tests/test_analytics/test_pareto.py` — P-12 / P-13 deleted. `tests/test_analytics/test_public_api.py` — A-02 / A-03 expected field sets reduced from 5 to 4; row constructors drop the `placeholder_fields=()` kwarg.
+- **Docs:** DECISION_LOG — new 2026-06-18 entry; the 2026-06-16 entry gets a "Resolved 2026-06-18" footnote. SESSION_LOG (this entry). CLAUDE.md session-log line below.
+
+### Decisions
+- **Drop the field outright (option A) over keeping it as always-empty (option B).** The dataclass's docstring promises "lists the specific column name(s) when something is"; an always-empty tuple can't keep that promise. No external consumers exist yet (Streamlit not built; notebook doesn't read the field), so breaking-change cost is zero today vs. infinite-vestige cost if we wait.
+- **Refactor Y-09 / Y-10 / Y-11 instead of deleting.** They cost almost nothing as group_by smoke tests now that the conftest fixture carries real per-panel `shift='A'` / `line_id='LINE-A'` / `operator_id='OP-001'`. Deleting them would leave the three non-board group_by paths covered only by Y-12 (which is xfailed) and Y-01 (board only).
+- **Y-08 deleted, not refactored.** Y-01 already exhaustively exercises `group_by='board'` against canonical-SQL expected values; a smoke test on top would be redundant.
+- **No TDD red-first.** A field deletion can't show as RED through a test edit — the tests that asserted the field still pass against the existing source. Did mechanical refactor in one shot; pytest run verifies the new shape.
+
+### Bugs
+- None new. The chip task (`task_3cf21775`) that triggered this session is now resolved.
+
+### Out-of-scope (logged, not fixed)
+- BUG-010 (TestJetRecord PytestCollectionWarning) — still open.
+- `data/db/sample.duckdb` regeneration with real per-panel shift / line_id / operator data — out of scope; the notebook will pick that up next time someone regenerates.
+
+### Next session
+- Phase 2 slice 2: SPC chart helpers (X-bar, R, individual) + anomaly detection (z-score baseline; Isolation Forest stretch).
+- Phase 2 slice 3: Streamlit dashboard skeleton.
+
+---
+
 ## 2026-06-17 — Phase 2 — branch: feature/per-panel-operator (follow-up commit, BUG-007 fully closed)
 
 **Goal:** Close the remaining `shift` + `line_id` half of BUG-007 fast, on the same branch as yesterday's operator_id repair, so a Phase 2 branch waiting elsewhere can rebase onto real per-panel shift + line_id data.

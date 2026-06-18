@@ -9,10 +9,6 @@ SQL shape (R1-O):
 Cumulative pct semantics (R1-O):
     cumulative_pct is computed over the FULL group set (before LIMIT).
     With top_n < distinct_groups, the last returned row's cumulative_pct < 100.
-
-Placeholder marker:
-    record_type and refdes are not BUG-007-affected; placeholder_fields == ()
-    for both.
 """
 
 from __future__ import annotations
@@ -139,7 +135,6 @@ def failure_pareto(
             count=int(row[1]),
             pct_of_total=float(row[2]),
             cumulative_pct=float(row[3]),
-            placeholder_fields=(),
         )
         for row in rows
     ]

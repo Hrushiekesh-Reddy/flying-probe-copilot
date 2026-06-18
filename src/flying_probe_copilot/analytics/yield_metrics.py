@@ -10,10 +10,6 @@ Ordering (R1-B / Decision #2):
     All group_by values return rows ordered by group_key ASC.
     This matches notebook Q1 (board_profile_id ASC) and is divergent from
     notebook Q4 (panels_tested DESC, operator_id) — see DECISION_LOG 2026-06-16.
-
-Placeholder marker (L5 / R1-G):
-    group_by values that are BUG-007-affected carry placeholder_fields != ().
-    'board' is not affected; 'shift', 'line', 'operator' are.
 """
 
 from __future__ import annotations
@@ -28,29 +24,25 @@ from ._window import _compute_window_bounds, _resolve_anchor
 # ---------------------------------------------------------------------------
 # Group-by configuration table
 #
-# Maps group_by name → (SELECT expression, JOIN clause, placeholder_fields)
+# Maps group_by name → (SELECT expression, JOIN clause)
 # ---------------------------------------------------------------------------
 
-_GROUP_BY_CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
+_GROUP_BY_CONFIG: dict[str, tuple[str, str]] = {
     "board": (
         "p.board_profile_id",
         "JOIN panels p ON p.panel_serial = tr.panel_serial",
-        (),
     ),
     "shift": (
         "p.shift",
         "JOIN panels p ON p.panel_serial = tr.panel_serial",
-        ("shift",),
     ),
     "line": (
         "p.line_id",
         "JOIN panels p ON p.panel_serial = tr.panel_serial",
-        ("line_id",),
     ),
     "operator": (
         "COALESCE(tr.operator_id, '<unknown>')",
         "",  # no extra JOIN — operator_id is on test_runs
-        ("operator_id",),
     ),
 }
 
@@ -117,7 +109,7 @@ def yield_over_time(
 
     lower, upper = _compute_window_bounds(anchor, window_days)
 
-    select_col, join_clause, placeholder_fields = _GROUP_BY_CONFIG[group_by]
+    select_col, join_clause = _GROUP_BY_CONFIG[group_by]
 
     sql = f"""
         SELECT
@@ -141,7 +133,6 @@ def yield_over_time(
             total=int(row[1]),
             passed=int(row[2]),
             yield_pct=float(row[3]),
-            placeholder_fields=placeholder_fields,
         )
         for row in rows
     ]
