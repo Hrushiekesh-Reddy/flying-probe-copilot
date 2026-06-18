@@ -8,7 +8,7 @@
 - **One-liner:** Parses PCBA flying-probe / ICT test logs into a SQL database, runs yield + anomaly analytics, and answers natural-language root-cause questions via hybrid RAG.
 - **Owner:** Hrushiekesh Reddy Kanjula (Manufacturing Engineer, ~4 yrs PCBA, Dallas TX)
 - **Why it exists:** Flagship AI portfolio project to land a Manufacturing/Process Engineer with AI role.
-- **Status:** Phase 1a — Synthetic HP3070 Log Generator
+- **Status:** Phase 2 — Analytics (slice 1 complete: yield_over_time + failure_pareto; BUG-007 fully closed; slices 2 + 3 in flight)
 
 ## Hard guardrails (NEVER violate)
 
