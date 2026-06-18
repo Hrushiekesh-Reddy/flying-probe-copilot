@@ -74,6 +74,62 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-16 — Phase 2 analytics foundation — branch: feature/phase2-analytics-foundation
+
+**Goal:** Kick off Phase 2 (Analytics & Dashboard) with the analytics module foundation slice — `yield_over_time` + `failure_pareto` library functions only, no UI / SPC / anomaly. BUG-007 stays parked: queries that group by shift / line_id / operator return rows but each row carries a `placeholder_fields: tuple[str, ...]` marker calling out the BUG-007-affected columns. Tier: Medium. Full 12-step session-workflow loop.
+**Outcome:** Done. 39 new analytics tests, 224 total passing (185 baseline preserved + 39 new), 0 failing. Analytics package coverage 96-100% per file (target was ≥80%). Total repo coverage 97%, unchanged from Phase 1b. Zero edits to any existing tracked file (full additive). Zero new dependencies. Decision Gate cleared on 6 owner-approved decisions before Execute.
+
+### Done
+- **Branch:** `feature/phase2-analytics-foundation` (renamed from worktree branch `claude/quizzical-neumann-ba99a3` at brief time per the project's `feature/*` convention).
+- **Brief / Plan / Test-Plan / Triple-Check artifacts** under `docs/plans/`:
+  - `2026-06-16-brief.md` — owner-resolved 4 Open Questions (branch rename, list[dataclass] return type, MAX(start_ts) anchor with [as_of - days, as_of] inclusive both ends, per-row placeholder marker).
+  - `2026-06-16-plan.md` — Goal Contract + 15 locked decisions (L1–L15) + Revision 1 addendum resolving 7 BLOCKERs and most WARNINGs from the Step 5 adversarial review (R1-A through R1-W).
+  - `2026-06-16-test-plan.md` — 31 behavior-level test cases (17 yield + 14 pareto + 3 public-API + 10 plan ambiguities surfaced to Decision Gate).
+  - `2026-06-16-triple-check.md` — parent's independent Found vs Planned vs Executed comparison. Verdict: CLEAN.
+- **`src/flying_probe_copilot/analytics/`** — 5 new files:
+  - `__init__.py` (19 LOC) — re-exports `yield_over_time`, `failure_pareto`, `YieldRow`, `ParetoRow`.
+  - `models.py` (71 LOC) — `YieldRow` (group_key/total/passed/yield_pct/placeholder_fields) + `ParetoRow` (key/count/pct_of_total/cumulative_pct/placeholder_fields), both `@dataclass(frozen=True)`.
+  - `_window.py` (66 LOC) — `_resolve_anchor(con, as_of)` validates tz-naive + returns `None` on empty DB; `_compute_window_bounds(anchor, window_days)` returns inclusive `[lower, upper]`.
+  - `yield_metrics.py` (147 LOC) — `yield_over_time(con, *, window_days=7, group_by="board", as_of=None)`. Lookup table `_GROUP_BY_CONFIG` maps each of 4 group_by values (`"board"`, `"shift"`, `"line"`, `"operator"`) to `(SELECT col, JOIN clause, placeholder tuple)`. SQL `ORDER BY group_key ASC` universally (R1-B). No `ROUND` (Decision #3). `operator` uses `COALESCE(..., '<unknown>')` per L14.
+  - `pareto.py` (145 LOC) — `failure_pareto(con, *, window_days=7, by="record_type", top_n=10, as_of=None)`. CTE shape per R1-O: `grouped → totals → ranked → LIMIT`. Window-function cumulative_pct computed over FULL group set before LIMIT (last row reaches 100% only when `top_n >= distinct_groups`). `by="refdes"` adds `AND target_refdes IS NOT NULL` per L13. `ORDER BY count DESC, key ASC` (L15).
+- **`tests/test_analytics/`** — 5 new files:
+  - `__init__.py` (empty).
+  - `conftest.py` (266 LOC) — three fixtures: `empty_db`, `analytics_two_week_db` (inline-rebuilt 2-week × 2-board fixture, anchor `2026-04-14T10:00:00`, returns `(con, ground_truth_dict)`), `_make_pareto_db` (fixture returning `_build_pareto_db` helper for per-test deterministic Pareto fixtures).
+  - `test_yield.py` (~450 LOC) — 17 tests covering Y-01..Y-13 + R1-K lower & upper boundary tests + R1-L negative & zero window_days + R1-M tz-aware as_of.
+  - `test_pareto.py` (~380 LOC) — 19 tests covering P-01..P-14 + R1-E all-null-refdes empty result + R1-K boundaries + R1-L validation.
+  - `test_public_api.py` (~70 LOC) — A-01 import smoke + A-02 / A-03 dataclass shape.
+- **Independent regression confirmation:** `uv run pytest -q` → 224 passed, 0 failed, 97% total coverage. `git diff --stat` empty (zero edits to tracked files). `git status --short` shows only the 5 untracked items (3 plan docs + analytics package + test_analytics package).
+
+### Decisions (6 owner-approved at Decision Gate)
+1. **Pareto v1 groups by `record_type` only** — drop the implicit notebook Q2 row-for-row match (Q2 groups by `(record_type, failure_category)`). 2-column variant deferred. (R1-A)
+2. **Yield rows ordered by `group_key ASC` universally** — matches notebook Q1; diverges from Q4 (`panels_tested DESC, operator_id`). Callers re-sort by count if needed. (R1-B)
+3. **All percentages are unrounded floats** — `yield_pct`, `pct_of_total`, `cumulative_pct`. Notebook Q3/Q4/Q5/Q6 `ROUND(..., 2)` is NOT matched. Callers round at presentation. (R1-C)
+4. **`window_days <= 0` raises `ValueError`** — loud over silent. (R1-L)
+5. **`top_n <= 0` raises `ValueError`** — same reasoning. (R1-L)
+6. **Tz-aware `as_of` raises `ValueError`** — DuckDB TIMESTAMP is naive; silent-strip masks bugs. (R1-M)
+
+Plus 17 implementation-detail resolutions also surfaced by the Step 5 review (R1-D through R1-W) — see `docs/plans/2026-06-16-plan.md` Revision 1.
+
+### Bugs
+- **None logged this session.** BUG-007 remains OPEN as planned. Every code path that groups by shift / line_id / operator carries the `placeholder_fields` marker per Y-09 / Y-10 / Y-11 assertions, satisfying the brief's "silent placeholder data is the exact wrong-data risk" guardrail.
+
+### Out-of-scope (logged, not fixed)
+- No new bugs found during execution. Standing items unchanged:
+  - **BUG-007** still parked (operator_id + shift + line_id placeholder). Phase 2 next slice picks a fix path (A: generator extension, B: results.json sidecar, C: schema nullability now).
+  - **Notebook Q4 ordering divergence** — `yield_over_time(group_by="operator")` ordering is `group_key ASC` not `panels_tested DESC`. Documented in `yield_metrics.py` docstring + DECISION_LOG. Future Streamlit can re-sort.
+
+### Deviations from plan (3, all benign — see triple-check.md)
+1. **Y-14 (round-trip via parser) omitted** — not in SUCCESS-WHEN, Y-01's hand-built fixture covers the canonical-SQL match.
+2. **A-02 / A-03 renamed** to `test_*_dataclass_shape` from `test_*_has_locked_schema`. Body unchanged.
+3. **P-01 GREEN'd without explicit RED state** — `__init__.py` re-exports `failure_pareto`, so the moment `test_yield.py` imported `yield_over_time` Pareto module was already loaded. All subsequent Pareto tests (P-02..P-14 etc.) ran proper RED→GREEN per test. Mechanical TDD compromise on the very first Pareto test only.
+
+### Next session
+- **Phase 2 slice 2:** SPC chart helpers (X-bar, R, individual) + anomaly detection (z-score baseline; Isolation Forest stretch). Same analytics package, new modules.
+- **Phase 2 slice 3:** Streamlit dashboard skeleton (`src/flying_probe_copilot/ui/`), Overview + Yield pages first, then Pareto / SPC / Anomalies pages, then filters + caching.
+- **BUG-007 fix decision (Phase 2 stretch):** pick path A (generator extension — extend `@BTEST` with shift + line_id + operator), B (parser reads `results.json` sidecar), or C (schema nullability now, NULLs in DB).
+
+---
+
 ## 2026-06-14 — Governance fix — branch: feature/abs-hook-paths
 
 **Goal:** Close the spawned task from the Phase 1b notebook session: flip the three hook commands in `.claude/settings.json` to absolute, cwd-invariant paths so a stray `cd <subdir>` mid-session can never hard-block the shell again. Stamp the same fix upstream into `E:\hrk-agent-starter\` so future projects don't inherit the bug. Tier: Small (config + docs only).

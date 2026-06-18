@@ -5,6 +5,97 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-16 — Phase 2 analytics: 6 v1 contract decisions
+
+**Decision:** The Phase 2 analytics foundation (`yield_over_time` + `failure_pareto`) ships with six v1 contracts that intentionally diverge from the Phase 1b notebook in places. Owner approved all six at Decision Gate as recommended.
+
+1. **Pareto v1 groups by `record_type` only.** Notebook Query 2 groups by `(record_type, failure_category)` — a 2-column key. `failure_pareto(by="record_type")` collapses across `failure_category`, returning one row per record_type. Adding `failure_category` to `ParetoRow` is deferred (would require an asymmetric optional field). Notebook Q2 row-for-row match is **not** a v1 contract.
+2. **Yield ordering: `group_key ASC` universally.** Matches notebook Q1 (`board_profile_id` ASC). Diverges from Q4 (`panels_tested DESC, operator_id`). Callers re-sort by count via `sorted(rows, key=lambda r: -r.total)` if needed.
+3. **Percentages are unrounded floats.** `yield_pct`, `pct_of_total`, `cumulative_pct` are raw IEEE-754 doubles from SQL. Notebook Q3/Q4/Q5/Q6 `ROUND(..., 2)` is NOT matched. Caller rounds at presentation. Y-01's row-for-row match against Q1 uses `math.isclose(rel_tol=1e-9)`.
+4. **`window_days <= 0` raises `ValueError`.** Not "zero days = today only", not "negative = whole DB" — strict positive int contract. Programmer mistakes are loud.
+5. **`top_n <= 0` raises `ValueError`.** Same family. DuckDB `LIMIT -1` behavior is implementation-defined; we don't expose it.
+6. **Tz-aware `as_of` raises `ValueError`.** DuckDB TIMESTAMP is naive. Silent-strip masks bugs (e.g. Streamlit passing local-tz "now" gets converted with no warning). Callers explicitly `.replace(tzinfo=None)` after asserting UTC.
+
+**Why:** v1's job is to surface the analytics contract clearly. Matching every notebook query row-for-row would lock the analytics layer to one set of presentation rules (rounded floats, count-descending per-query). Lock the analytics layer to a single uniform contract, then let any future presentation layer (Streamlit, notebook v2) format from it. Loud validation up front avoids silent-wrong-data classes of bug that the BUG-007 deferral already taught us to fear.
+
+**Rejected:**
+- **`ParetoRow.failure_category` as a sometimes-populated field.** Would salvage Q2 row-for-row match. Cost: dataclass becomes type-asymmetric (populated for `by="record_type"`, None for `by="refdes"`). Downstream code has to null-check every call site.
+- **Per-group_by ordering rules embedded in `yield_over_time`.** Most faithful to notebook. Cost: 4 different ORDER BY clauses to maintain, 4 different test contracts, hardest to reason about.
+- **Caller-controlled `decimals: int | None = None`.** Punts on the rounding question. Cost: doubles the test matrix; future Streamlit pages each pick a different decimals value and reports drift.
+- **`window_days=0` returns `[]` silently.** Comfortable but silent. Two cases (caller meant "no rows" vs caller bug) become indistinguishable.
+- **`top_n=0` returns `[]` silently.** Same.
+- **Silent strip of tz-aware `as_of`.** Streamlit habit will pass local-tz datetimes; silent conversion = silent window shift = silent wrong answer.
+
+**Revisit when:**
+- A real Streamlit dashboard demands the Q2 2-column Pareto view → add `ParetoRow.failure_category` (optional, populated for record_type). Don't change the existing contract.
+- A real consumer needs Q4-style "biggest groups first" → add an `order_by: Literal["group_key", "count_desc"] = "group_key"` parameter (additive, default preserves current contract).
+- A real caller wants tz-aware datetimes → add a `tz: timezone | None = None` parameter that converts internally to UTC before validation (additive).
+- `window_days = 0` becomes a real use case ("just today's data") → add explicit support with documented semantics (e.g. `[as_of, as_of]`).
+
+**Verification:** All six decisions enforced in `src/flying_probe_copilot/analytics/yield_metrics.py`, `pareto.py`, `_window.py` and asserted in 39 analytics tests under `tests/test_analytics/`. Full repo suite 224/224 green.
+
+---
+
+## 2026-06-16 — Per-row `placeholder_fields` marker for BUG-007
+
+**Decision:** Every analytics output row (`YieldRow`, `ParetoRow`) carries a `placeholder_fields: tuple[str, ...]` field naming columns whose source data is currently BUG-007-affected. The tuple is empty `()` when nothing is affected, and lists the specific column name(s) when something is.
+
+| Call | `placeholder_fields` |
+|------|----------------------|
+| `yield_over_time(group_by="board")` | `()` |
+| `yield_over_time(group_by="shift")` | `("shift",)` |
+| `yield_over_time(group_by="line")` | `("line_id",)` |
+| `yield_over_time(group_by="operator")` | `("operator_id",)` |
+| `failure_pareto(by="record_type")` | `()` |
+| `failure_pareto(by="refdes")` | `()` |
+
+**Why:** BUG-007 means `panels.shift = 'A'` and `panels.line_id = 'LINE-A'` are uniform placeholders today, and `test_runs.operator_id` is per-run not per-panel. Computing per-shift / per-line / per-operator yield therefore returns degraded data — useful for testing the analytics pipeline, dangerous if a downstream dashboard renders it without warning. Per-row marker (vs result-set-level wrapper) lets each row self-describe — survives filtering, slicing, mapping, and any pandas/Streamlit reshape downstream. Forward-compat: when BUG-007 is properly fixed, the marker tuple becomes `()` for those group_by values; consumers that check `if row.placeholder_fields: warn(...)` auto-update.
+
+**Rejected:**
+- **Docstring-only caveat, no runtime marker.** Lowest friction. Cost: a future Streamlit page that prints per-shift yield has no programmatic way to attach a caveat banner. Silent placeholder data is the exact wrong-data risk the brief warned against.
+- **Result-set wrapper `Result(rows=[...], placeholder_fields=("shift",))`.** Cleaner type. Cost: slicing/merging loses self-description. A page that combines two queries' rows can't tell which rows came from a placeholder-affected source.
+- **Raise on placeholder-affected `group_by` until BUG-007 is fixed.** Hardest contract; punishes callers who explicitly want to see the degraded data (e.g. for testing the analytics pipeline).
+
+**Revisit when:** BUG-007 is properly fixed via path A (generator extension), B (results.json sidecar), or C (schema nullability). At that point the relevant `placeholder_fields` tuple flips to `()` and one-line edits in `_GROUP_BY_CONFIG` suffice.
+
+**Verification:** Y-08 (board=`()`), Y-09 (shift=`("shift",)`), Y-10 (line=`("line_id",)`), Y-11 (operator=`("operator_id",)`), P-12 (record_type=`()`), P-13 (refdes=`()`).
+
+---
+
+## 2026-06-16 — Analytics window anchor: `MAX(test_runs.start_ts)`, inclusive both ends, naive UTC
+
+**Decision:** Both `yield_over_time` and `failure_pareto` anchor their default rolling window on `SELECT MAX(start_ts) FROM test_runs`. Caller may override via `as_of` parameter. Window is `[as_of - window_days, as_of]`, inclusive on both ends. All datetimes are naive UTC (no tzinfo).
+
+**Why:** Anchoring on `MAX(start_ts)` matches the Phase 1b notebook's canonical query (`notebooks/01-queries.ipynb`, Query 1 cell 4) and `_YIELD_BY_BOARD_LAST_WEEK_SQL` in `tests/test_parser/test_yield_query.py:28-43`. This gives deterministic replay against any fixture: the window floats with the data's actual range, so tests run correctly whether the fixture spans April 2026 or any other epoch. Anchoring on `CURRENT_TIMESTAMP` instead would require every test to mock time or pass `as_of` explicitly. Inclusive-on-both-ends boundary semantics matches the notebook's `>=` lower clause and the natural reading of "the last 7 days". DuckDB TIMESTAMP is naive — accepting only naive `datetime` from callers prevents silent UTC drift.
+
+**Brief drafting note:** the original Session Brief said "anchor `MAX(panels.scheduled_ts)`" — that was a drafting error. `scheduled_ts` is when a panel was scheduled (could be future); `start_ts` is when testing actually happened. Plan Revision 1 corrected to `MAX(test_runs.start_ts)`. Decision Gate confirmed.
+
+**Rejected:**
+- **Anchor on `CURRENT_TIMESTAMP`.** Production-realistic. Cost: tests have to mock time everywhere.
+- **No default — caller always passes `as_of`.** Most explicit. Cost: every call site has to compute `MAX(start_ts)` itself.
+- **Exclusive upper bound (`< as_of`).** Common in streaming contexts. Cost: counter-intuitive for a "last 7 days" query (a row at exactly `as_of` is excluded).
+
+**Revisit when:** A real Streamlit dashboard wants a live-clock anchor. Add an alternate constructor `yield_over_time_live(con, ...)` that wraps the existing function with `as_of=datetime.utcnow().replace(tzinfo=None)`. Don't change the default.
+
+**Verification:** Y-01 (canonical SQL match), Y-04 (window excludes old rows), Y-05 (custom as_of override), R1-K (boundary inclusion at both ends), R1-M (tz-aware raises).
+
+---
+
+## 2026-06-16 — Empty-anchor short-circuit (`MAX(start_ts) IS NULL` → `[]`)
+
+**Decision:** When `_resolve_anchor(con, as_of=None)` queries an empty `test_runs` table, the `MAX(start_ts)` query returns NULL → the helper returns `None`. Both public functions check the return: if `None`, they return `[]` immediately without executing the main SELECT. `failure_pareto` adds a secondary short-circuit: if the in-window `failures` set is empty (e.g. `by="refdes"` and all in-window failures have NULL refdes), return `[]`.
+
+**Why:** Computing `anchor - INTERVAL ...` on a NULL anchor raises `TypeError: unsupported operand type(s) for -: 'NoneType' and 'datetime.timedelta'`. Computing `cumulative_pct = count / total` on `total == 0` raises `ZeroDivisionError`. Both classes of "empty input" should yield `[]` not an exception — they're a normal case (fresh DB, narrow window, restrictive filter). Short-circuit at the Python boundary (not in SQL) keeps the SQL itself simple and lets the empty-list pathway exercise a separate test case (Y-02, P-10, and the new `test_pareto_by_refdes_with_all_null_refdes_returns_empty_list`).
+
+**Rejected:**
+- **Raise on empty DB.** Caller has to wrap every call in try/except. Noisy for a normal state.
+- **Return `[YieldRow(group_key="(no data)", ...)]`.** Sentinel rows are fragile; downstream code has to filter.
+- **Run the SQL anyway and let `COALESCE(SUM(...), 0)` paper over it.** Doesn't help with the anchor-arithmetic crash; still needs a Python guard.
+
+**Verification:** Y-02 (empty DB → `[]`), Y-03 (empty DB → `[]` for every group_by), P-10 (zero failures → `[]`), new `test_pareto_by_refdes_with_all_null_refdes_returns_empty_list`.
+
+---
+
 ## 2026-06-14 — `.claude/settings.json` hook paths use `${CLAUDE_PROJECT_DIR}` (Option A)
 
 **Decision:** All three hook commands in `.claude/settings.json` were changed from relative paths to project-root-relative absolute paths using the harness-substituted `${CLAUDE_PROJECT_DIR}` env var. Same fix stamped upstream into `E:\hrk-agent-starter\.claude\settings.json` so future stamps don't carry the bug.
