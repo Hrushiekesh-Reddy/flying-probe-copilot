@@ -169,70 +169,49 @@ def test_yield_invalid_group_by_raises_value_error(analytics_two_week_db):
 
 
 # ---------------------------------------------------------------------------
-# Y-08 — board group_by has empty placeholder tuple
+# Y-09 / Y-10 / Y-11 — shift / line / operator group_by smoke
+#
+# These previously asserted the per-row `placeholder_fields` marker.  That
+# field was dropped 2026-06-18 once BUG-007 closed and the underlying data
+# became real.  The tests are kept as smoke coverage for the three non-board
+# group_by paths.
 # ---------------------------------------------------------------------------
 
 
-def test_yield_by_board_has_empty_placeholder_tuple(analytics_two_week_db):
-    """Y-08: group_by='board' rows always have placeholder_fields == ()."""
-    con, _gt = analytics_two_week_db
-
-    rows = yield_over_time(con, group_by="board")
-    assert len(rows) > 0, "Fixture should return non-empty result"
-    for row in rows:
-        assert row.placeholder_fields == (), (
-            f"Expected () for board group, got {row.placeholder_fields!r}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Y-09 — shift group_by marks placeholder
-# ---------------------------------------------------------------------------
-
-
-def test_yield_by_shift_marks_placeholder(analytics_two_week_db):
-    """Y-09: group_by='shift' rows carry placeholder_fields == ('shift',)."""
+def test_yield_by_shift_returns_grouped_rows(analytics_two_week_db):
+    """group_by='shift' returns rows keyed by shift letter."""
     con, _gt = analytics_two_week_db
 
     rows = yield_over_time(con, group_by="shift")
     assert len(rows) > 0, "Fixture should return at least one shift group"
     for row in rows:
-        assert row.placeholder_fields == ("shift",), (
-            f"Expected ('shift',), got {row.placeholder_fields!r}"
+        assert row.group_key in {"A", "B", "C"}, (
+            f"shift group_key must be one of A/B/C, got {row.group_key!r}"
         )
 
 
-# ---------------------------------------------------------------------------
-# Y-10 — line group_by marks placeholder
-# ---------------------------------------------------------------------------
-
-
-def test_yield_by_line_marks_placeholder(analytics_two_week_db):
-    """Y-10: group_by='line' rows carry placeholder_fields == ('line_id',)."""
+def test_yield_by_line_returns_grouped_rows(analytics_two_week_db):
+    """group_by='line' returns rows keyed by line_id."""
     con, _gt = analytics_two_week_db
 
     rows = yield_over_time(con, group_by="line")
     assert len(rows) > 0, "Fixture should return at least one line group"
     for row in rows:
-        assert row.placeholder_fields == ("line_id",), (
-            f"Expected ('line_id',), got {row.placeholder_fields!r}"
+        assert row.group_key.startswith("LINE-"), (
+            f"line group_key must look like LINE-*, got {row.group_key!r}"
         )
 
 
-# ---------------------------------------------------------------------------
-# Y-11 — operator group_by marks placeholder
-# ---------------------------------------------------------------------------
-
-
-def test_yield_by_operator_marks_placeholder(analytics_two_week_db):
-    """Y-11: group_by='operator' rows carry placeholder_fields == ('operator_id',)."""
+def test_yield_by_operator_returns_grouped_rows(analytics_two_week_db):
+    """group_by='operator' returns rows keyed by operator_id."""
     con, _gt = analytics_two_week_db
 
     rows = yield_over_time(con, group_by="operator")
     assert len(rows) > 0, "Fixture should return at least one operator group"
     for row in rows:
-        assert row.placeholder_fields == ("operator_id",), (
-            f"Expected ('operator_id',), got {row.placeholder_fields!r}"
+        assert row.group_key.startswith("OP-") or row.group_key == "<unknown>", (
+            f"operator group_key must look like OP-* or <unknown>, "
+            f"got {row.group_key!r}"
         )
 
 
@@ -242,9 +221,10 @@ def test_yield_by_operator_marks_placeholder(analytics_two_week_db):
 
 
 @pytest.mark.xfail(
-    reason="BUG-007 closed 2026-06-17 — test_runs.operator_id is now VARCHAR NOT NULL; "
-           "COALESCE(operator_id, '<unknown>') path is unreachable via the normal write path. "
-           "Defensive code retained; see follow-up chip to drop placeholder_fields markers."
+    reason="BUG-007 closed 2026-06-17 — test_runs.operator_id is now VARCHAR NOT NULL. "
+           "The COALESCE(operator_id, '<unknown>') path in yield_metrics.py is defensive "
+           "code; reachable only via a raw INSERT that bypasses the schema, not via the "
+           "normal write path the analytics layer ships against."
 )
 def test_yield_null_operator_id_bucketed_as_unknown(analytics_two_week_db):
     """Y-12: NULL operator_id → group_key == '<unknown>' (L14)."""

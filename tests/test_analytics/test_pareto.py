@@ -336,48 +336,6 @@ def test_pareto_invalid_by_raises_value_error(empty_db):
 
 
 # ---------------------------------------------------------------------------
-# P-12 — placeholder_fields empty for record_type
-# ---------------------------------------------------------------------------
-
-
-def test_pareto_placeholder_fields_empty_for_record_type(_make_pareto_db):
-    """P-12: by='record_type' rows always have placeholder_fields == ()."""
-    spec = [
-        {"record_type": "A-RES", "failure_category": "open", "target_refdes": "R1", "start_ts": _ts(1)},
-    ]
-    con = _make_pareto_db(spec)
-    rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
-    con.close()
-
-    assert len(rows) > 0
-    for row in rows:
-        assert row.placeholder_fields == (), (
-            f"Expected (), got {row.placeholder_fields!r}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# P-13 — placeholder_fields empty for refdes
-# ---------------------------------------------------------------------------
-
-
-def test_pareto_placeholder_fields_empty_for_refdes(_make_pareto_db):
-    """P-13: by='refdes' rows always have placeholder_fields == ()."""
-    spec = [
-        {"record_type": "A-RES", "failure_category": "open", "target_refdes": "R1", "start_ts": _ts(1)},
-    ]
-    con = _make_pareto_db(spec)
-    rows = failure_pareto(con, by="refdes", top_n=10, as_of=_ANCHOR)
-    con.close()
-
-    assert len(rows) > 0
-    for row in rows:
-        assert row.placeholder_fields == (), (
-            f"Expected (), got {row.placeholder_fields!r}"
-        )
-
-
-# ---------------------------------------------------------------------------
 # P-14 — pct_of_total sums to ≈ 100.0 when all groups included
 # ---------------------------------------------------------------------------
 

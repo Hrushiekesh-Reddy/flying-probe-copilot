@@ -36,6 +36,27 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-18 — Drop `placeholder_fields` field from `YieldRow` / `ParetoRow`
+
+**Decision:** Remove the `placeholder_fields: tuple[str, ...]` field from both analytics dataclasses. Simplify `_GROUP_BY_CONFIG` in `yield_metrics.py` from `(SELECT col, JOIN clause, placeholder tuple)` to `(SELECT col, JOIN clause)`. Drop the `placeholder_fields=` kwarg from both `YieldRow(...)` and `ParetoRow(...)` constructors. Retire P-12 / P-13 and refactor Y-08 / Y-09 / Y-10 / Y-11 into plain group_by smoke tests.
+
+**Why:** BUG-007 closed via Path A on 2026-06-17 (PR #12). The marker's whole purpose was to signal "this column's source data is placeholder" — now the source data is real per-panel data on every code path. Keeping a vestigial field that's always `()` on every result row leaves a self-described "this is placeholder" promise the dataclass can't keep. Two options were on the table:
+
+- **(a) Drop the field entirely (chosen).** Breaking change to a public API surface (`YieldRow.placeholder_fields`). No downstream consumers today (no notebook reads it, no Streamlit page exists yet). Cleanest end-state.
+- **(b) Keep the field, always emit `()`.** Backward-compatible but dishonest — the docstring promises "lists the specific column name(s) when something is", and now nothing ever is. Vestigial code rots faster than absent code.
+
+(a) wins because Phase 2 slice 1 has not shipped beyond `dev`; there is no external API contract to preserve. The 2026-06-16 decision's "Forward-compat: ... auto-update" promise is what carries us through the rename — consumers that would have written `if row.placeholder_fields: warn(...)` get a clean `AttributeError` instead of a silently empty check.
+
+**Rejected:**
+- **Option (b) above.** Quieter but leaves a vestigial field future readers will ask about.
+- **Wait until a real Streamlit consumer exists, then decide.** Cost: ship the placeholder marker into a third file (Streamlit page), making future removal harder.
+
+**Revisit when:** A future schema regression re-introduces silent-placeholder data on shift / line_id / operator_id. At that point the marker pattern should come back as a result-set wrapper (see Rejected list in the 2026-06-16 entry) rather than a per-row field, since the failure mode is global to a group_by call, not per-row.
+
+**Verification:** 238 tests passing, 1 xfailed, 97% coverage on branch `feature/analytics-drop-placeholder-markers`. A-02 / A-03 expected field sets reduced from 5 to 4 fields each. `grep -rn placeholder_fields src/ tests/` returns only one comment-only line (test section header narrating the history).
+
+---
+
 ## 2026-06-16 — Per-row `placeholder_fields` marker for BUG-007
 
 **Decision:** Every analytics output row (`YieldRow`, `ParetoRow`) carries a `placeholder_fields: tuple[str, ...]` field naming columns whose source data is currently BUG-007-affected. The tuple is empty `()` when nothing is affected, and lists the specific column name(s) when something is.
@@ -59,6 +80,8 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 **Revisit when:** BUG-007 is properly fixed via path A (generator extension), B (results.json sidecar), or C (schema nullability). At that point the relevant `placeholder_fields` tuple flips to `()` and one-line edits in `_GROUP_BY_CONFIG` suffice.
 
 **Verification:** Y-08 (board=`()`), Y-09 (shift=`("shift",)`), Y-10 (line=`("line_id",)`), Y-11 (operator=`("operator_id",)`), P-12 (record_type=`()`), P-13 (refdes=`()`).
+
+> **Resolved 2026-06-18 — marker removed entirely.** BUG-007 closed via Path A in PR #12 (operator_id at field 12, shift at field 13, line_id at field 14, all NOT NULL). The forward-compat "tuple flips to `()`" path predicted above became "every tuple is now `()`" — a vestigial field on every output row. Per Decision 2026-06-18 (below) the field is dropped from `YieldRow` and `ParetoRow`; Y-08 / Y-09 / Y-10 / Y-11 / P-12 / P-13 retired or refactored into plain group_by smoke tests.
 
 ---
 
