@@ -140,7 +140,7 @@ def analytics_two_week_db():
             "INSERT INTO test_runs "
             "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
             " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-            "VALUES (?, ?, ?, NULL, ?, ?, ?, 12, false, false, false, 1)",
+            "VALUES (?, ?, ?, 'OP-001', ?, ?, ?, 12, false, false, false, 1)",
             [seq, serial, run_id, status, start, end],
         )
 
@@ -219,7 +219,7 @@ def _build_pareto_db(failures_spec: list[dict]) -> duckdb.DuckDBPyConnection:
                 "INSERT INTO test_runs "
                 "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
                 " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-                "VALUES (?, ?, 'run_pareto', NULL, 6, ?, ?, 12, false, false, false, 1)",
+                "VALUES (?, ?, 'run_pareto', 'OP-001', 6, ?, ?, 12, false, false, false, 1)",
                 [
                     test_run_id_counter,
                     serial,

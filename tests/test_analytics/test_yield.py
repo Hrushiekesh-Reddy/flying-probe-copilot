@@ -241,6 +241,11 @@ def test_yield_by_operator_marks_placeholder(analytics_two_week_db):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.xfail(
+    reason="BUG-007 closed 2026-06-17 — test_runs.operator_id is now VARCHAR NOT NULL; "
+           "COALESCE(operator_id, '<unknown>') path is unreachable via the normal write path. "
+           "Defensive code retained; see follow-up chip to drop placeholder_fields markers."
+)
 def test_yield_null_operator_id_bucketed_as_unknown(analytics_two_week_db):
     """Y-12: NULL operator_id → group_key == '<unknown>' (L14)."""
     con, _gt = analytics_two_week_db
@@ -302,7 +307,7 @@ def test_yield_tiebreak_orders_by_group_key_asc():
             "INSERT INTO test_runs "
             "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
             " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-            "VALUES (?, ?, ?, NULL, 0, ?, ?, 12, false, false, false, 1)",
+            "VALUES (?, ?, ?, 'OP-001', 0, ?, ?, 12, false, false, false, 1)",
             [tr_id, serial, run_id, ts, ts],
         )
 
@@ -352,7 +357,7 @@ def test_yield_row_at_lower_window_bound_included():
         "INSERT INTO test_runs "
         "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
         " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-        "VALUES (1, 'LB-001', 'run_lb', NULL, 0, ?, ?, 12, false, false, false, 1)",
+        "VALUES (1, 'LB-001', 'run_lb', 'OP-001', 0, ?, ?, 12, false, false, false, 1)",
         [lower_bound_ts, lower_bound_ts],
     )
 
@@ -398,7 +403,7 @@ def test_yield_row_at_upper_window_bound_included():
         "INSERT INTO test_runs "
         "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
         " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
-        "VALUES (1, 'UB-001', 'run_ub', NULL, 0, ?, ?, 12, false, false, false, 1)",
+        "VALUES (1, 'UB-001', 'run_ub', 'OP-001', 0, ?, ?, 12, false, false, false, 1)",
         [upper_bound_ts, upper_bound_ts],
     )
 
