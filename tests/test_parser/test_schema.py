@@ -142,6 +142,28 @@ def test_each_table_has_expected_columns(con):
         )
 
 
+def test_test_runs_operator_id_is_not_null(con):
+    """test_runs.operator_id must be declared NOT NULL in the schema.
+
+    Uses DESCRIBE (DuckDB introspection) to confirm the nullable column flag
+    for operator_id is 'NO'. This is a locked contract — changing it requires
+    a migration and owner sign-off.
+    """
+    from flying_probe_copilot.db.schema import init_database
+
+    init_database(con)
+    rows = con.execute("DESCRIBE test_runs").fetchall()
+    # DESCRIBE returns: column_name, column_type, null, key, default, extra
+    nullable_by_col = {r[0]: r[2] for r in rows}
+    assert "operator_id" in nullable_by_col, (
+        "Column 'operator_id' not found in test_runs"
+    )
+    assert nullable_by_col["operator_id"] == "NO", (
+        f"test_runs.operator_id must be NOT NULL, "
+        f"but nullable flag is {nullable_by_col['operator_id']!r}"
+    )
+
+
 def test_tables_constant_lists_all_9_canonical_names():
     """TABLES must contain exactly the 9 canonical table names."""
     from flying_probe_copilot.db.schema import TABLES

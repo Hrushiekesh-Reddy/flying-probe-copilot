@@ -10,8 +10,8 @@ Surrogate PKs (``component_id``, ``test_id``, ``test_run_id``,
 ``measurement_id``, ``failure_id``) are assigned by the ingest layer using
 Python-side counters; DuckDB has no auto-increment in the DDL.
 
-Per #WARNING-5: ``test_runs.operator_id`` is nullable — per-panel operator
-recovery is deferred to Phase 2 (see DECISION_LOG entry).
+``test_runs.operator_id`` is NOT NULL — operator is read per-panel from
+@BTEST field 12 (see Phase 2 operator_id plan, 2026-06-14).
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS test_runs (
     test_run_id        BIGINT PRIMARY KEY,
     panel_serial       VARCHAR NOT NULL,
     run_id             VARCHAR NOT NULL,
-    operator_id        VARCHAR,
+    operator_id        VARCHAR NOT NULL,
     btest_status       SMALLINT NOT NULL,
     start_ts           TIMESTAMP NOT NULL,
     end_ts             TIMESTAMP NOT NULL,
