@@ -4,6 +4,72 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-18 — Phase 2 slice 2 — branch: feature/phase2-slice2-spc-anomaly
+
+**Goal:** Ship the SPC + anomaly analytics slice as pure library functions — a Shewhart individuals
+(XmR) control chart and a z-score anomaly detector — over the existing DuckDB schema, matching slice-1
+contracts. Tier: Large. Full 12-step session-workflow loop, owner Decision Gate sign-off, multi-agent
+research/red-team. No UI (slice 3).
+**Outcome:** Done. 57 new tests (29 SPC + 24 anomaly + 4 public-API), 292 passing / 1 xfailed / 0 failing,
+`spc.py` + `anomaly.py` 100% coverage, repo-wide 97% (= slice-1 baseline). Zero new dependencies, zero
+schema change, zero approval-gated-file edits.
+
+### Done
+- **Source (4 files):** `analytics/models.py` (+`SPCPoint`, `AnomalyRow`, frozen dataclasses),
+  `analytics/spc.py` (NEW — `individuals_chart`, Wheeler/XmR rules, MR̄/1.128 sigma, components-join
+  refdes filter), `analytics/anomaly.py` (NEW — `z_score_anomalies`, leave-one-out baseline,
+  severity-first ordering), `analytics/__init__.py` (re-export 2 fns + 2 dataclasses).
+- **Tests (4 files):** `test_analytics/conftest.py` (+`_make_spc_db`, `_make_anomaly_db` helper-fixtures
+  that populate `components`+`component_id` so the refdes join resolves), `test_spc.py` (NEW, 29:
+  SPC-01..25 + rule_4 9-run overlap + record_type two-branch), `test_anomaly.py` (NEW, 24: ANOM-01..21,
+  ANOM-09 parametrized over 4 `by` values), `test_public_api.py` (+4: import + dataclass shape, guards
+  `placeholder_fields` stays gone).
+- **Notebook:** `notebooks/01-queries.ipynb` Query 7 (SPC individuals chart) + Query 8 (z-score anomaly)
+  cells appended before Cleanup; both smoke-tested in-process against a freshly regenerated
+  `data/db/sample.duckdb` (medium 15 + small 20 panels, two boards so `by="board"` has peers).
+  SPC C1 = 20 in-control points; anomaly `by="shift"` = 3 groups, 1 flagged.
+- **Artifacts** under `docs/plans/2026-06-18-phase2-slice2-*.md`: brief, plan (+Revision 1), test-plan,
+  decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-18)
+- Wheeler/XmR rule family; default `{rule_1, rule_4}`, opt-in `{rule_2, rule_3}`; run length 8.
+- Sigma = MR̄/1.128 (exact, no literal 2.66), NOT sample stdev.
+- Individuals value = per-panel `mean(measured_value)` for a `(board_profile_id, refdes)`; signature
+  gains required `refdes` (+ optional `record_type`).
+- Anomaly = per-group failure rate, leave-one-out baseline (ddof=1), `flagged = |z| ≥ threshold`,
+  severity-first ordering (diverges from slice-1 `group_key ASC`, justified).
+- Deferred X-bar/R **and** Isolation Forest/sklearn → no new dep, no schema change.
+
+### Workflow
+- Full 12-step loop. Step 2 Explore = a 5-agent workflow (3 web SPC-rule surveys: Western Electric /
+  Nelson / Wheeler+sigma; 1 local code/data map; 1 synthesis). Step 4+5 = test-generator (50 behavior
+  cases) → adversarial red-team (verdict APPROVE_WITH_REVISIONS: 1 BLOCKER + 4 WARNING + 3 MINOR, all
+  folded into Plan Revision 1). Step 6 Decision Gate cleared with owner sign-off on 4 questions. Step 7
+  via the `exec` agent (TDD). Step 9 Triple Check = parent's independent diff-scope + line-by-line read
+  + own pytest run → CLEAN.
+- Red-team catches that mattered: BLOCKER B1 (2.66 vs 3/1.128 precision trap — a `rel_tol=1e-9` test on
+  the rounded form would fail a correct exact-division impl); WARNING W1 (refdes lives on `components`,
+  not `measurements` — SQL must join `components`, fixtures must set `component_id`, else every SPC test
+  silently returns `[]`); W4 (`statistics.stdev` raises on a 1-element peer list — needs a `<2` guard).
+
+### Bugs
+- **BUG-011 logged** (`test_tokenize_balances_braces_returns_records` flaky under full suite — pre-existing
+  parser-test order dependency, confirmed pre-branch, passed in the parent's own full-suite run). P2/OPEN,
+  out of scope, chipped.
+
+### Out-of-scope (logged, not fixed)
+- BUG-011 (above), BUG-010 (TestJetRecord collection warning) — both OPEN, pre-existing.
+- `data/db/sample.duckdb` is regenerated locally for the notebook smoke test (gitignored, not committed).
+
+### Next session
+- Phase 2 slice 3: Streamlit dashboard skeleton (`src/flying_probe_copilot/ui/`) — Overview + Yield,
+  then Pareto / SPC / Anomalies pages, filters, `st.cache_data`. First UI work; `streamlit` + `plotly`
+  are listed in the locked stack but not yet installed → a `pyproject.toml` add (approval-gated).
+- Owner: run `docs/plans/2026-06-18-phase2-slice2-manual-qa.md`; then PR `feature/phase2-slice2-spc-anomaly`
+  → `dev`.
+
+---
+
 ## 2026-06-18 — Phase 2 — branch: feature/analytics-drop-placeholder-markers
 
 **Goal:** Land the chipped follow-up from the morning housekeeping pass: drop the now-stale `placeholder_fields` markers from `YieldRow` / `ParetoRow`. Markers were added 2026-06-16 to flag BUG-007-affected columns; BUG-007 closed 2026-06-17, so every emitted tuple is `()` and the field has become a self-described lie ("placeholder" on real data). Tier: Small.

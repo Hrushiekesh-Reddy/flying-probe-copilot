@@ -5,6 +5,71 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-18 — Phase 2 slice 2: SPC (individuals chart) + z-score anomaly contracts
+
+**Decision:** The SPC + anomaly slice ships two pure-library functions —
+`individuals_chart` and `z_score_anomalies` — with the following contracts. All four headline
+choices were owner-ratified at the Decision Gate (`docs/plans/2026-06-18-phase2-slice2-decision-gate.md`).
+
+1. **Alarm-rule family = Wheeler / XmR doctrine.** Default-on `rules=('rule_1','rule_4')`; opt-in
+   `('rule_2','rule_3')`. rule_1 = point beyond 3σ; rule_4 = run of **8** consecutive points one side
+   of the centre line; rule_2 = 2-of-3 beyond 2σ same side; rule_3 = 4-of-5 beyond 1σ same side. A rule
+   flags **every** point whose trailing window satisfies its pattern (so a 9-run flags points 8 and 9).
+2. **Sigma estimator = MR̄ / 1.128** (d2 for span-2 moving ranges). Limits = `mean ± 3·(MR̄/1.128)`.
+   The literal `2.66` (= 3/1.128 rounded) is never used in code or test assertions — exact division only.
+3. **Individuals-chart value = per-panel `mean(measured_value)` for a single `(board_profile_id, refdes)`**
+   (optional `record_type`). Signature gains required `refdes`. Window/validation contracts mirror slice 1.
+4. **Anomaly metric = per-group failure rate** (`failed/total`, `failed = COUNT(btest_status != 0)`).
+   `by ∈ {board, shift, line, operator}` (slice-1 vocabulary).
+5. **Leave-one-out baseline.** For group `g`, `baseline_mean`/`baseline_std` are computed over the
+   failure rates of all OTHER in-window groups (g excluded from both). `baseline_std` uses **ddof=1**
+   (sample). `< 2` peers ⇒ `baseline_std = 0.0` (never call `statistics.stdev` on one element).
+   `baseline_std == 0` ⇒ `z = 0.0`, not flagged (no divide-by-zero).
+6. **`flagged = abs(z) >= threshold`** (two-sided). `threshold <= 0` raises `ValueError`.
+7. **Anomaly ordering = `abs(z_score) DESC, group_key ASC`** (severity-first). **Diverges** from slice-1's
+   universal `group_key ASC` (2026-06-16 Decision #2) — anomaly lists are inherently severity-ranked, and
+   the slice-1 log already left an additive `order_by` revisit path open. `individuals_chart` orders
+   `start_ts ASC, panel_serial ASC` (time-ordered, required for the moving-range sequence).
+8. **Stretch items deferred (owner choice).** **X-bar/R** charts deferred — they need rational subgroups
+   of size > 1, which the per-panel synthetic data does not naturally have (forcing artificial subgroups
+   would fabricate variance structure). **Isolation Forest** deferred — it needs a `sklearn` dependency
+   (`pyproject.toml` is approval-gated) and clashes with the deterministic leave-one-out z-score. **No
+   schema change** — existing `measurements`/`components`/`test_runs`/`panels` columns are sufficient.
+
+**Why:** The data is the textbook XmR case — one reading per time point, no rational subgroup. Wheeler's
+"Rule 1 by default, others in reserve" avoids the ~4–9× false-alarm inflation that stacking zone rules
+causes on autocorrelated, possibly-skewed per-panel data (Step 2 research: NIST/SEMATECH e-Handbook ARL
+370→91.75 for all-WECO; Nelson all-8 ARL→38). MR̄/1.128 is mandatory over the global sample stdev because
+the global stdev silently absorbs the sustained shifts the chart exists to detect, widening the limits.
+`duration_s` is hardcoded to 12 (zero variance), so a refdes-selected `measured_value` is the only
+defensible continuous I-MR value; failure rate / counts are attribute data that want c/u/p-charts, not
+individuals. Leave-one-out prevents an anomalous group from inflating its own baseline and hiding itself.
+
+**Rejected:**
+- **Nelson 8-rule set** — N7/N8 require subgroups (n≥2); our chart is n=1 per refdes. Full stack → ARL≈38.
+- **Rule-1-only** — misses the sustained small shifts rule_4 catches.
+- **`duration_s` as the I-MR value** — constant 12 in synthetic data → a flat, useless chart.
+- **Raw failure count** as the anomaly metric — scales with group volume → high-volume groups self-flag.
+- **Binary per-panel pass/fail z-score** — 0/1 attribute data, infinite-tail z.
+- **Population std (ddof=0)** for the baseline — understates spread on small peer sets.
+- **One-sided z flag** — would miss anomalously-LOW failure rates (which can also signal a process change).
+- **X-bar/R now / Isolation Forest now** — deferred per the owner Decision Gate (above).
+
+**Revisit when:**
+- A genuine rational subgroup emerges (e.g. replicate probes per net per panel) → add X-bar/R.
+- A real consumer wants ML anomaly detection → add `sklearn` + Isolation Forest behind the same
+  `AnomalyRow` shape (owner-approved dependency add).
+- A real caller needs proportion-z normality at small N → add a logit/arcsin transform option to
+  `z_score_anomalies` (additive; default stays raw proportion).
+- A caller wants the MR chart companion (UCL = D4·MR̄ = 3.267·MR̄) → add a sibling function.
+
+**Verification:** 57 new tests (29 SPC + 24 anomaly + 4 public-API) in `tests/test_analytics/test_spc.py`
+and `test_anomaly.py`; `spc.py` + `anomaly.py` 100% coverage; full suite 292 passed / 1 xfailed / 0 failed;
+repo coverage 97%. Plan + red-team resolutions in `docs/plans/2026-06-18-phase2-slice2-{plan,test-plan,
+triple-check}.md`.
+
+---
+
 ## 2026-06-16 — Phase 2 analytics: 6 v1 contract decisions
 
 **Decision:** The Phase 2 analytics foundation (`yield_over_time` + `failure_pareto`) ships with six v1 contracts that intentionally diverge from the Phase 1b notebook in places. Owner approved all six at Decision Gate as recommended.

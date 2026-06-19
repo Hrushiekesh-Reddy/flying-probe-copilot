@@ -14,6 +14,15 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-011] `test_tokenize_balances_braces_returns_records` flaky under full suite (P2) — OPEN
+
+**Discovered:** 2026-06-18
+**Found during:** Phase 2 slice 2 (SPC + anomaly) execution — baseline suite run
+**File:line:** `tests/test_parser/test_log_parser.py::test_tokenize_balances_braces_returns_records`
+**Symptom:** The test fails when run as part of the full suite (`uv run pytest -q`) but PASSES when run in isolation (`uv run pytest tests/test_parser/test_log_parser.py::test_tokenize_balances_braces_returns_records`). Indicates test-order dependency or shared mutable state rather than a logic bug in the production code.
+**Severity estimate:** medium — flaky tests undermine CI confidence; the 235-before-baseline showed 1 failed but it is intermittent
+**Fix:** NOT DONE — out of scope this session
+
 ## [BUG-010] `TestJetRecord` Pydantic model name causes PytestCollectionWarning on every test run (P3) — OPEN, deferred
 
 **Discovered:** 2026-06-16
