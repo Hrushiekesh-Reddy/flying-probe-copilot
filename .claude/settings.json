@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/block_dangerous_git.py"
+            "command": "python ${CLAUDE_PROJECT_DIR}/.claude/hooks/block_dangerous_git.py"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/plan_approval_gate.py"
+            "command": "python ${CLAUDE_PROJECT_DIR}/.claude/hooks/plan_approval_gate.py"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/doc_reminder_stop.py"
+            "command": "python ${CLAUDE_PROJECT_DIR}/.claude/hooks/doc_reminder_stop.py"
           }
         ]
       }

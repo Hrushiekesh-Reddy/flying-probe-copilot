@@ -156,3 +156,29 @@ def test_cli_end_before_start_errors_clearly(tmp_path, capsys):
     combined = captured.err + captured.out
     assert "--end-date" in combined
     assert "--start-date" in combined
+
+
+def test_build_batch_log_each_btest_uses_panel_operator():
+    """Each BoardTestRecord.operator_id must equal its panel's operator_id."""
+    from flying_probe_copilot.generator.cli import _build_batch_log
+
+    class _A:
+        board_profile = "small"
+        count = 6
+        seed = 42
+        fault_rate = 0.05
+        fault_profile = "random"
+        start_date = "2026-04-01"
+        end_date = "2026-04-08"
+        operators = 4
+        lines = 2
+        format = "log"
+        encoding = "cp1252"
+
+    batch_log = _build_batch_log(_A(), "small")
+    assert len(batch_log.boards) == 6
+    for board in batch_log.boards:
+        assert board.btest.operator_id == board.panel.operator_id, (
+            f"Board {board.panel.serial}: btest.operator_id={board.btest.operator_id!r} "
+            f"!= panel.operator_id={board.panel.operator_id!r}"
+        )

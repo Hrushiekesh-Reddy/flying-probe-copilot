@@ -53,16 +53,18 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 **Goal:** Logs become queryable rows.
 
 ### Deliverables
-- [ ] `src/flying_probe_copilot/parser/` module
-- [ ] DuckDB schema: dimension tables (boards, panels, operators, components, tests) + fact tables (test_runs, measurements, failures)
-- [ ] Parser ingests generator output reliably
-- [ ] CLI: `uv run parser --input=data/synthetic/ --db=data/db/flying-probe.duckdb`
-- [ ] Sample SQL queries documented in `notebooks/01-queries.ipynb`
-- [ ] Parser tests: round-trip integrity (generator → parser → DB → match)
-- [ ] Error handling for malformed lines (log + skip, don't crash)
+- [x] `src/flying_probe_copilot/parser/` module
+- [x] DuckDB schema: dimension tables (boards, panels, operators, components, tests) + fact tables (test_runs, measurements, failures) + runs metadata table (9 tables total)
+- [x] Parser ingests generator output reliably
+- [x] CLI: `uv run parser --input=data/synthetic/<run_dir>/ --db=data/db/flying-probe.duckdb`
+- [x] Sample SQL queries documented in `notebooks/01-queries.ipynb` (canonical yield-by-board-last-7-days exit query + 5 representative analytics queries: failure Pareto by record_type, per-shift yield, per-operator yield, top-10 failing refdes, btest_status distribution)
+- [x] Parser tests: round-trip integrity (generator → parser → DB → match)
+- [x] Error handling for malformed lines (log + skip, don't crash)
 
 ### Exit criteria
 "Yield by board over last week" query returns correct result. Round-trip test passes for ≥99% of generator output.
+
+**Status (2026-06-14):** 7/7 deliverables complete. 179 tests passing / 0 failing / 97% total coverage; parser 97%, db 100%. Round-trip test asserts count + per-panel start_ts equality. Yield query test passes with a deterministic 2-week × 2-profile fixture (last-week window with `>=` boundary semantics). Notebook `notebooks/01-queries.ipynb` authored against a 20-panel small-profile sample DB (`data/db/sample.duckdb`, gitignored via `*.duckdb`); every code cell smoke-tested in-process against the live DB. 10-step session-workflow loop ran end-to-end.
 
 ---
 
@@ -72,10 +74,10 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 
 ### Deliverables
 - [ ] `src/flying_probe_copilot/analytics/` module
-  - Yield-over-time function
-  - Failure Pareto function
-  - SPC chart helpers (X-bar, R, individual)
-  - Anomaly detection (z-score baseline; Isolation Forest stretch)
+  - [x] Yield-over-time function (`yield_over_time`, 2026-06-16)
+  - [x] Failure Pareto function (`failure_pareto`, 2026-06-16)
+  - [ ] SPC chart helpers (X-bar, R, individual)
+  - [ ] Anomaly detection (z-score baseline; Isolation Forest stretch)
 - [ ] `src/flying_probe_copilot/ui/` Streamlit app
 - [ ] Pages: Overview, Yield, Failure Pareto, SPC, Anomalies
 - [ ] Plotly charts with drill-down
@@ -84,6 +86,12 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 
 ### Exit criteria
 Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <2s on 100k records.
+
+**Status (2026-06-16):** Phase 2 kicked off with a pre-analytics data-quality task. Per-panel operator-id repair landed (BUG-009 resolved, BUG-007 operator half closed). `@BTEST` now carries mandatory per-panel `operator_id` at field 12; `test_runs.operator_id` flipped to `VARCHAR NOT NULL`; per-operator analytics now sit on real data, not the batch-level placeholder. 196 tests passing, 97% coverage. Branch: `feature/per-panel-operator`. Shift + line_id half of BUG-007 still open — pick path next session. Analytics module / Streamlit not yet started.
+
+**Status (2026-06-16):** Slice 1 of Phase 2 also complete — analytics module foundation. `yield_over_time(con, *, window_days=7, group_by="board", as_of=None) → list[YieldRow]` and `failure_pareto(con, *, window_days=7, by="record_type", top_n=10, as_of=None) → list[ParetoRow]` shipped as pure stdlib + duckdb library calls. 39 new tests (17 yield + 19 pareto + 3 public API), 224 total passing, 0 failing. Analytics package coverage 96-100% per file (target was ≥80%). Every code path that groups by BUG-007-affected columns (`shift`, `line_id`, `operator_id`) marks results via per-row `placeholder_fields: tuple[str, ...]`. Zero edits to existing files; pure additive. Six v1 contract decisions documented in `docs/logs/DECISION_LOG.md` (Pareto record-type-only, yield ordering `group_key ASC`, unrounded floats, strict `window_days >= 1` / `top_n >= 1` / naive UTC validation). Notebook Q4 (per-operator) ordering NOT matched — documented divergence.
+
+**Status (2026-06-17):** BUG-007 **FULLY RESOLVED**. Path A applied to the remaining two fields: `@BTEST` gains mandatory `shift: Literal["A","B","C"]` at field 13 and `line_id: str` at field 14; `_make_board_log` reads `btest.shift` / `btest.line_id`. Schema already `NOT NULL` for both — no flip needed. 200 tests passing, 97% coverage. Per-shift + per-operator + per-line analytics now all sit on real per-panel data. PR `feature/per-panel-operator` → `dev` closes both halves of BUG-007 in one feature PR. Analytics slice 2 (SPC + anomaly) and slice 3 (Streamlit dashboard) still pending — pick those up next.
 
 ---
 
@@ -141,3 +149,5 @@ A recruiter can land on the repo, watch the demo gif, read the case study, and u
 - 2026-06-13 — Phase 0 started.
 - 2026-06-13 — Phase 0: 8/9 deliverables done. Keysight manuals not yet downloaded. Log format will be researched from public sources in Phase 1a Step 2 (Explore).
 - 2026-06-13 — Phase 1a: 8/9 deliverables done in a single session. Synthetic HP3070 / Keysight i3070 ICT log generator complete. Format target revised mid-session to real Keysight Log Record Format (authoritative reference found via Virinco public mirror). 81 tests passing, 94% coverage, 1000 panels in ~1 s. README deliverable deferred to a follow-up doc session.
+- 2026-06-14 — Phase 1b: 6/7 deliverables done in a single Large-tier session. Parser module + DuckDB 9-table schema + ingest CLI + round-trip integrity tests + named yield-query test all green. 179 tests passing, 0 failing, 97% total coverage. Notebook deliverable deferred. 10-step loop completed end-to-end with Step 4 red-team Revision 1 catching 2 BLOCKERs + 5 WARNINGs that would have produced wrong-data round-trips.
+- 2026-06-16 — Phase 2 started, slice 1 (analytics foundation) complete. `yield_over_time` + `failure_pareto` shipped in a Medium-tier session. 39 new tests, 224 total passing, 0 failing. Analytics package coverage 96-100% per file. Per-row `placeholder_fields` marker keeps BUG-007-affected fields visible. 12-step session-workflow loop ran end-to-end; Step 5 adversarial review caught 7 BLOCKERs around notebook-canonical-SQL divergences that Plan Revision 1 resolved before Execute. Six v1 contract decisions documented in DECISION_LOG. Slice 2 (SPC + anomaly) and slice 3 (Streamlit dashboard) deferred to follow-up sessions.

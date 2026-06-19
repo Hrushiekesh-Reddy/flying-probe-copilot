@@ -5,6 +5,259 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-18 — Tests never write to the repo tree; use `tmp_path` (BUG-011)
+
+**Decision:** Test helpers that need a file on disk MUST write to pytest's per-test `tmp_path` (or `NamedTemporaryFile`), never to a fixed path inside the repo working tree. Applied to `_render_to_text` in `tests/test_parser/test_log_parser.py`, which had been writing to `repo_root / "tmp_test_render.log"`.
+
+**Why:** A fixed path in the repo tree is (a) shared across every caller — two tests using the helper raced the same file under any parallel/repeated execution — and (b) actively watched by editors (VS Code file watcher), git, antivirus, and the Windows Search indexer, which take transient locks on freshly-created repo-tree files. During a full-suite run that produced partial reads (assertion failures) and `PermissionError [WinError 32]`, while the test passed in isolation. `tmp_path` is unique per test and lives under the OS temp dir, outside those watchers. This was the root cause of BUG-011.
+
+**Rejected:**
+- **Unique-named file still at the repo root** (e.g. `f"tmp_render_{uuid}.log"`). Fixes the cross-caller sharing but not the repo-tree-watcher lock face of the bug, and litters the working tree if a test crashes before cleanup.
+- **In-memory render (no file).** Cleanest in theory, but `render_log` is a file-only serializer (`Path(path).write_bytes(...)`); adding a bytes-returning path would change production code for a test-only convenience — out of scope for a flaky-test fix.
+- **Forcing `PYTHONHASHSEED` / adding a randomization plugin.** Would only matter if test *content* were hash-dependent; it isn't (the generator threads all randomness through `random.Random(seed)` and the fixture path never calls `hash()`). Treating the symptom, not the cause.
+
+**Revisit when:** Never expected to reverse. If a future test genuinely needs a stable cross-test artifact, it belongs in a fixture with an explicit scope and teardown, still rooted under `tmp_path_factory`, never the repo tree.
+
+---
+
+## 2026-06-16 — Phase 2 analytics: 6 v1 contract decisions
+
+**Decision:** The Phase 2 analytics foundation (`yield_over_time` + `failure_pareto`) ships with six v1 contracts that intentionally diverge from the Phase 1b notebook in places. Owner approved all six at Decision Gate as recommended.
+
+1. **Pareto v1 groups by `record_type` only.** Notebook Query 2 groups by `(record_type, failure_category)` — a 2-column key. `failure_pareto(by="record_type")` collapses across `failure_category`, returning one row per record_type. Adding `failure_category` to `ParetoRow` is deferred (would require an asymmetric optional field). Notebook Q2 row-for-row match is **not** a v1 contract.
+2. **Yield ordering: `group_key ASC` universally.** Matches notebook Q1 (`board_profile_id` ASC). Diverges from Q4 (`panels_tested DESC, operator_id`). Callers re-sort by count via `sorted(rows, key=lambda r: -r.total)` if needed.
+3. **Percentages are unrounded floats.** `yield_pct`, `pct_of_total`, `cumulative_pct` are raw IEEE-754 doubles from SQL. Notebook Q3/Q4/Q5/Q6 `ROUND(..., 2)` is NOT matched. Caller rounds at presentation. Y-01's row-for-row match against Q1 uses `math.isclose(rel_tol=1e-9)`.
+4. **`window_days <= 0` raises `ValueError`.** Not "zero days = today only", not "negative = whole DB" — strict positive int contract. Programmer mistakes are loud.
+5. **`top_n <= 0` raises `ValueError`.** Same family. DuckDB `LIMIT -1` behavior is implementation-defined; we don't expose it.
+6. **Tz-aware `as_of` raises `ValueError`.** DuckDB TIMESTAMP is naive. Silent-strip masks bugs (e.g. Streamlit passing local-tz "now" gets converted with no warning). Callers explicitly `.replace(tzinfo=None)` after asserting UTC.
+
+**Why:** v1's job is to surface the analytics contract clearly. Matching every notebook query row-for-row would lock the analytics layer to one set of presentation rules (rounded floats, count-descending per-query). Lock the analytics layer to a single uniform contract, then let any future presentation layer (Streamlit, notebook v2) format from it. Loud validation up front avoids silent-wrong-data classes of bug that the BUG-007 deferral already taught us to fear.
+
+**Rejected:**
+- **`ParetoRow.failure_category` as a sometimes-populated field.** Would salvage Q2 row-for-row match. Cost: dataclass becomes type-asymmetric (populated for `by="record_type"`, None for `by="refdes"`). Downstream code has to null-check every call site.
+- **Per-group_by ordering rules embedded in `yield_over_time`.** Most faithful to notebook. Cost: 4 different ORDER BY clauses to maintain, 4 different test contracts, hardest to reason about.
+- **Caller-controlled `decimals: int | None = None`.** Punts on the rounding question. Cost: doubles the test matrix; future Streamlit pages each pick a different decimals value and reports drift.
+- **`window_days=0` returns `[]` silently.** Comfortable but silent. Two cases (caller meant "no rows" vs caller bug) become indistinguishable.
+- **`top_n=0` returns `[]` silently.** Same.
+- **Silent strip of tz-aware `as_of`.** Streamlit habit will pass local-tz datetimes; silent conversion = silent window shift = silent wrong answer.
+
+**Revisit when:**
+- A real Streamlit dashboard demands the Q2 2-column Pareto view → add `ParetoRow.failure_category` (optional, populated for record_type). Don't change the existing contract.
+- A real consumer needs Q4-style "biggest groups first" → add an `order_by: Literal["group_key", "count_desc"] = "group_key"` parameter (additive, default preserves current contract).
+- A real caller wants tz-aware datetimes → add a `tz: timezone | None = None` parameter that converts internally to UTC before validation (additive).
+- `window_days = 0` becomes a real use case ("just today's data") → add explicit support with documented semantics (e.g. `[as_of, as_of]`).
+
+**Verification:** All six decisions enforced in `src/flying_probe_copilot/analytics/yield_metrics.py`, `pareto.py`, `_window.py` and asserted in 39 analytics tests under `tests/test_analytics/`. Full repo suite 224/224 green.
+
+---
+
+## 2026-06-18 — Drop `placeholder_fields` field from `YieldRow` / `ParetoRow`
+
+**Decision:** Remove the `placeholder_fields: tuple[str, ...]` field from both analytics dataclasses. Simplify `_GROUP_BY_CONFIG` in `yield_metrics.py` from `(SELECT col, JOIN clause, placeholder tuple)` to `(SELECT col, JOIN clause)`. Drop the `placeholder_fields=` kwarg from both `YieldRow(...)` and `ParetoRow(...)` constructors. Retire P-12 / P-13 and refactor Y-08 / Y-09 / Y-10 / Y-11 into plain group_by smoke tests.
+
+**Why:** BUG-007 closed via Path A on 2026-06-17 (PR #12). The marker's whole purpose was to signal "this column's source data is placeholder" — now the source data is real per-panel data on every code path. Keeping a vestigial field that's always `()` on every result row leaves a self-described "this is placeholder" promise the dataclass can't keep. Two options were on the table:
+
+- **(a) Drop the field entirely (chosen).** Breaking change to a public API surface (`YieldRow.placeholder_fields`). No downstream consumers today (no notebook reads it, no Streamlit page exists yet). Cleanest end-state.
+- **(b) Keep the field, always emit `()`.** Backward-compatible but dishonest — the docstring promises "lists the specific column name(s) when something is", and now nothing ever is. Vestigial code rots faster than absent code.
+
+(a) wins because Phase 2 slice 1 has not shipped beyond `dev`; there is no external API contract to preserve. The 2026-06-16 decision's "Forward-compat: ... auto-update" promise is what carries us through the rename — consumers that would have written `if row.placeholder_fields: warn(...)` get a clean `AttributeError` instead of a silently empty check.
+
+**Rejected:**
+- **Option (b) above.** Quieter but leaves a vestigial field future readers will ask about.
+- **Wait until a real Streamlit consumer exists, then decide.** Cost: ship the placeholder marker into a third file (Streamlit page), making future removal harder.
+
+**Revisit when:** A future schema regression re-introduces silent-placeholder data on shift / line_id / operator_id. At that point the marker pattern should come back as a result-set wrapper (see Rejected list in the 2026-06-16 entry) rather than a per-row field, since the failure mode is global to a group_by call, not per-row.
+
+**Verification:** 238 tests passing, 1 xfailed, 97% coverage on branch `feature/analytics-drop-placeholder-markers`. A-02 / A-03 expected field sets reduced from 5 to 4 fields each. `grep -rn placeholder_fields src/ tests/` returns only one comment-only line (test section header narrating the history).
+
+---
+
+## 2026-06-16 — Per-row `placeholder_fields` marker for BUG-007
+
+**Decision:** Every analytics output row (`YieldRow`, `ParetoRow`) carries a `placeholder_fields: tuple[str, ...]` field naming columns whose source data is currently BUG-007-affected. The tuple is empty `()` when nothing is affected, and lists the specific column name(s) when something is.
+
+| Call | `placeholder_fields` |
+|------|----------------------|
+| `yield_over_time(group_by="board")` | `()` |
+| `yield_over_time(group_by="shift")` | `("shift",)` |
+| `yield_over_time(group_by="line")` | `("line_id",)` |
+| `yield_over_time(group_by="operator")` | `("operator_id",)` |
+| `failure_pareto(by="record_type")` | `()` |
+| `failure_pareto(by="refdes")` | `()` |
+
+**Why:** BUG-007 means `panels.shift = 'A'` and `panels.line_id = 'LINE-A'` are uniform placeholders today, and `test_runs.operator_id` is per-run not per-panel. Computing per-shift / per-line / per-operator yield therefore returns degraded data — useful for testing the analytics pipeline, dangerous if a downstream dashboard renders it without warning. Per-row marker (vs result-set-level wrapper) lets each row self-describe — survives filtering, slicing, mapping, and any pandas/Streamlit reshape downstream. Forward-compat: when BUG-007 is properly fixed, the marker tuple becomes `()` for those group_by values; consumers that check `if row.placeholder_fields: warn(...)` auto-update.
+
+**Rejected:**
+- **Docstring-only caveat, no runtime marker.** Lowest friction. Cost: a future Streamlit page that prints per-shift yield has no programmatic way to attach a caveat banner. Silent placeholder data is the exact wrong-data risk the brief warned against.
+- **Result-set wrapper `Result(rows=[...], placeholder_fields=("shift",))`.** Cleaner type. Cost: slicing/merging loses self-description. A page that combines two queries' rows can't tell which rows came from a placeholder-affected source.
+- **Raise on placeholder-affected `group_by` until BUG-007 is fixed.** Hardest contract; punishes callers who explicitly want to see the degraded data (e.g. for testing the analytics pipeline).
+
+**Revisit when:** BUG-007 is properly fixed via path A (generator extension), B (results.json sidecar), or C (schema nullability). At that point the relevant `placeholder_fields` tuple flips to `()` and one-line edits in `_GROUP_BY_CONFIG` suffice.
+
+**Verification:** Y-08 (board=`()`), Y-09 (shift=`("shift",)`), Y-10 (line=`("line_id",)`), Y-11 (operator=`("operator_id",)`), P-12 (record_type=`()`), P-13 (refdes=`()`).
+
+> **Resolved 2026-06-18 — marker removed entirely.** BUG-007 closed via Path A in PR #12 (operator_id at field 12, shift at field 13, line_id at field 14, all NOT NULL). The forward-compat "tuple flips to `()`" path predicted above became "every tuple is now `()`" — a vestigial field on every output row. Per Decision 2026-06-18 (below) the field is dropped from `YieldRow` and `ParetoRow`; Y-08 / Y-09 / Y-10 / Y-11 / P-12 / P-13 retired or refactored into plain group_by smoke tests.
+
+---
+
+## 2026-06-16 — Analytics window anchor: `MAX(test_runs.start_ts)`, inclusive both ends, naive UTC
+
+**Decision:** Both `yield_over_time` and `failure_pareto` anchor their default rolling window on `SELECT MAX(start_ts) FROM test_runs`. Caller may override via `as_of` parameter. Window is `[as_of - window_days, as_of]`, inclusive on both ends. All datetimes are naive UTC (no tzinfo).
+
+**Why:** Anchoring on `MAX(start_ts)` matches the Phase 1b notebook's canonical query (`notebooks/01-queries.ipynb`, Query 1 cell 4) and `_YIELD_BY_BOARD_LAST_WEEK_SQL` in `tests/test_parser/test_yield_query.py:28-43`. This gives deterministic replay against any fixture: the window floats with the data's actual range, so tests run correctly whether the fixture spans April 2026 or any other epoch. Anchoring on `CURRENT_TIMESTAMP` instead would require every test to mock time or pass `as_of` explicitly. Inclusive-on-both-ends boundary semantics matches the notebook's `>=` lower clause and the natural reading of "the last 7 days". DuckDB TIMESTAMP is naive — accepting only naive `datetime` from callers prevents silent UTC drift.
+
+**Brief drafting note:** the original Session Brief said "anchor `MAX(panels.scheduled_ts)`" — that was a drafting error. `scheduled_ts` is when a panel was scheduled (could be future); `start_ts` is when testing actually happened. Plan Revision 1 corrected to `MAX(test_runs.start_ts)`. Decision Gate confirmed.
+
+**Rejected:**
+- **Anchor on `CURRENT_TIMESTAMP`.** Production-realistic. Cost: tests have to mock time everywhere.
+- **No default — caller always passes `as_of`.** Most explicit. Cost: every call site has to compute `MAX(start_ts)` itself.
+- **Exclusive upper bound (`< as_of`).** Common in streaming contexts. Cost: counter-intuitive for a "last 7 days" query (a row at exactly `as_of` is excluded).
+
+**Revisit when:** A real Streamlit dashboard wants a live-clock anchor. Add an alternate constructor `yield_over_time_live(con, ...)` that wraps the existing function with `as_of=datetime.utcnow().replace(tzinfo=None)`. Don't change the default.
+
+**Verification:** Y-01 (canonical SQL match), Y-04 (window excludes old rows), Y-05 (custom as_of override), R1-K (boundary inclusion at both ends), R1-M (tz-aware raises).
+
+---
+
+## 2026-06-16 — Empty-anchor short-circuit (`MAX(start_ts) IS NULL` → `[]`)
+
+**Decision:** When `_resolve_anchor(con, as_of=None)` queries an empty `test_runs` table, the `MAX(start_ts)` query returns NULL → the helper returns `None`. Both public functions check the return: if `None`, they return `[]` immediately without executing the main SELECT. `failure_pareto` adds a secondary short-circuit: if the in-window `failures` set is empty (e.g. `by="refdes"` and all in-window failures have NULL refdes), return `[]`.
+
+**Why:** Computing `anchor - INTERVAL ...` on a NULL anchor raises `TypeError: unsupported operand type(s) for -: 'NoneType' and 'datetime.timedelta'`. Computing `cumulative_pct = count / total` on `total == 0` raises `ZeroDivisionError`. Both classes of "empty input" should yield `[]` not an exception — they're a normal case (fresh DB, narrow window, restrictive filter). Short-circuit at the Python boundary (not in SQL) keeps the SQL itself simple and lets the empty-list pathway exercise a separate test case (Y-02, P-10, and the new `test_pareto_by_refdes_with_all_null_refdes_returns_empty_list`).
+
+**Rejected:**
+- **Raise on empty DB.** Caller has to wrap every call in try/except. Noisy for a normal state.
+- **Return `[YieldRow(group_key="(no data)", ...)]`.** Sentinel rows are fragile; downstream code has to filter.
+- **Run the SQL anyway and let `COALESCE(SUM(...), 0)` paper over it.** Doesn't help with the anchor-arithmetic crash; still needs a Python guard.
+
+**Verification:** Y-02 (empty DB → `[]`), Y-03 (empty DB → `[]` for every group_by), P-10 (zero failures → `[]`), new `test_pareto_by_refdes_with_all_null_refdes_returns_empty_list`.
+
+---
+
+## 2026-06-14 — `.claude/settings.json` hook paths use `${CLAUDE_PROJECT_DIR}` (Option A)
+
+**Decision:** All three hook commands in `.claude/settings.json` were changed from relative paths to project-root-relative absolute paths using the harness-substituted `${CLAUDE_PROJECT_DIR}` env var. Same fix stamped upstream into `E:\hrk-agent-starter\.claude\settings.json` so future stamps don't carry the bug.
+
+```diff
+-"command": "python .claude/hooks/block_dangerous_git.py"
++"command": "python ${CLAUDE_PROJECT_DIR}/.claude/hooks/block_dangerous_git.py"
+```
+
+(and similarly for `plan_approval_gate.py` + `doc_reminder_stop.py`).
+
+**Why:** Relative paths in hook commands resolve against the shell session's cwd, not the project root. A single `cd notebooks/` mid-session shifts the resolved path to `notebooks/.claude/hooks/...`, which doesn't exist. The hook then errors with `No such file or directory`, exit code 1, and the harness treats that as a hard block on every subsequent Bash + PowerShell tool call. The sticky cwd persists across tool calls in the same shell session, so once the bug fires the only recovery is a fresh prompt (which resets the harness cwd). This actually happened mid-session on 2026-06-14 during the Phase 1b notebook session and killed the rest of the shell work for that turn (see BUG_LOG BUG-007 placement and SESSION_LOG entry for the notebook session).
+
+`${CLAUDE_PROJECT_DIR}` is set by the Claude Code harness to the project root regardless of the shell session's current directory, so substituting it into the hook command produces an absolute path that's invariant under cwd drift.
+
+**Rejected:**
+- **Option B — hard-coded `python E:/flying-probe-copilot/.claude/hooks/...`.** Bulletproof on Windows even if `${CLAUDE_PROJECT_DIR}` substitution ever silently failed, but locks the path to one machine and one directory. The hrk-agent-starter portable kit stamps `.claude/settings.json` into every future project verbatim; hard-coded paths would break the moment a stamped project lives at a different path. Kept as a documented fallback if A ever fails on this Windows machine.
+- **Wrap each hook script in a wrapper that does its own `cd` to project root.** Adds a layer of indirection inside the hook itself and still requires every hook script author to remember the discipline. Fixing the *config* (one place) beats fixing the *contract* (every hook).
+- **Leave it broken and just train myself to never `cd` into a subdir mid-session.** Discipline can't be enforced; the agent is the one running `cd` and surrenderingt control. The first `cd` into any sub-directory is a session-killer.
+
+**Verification:** Smoke test in the same session as the edit — `cd notebooks && pwd && cd ..` succeeded immediately after the change. Under the bug this sequence hard-blocked with `PreToolUse:Bash hook error: ... No such file or directory`. The smoke test proves the harness IS substituting `${CLAUDE_PROJECT_DIR}` on this Windows machine, so Option A is sufficient.
+
+**Revisit:** If a future Claude Code release ever changes `${CLAUDE_PROJECT_DIR}` substitution behaviour, or if the kit gets stamped on a non-Windows platform that handles the variable differently. The fallback to Option B is documented above; switching is a one-line edit per command.
+
+---
+
+## 2026-06-14 — Phase 1b: DuckDB schema shape (boards + panels split, global components, persisted limits, ParseReport, runs metadata)
+
+**Decision:** The Phase 1b DuckDB schema uses 9 tables organised as 5 dimension + 1 metadata + 3 fact:
+
+- **Dimensions:** `boards` (board profiles only — small/medium/large + their BOM metadata; ~3 rows ever), `panels` (per-serial unit-under-test instances; one row per panel ever produced), `operators` (per `operator_id` seen in `@BATCH`), `components` (global per `(board_profile_id, refdes)` — N=~120 for small, ~450 for medium, ~1600 for large — looked up at ingest with `INSERT OR IGNORE` on the `UNIQUE` index), `tests` (per `(board_profile_id, block_designator, record_type)`).
+- **Metadata:** `runs` (one row per generator run-directory ingested; columns sourced from `manifest.json` plus the directory basename as `run_id` and `ingested_at` defaulted to `CURRENT_TIMESTAMP`).
+- **Facts:** `test_runs` (one per `@BTEST` record per panel), `measurements` (one per `@A-*` / `@D-T` / `@TS` / `@TJET` / `@PF` record, with type-specific nullable columns including `limit_high`/`limit_low`/`limit_nominal` from `@LIM2`/`@LIM3`), `failures` (denormalized convenience table: one row per non-PASS measurement, with `panel_serial` + `board_profile_id` carried for fast Pareto without joins).
+
+The parser returns a structured `ParseReport` (errors + notes + record_count) rather than logging silently — testable, audit-friendly.
+
+**Why:** All four decisions came from the Phase 1b brief's Step 2 explore + the owner's pre-plan answers:
+
+1. *boards (profile) vs panels (instance) split:* "yield by board over last week" reads naturally as per-profile aggregation for a manufacturing engineer (small profile = X% yield); per-serial yield would be 100%/0% noise. The split keeps the semantic clean and lets the same `panels` table back per-serial drill-downs in Phase 2 dashboards.
+2. *Components global per (profile, refdes):* per-panel rows would explode the components table 100–1000× and make cross-panel "how does R12 behave?" queries expensive. Global per (profile, refdes) keeps the dim stable.
+3. *Limits persisted as nullable columns:* +3 nullable floats per measurement row is cheap. Without them, Phase 2 "which measurements failed because spec tightened" queries would have to re-parse logs or re-derive from the spec — both lossy.
+4. *ParseReport object:* testable assertions on error counts + line numbers; matches the brief's "captured in a `parse_report` or logged" success criterion line.
+5. *runs metadata table from manifest:* free during ingest; enables cross-run comparison queries ("compare fault rates across runs") and is the natural anchor for the re-ingest guard (#WARNING-13 below).
+
+**Rejected:**
+- *Single `boards` table conflating profile + instance* — wrong semantics for the named exit query; would have forced per-serial yield aggregation.
+- *Per-panel `components` rows* — table size explosion + duplicate-key handling pain on every ingest.
+- *Skip limits* — irrecoverable for downstream Pareto analysis.
+- *Silent error logging instead of ParseReport* — untestable.
+- *Skip manifest ingest* — single-run-only parser, no cross-run comparison.
+
+**Test contracts pinned:**
+- `tests/test_parser/test_schema.py::test_init_database_creates_all_9_tables` — `TABLES` constant length == 9; `SHOW TABLES` set-equals constant.
+- `tests/test_parser/test_schema.py::test_each_table_has_expected_columns` — per-table column shape audit.
+- `tests/test_parser/test_ingest.py::test_ingest_components_global_per_profile_refdes` — re-ingesting the same panel twice leaves `components` row-count unchanged for that profile.
+
+**Revisit:** End of Phase 2. If the failures denormalization shows drift symptoms (e.g. `failures.board_profile_id` differs from the joined `panels.board_profile_id`), add a constraint or a periodic reconciliation query. If the surrogate-PK Python counter approach proves slow on >1M-row ingests, swap to DuckDB sequences.
+
+---
+
+## 2026-06-14 — Phase 1b: `test_runs.operator_id` nullable; per-panel operator recovery deferred to Phase 2
+
+**Decision:** `test_runs.operator_id` is declared `VARCHAR` (nullable), not `VARCHAR NOT NULL`. The parser populates it from the single `@BATCH.operator_id` field on the per-board log file. Per-panel operator recovery (which the generator currently does NOT preserve in per-board logs) is deferred to Phase 2.
+
+**Why:** Per-board `.log` files contain `@BATCH.operator_id` once. The generator's `cli.py:140` uses `boards[0].panel.operator_id` for that field — so every per-board file in a run inherits the first panel's operator. The actual per-panel `PanelInstance.operator_id` is preserved only in `results.json` / `results.csv`, which the brief explicitly excluded from ingest. Three repair options were considered:
+- Edit the generator to add `operator_id` to `@BTEST` — out of Phase 1b scope (generator edits prohibited).
+- Read `results.json` as a sidecar during ingest — violates the brief's "log files only" promise.
+- Use `@BATCH.operator_id` and document the degradation — chosen.
+
+Making the column nullable converts a silent-degraded-data risk into an explicit "this column may be incomplete" contract, which downstream analytics + dashboards can opt into respecting.
+
+**Rejected:**
+- *`NOT NULL` constraint:* would have crashed ingest on the first panel of any run that didn't expose an operator anywhere — and silently degraded data on every run that did, since every panel in a run gets the same operator.
+- *Generator change in Phase 1b:* out of scope, scope-creep risk.
+- *`results.json` sidecar read:* violates the brief's CSV/JSON-not-ingested commitment.
+
+**Test contract:** No specific test for nullability today; the schema's column declaration + `init_database` idempotency tests verify the column is `VARCHAR` without a `NOT NULL` modifier. Phase 2's operator-id repair will need a dedicated test.
+
+**Revisit:** Phase 2 first session. Decide whether to extend `@BTEST` (generator change) or to ingest `results.json` as an authorized sidecar. Either path lets the column flip to `NOT NULL` if we want strict integrity.
+
+> **Resolved 2026-06-16** — Path A landed via `feature/per-panel-operator` (see plan `docs/plans/2026-06-14-phase2-operator-plan.md` + brief `docs/plans/2026-06-14-phase2-operator-brief.md` + BUG_LOG entry BUG-009). `@BTEST` now carries a mandatory `operator_id` at positional index 12; `test_runs.operator_id` is `VARCHAR NOT NULL`; multi-operator runs ingest with per-panel-distinct operators (`tests/test_parser/test_ingest.py::test_multi_operator_run_distinct_operators_per_panel`). `results.json` sidecar path NOT taken — log files remain the single source of truth.
+
+---
+
+## 2026-06-14 — Phase 1b: re-ingest guarded at CLI, not at schema (single-run idempotency contract)
+
+**Decision:** The parser CLI does a pre-flight `SELECT 1 FROM runs WHERE run_id = ?` before any insert. If the run is already present, the CLI exits with code 2 and a stderr message. The schema itself is NOT idempotent on fact tables (`panels`, `test_runs`, `measurements`, `failures` would all PK-conflict or duplicate on re-insert). Dimension tables use `INSERT OR IGNORE` semantics (`boards`, `operators`, `components`, `tests` — shared across runs).
+
+**Why:** Two options were on the table — make the entire ingest idempotent (UPSERT everywhere) or guard at the CLI. The guard approach is simpler for v1: it surfaces a clear error to the operator ("this run is already ingested; use --overwrite in Phase 2"), prevents accidental double-counting in yield/Pareto queries, and avoids the complexity of teaching every fact table how to dedup against an in-progress ingest. UPSERT-everywhere would also have masked partial-ingest failures (half a run already in, second attempt silently completes the other half).
+
+**Rejected:**
+- *UPSERT every table:* hides partial failures and over-promises idempotency on facts that genuinely shouldn't double-count.
+- *Silently allow duplicates and let Phase 2 dedup at query time:* poisons analytics until the dedup layer ships.
+- *No re-ingest support at all (exit code 0 + skip):* hides operator intent — the operator may have wanted to re-ingest to refresh after a parser bug fix.
+
+**Test contracts:**
+- `tests/test_parser/test_cli.py::test_cli_exits_with_code_2_when_run_already_ingested` — pin the CLI behaviour.
+
+**Revisit:** Phase 2. Add `--overwrite` flag that performs `DELETE FROM <table> WHERE run_id = ?` across fact tables before re-inserting. Or add `--append` that ignores the guard and lets duplicates accumulate (useful for stress testing).
+
+---
+
+## 2026-06-14 — Fault correlation wired through `generate_blocks` (addendum to 2026-06-13)
+
+**Decision:** The refdes-numerical clustering heuristic documented in the 2026-06-13 entry below now actually fires during panel generation. `generate_blocks` (in `src/flying_probe_copilot/generator/blocks.py`) picks the primary failing component as before, then calls a new `_pick_correlated_failures(primary, profile, rng)` helper that performs per-candidate Bernoulli secondary-failure draws against same-family components. The candidate draw uses `rate = BASELINE_SECONDARY_RATE * correlation_multiplier(primary, candidate)` with `BASELINE_SECONDARY_RATE = 0.3`, and the draw is **only performed when `correlation_multiplier > 1.0`** (i.e., for ±3 refdes neighbors). Far candidates and cross-family candidates get no secondary draw.
+
+**Why:** PR #1 landed `correlation_multiplier` and `correlated_failure_rate` in `faults.py` with unit tests, but they were never invoked from the CLI output path. `_pick_failing_component` marked exactly one component as failing per panel, so the realistic clustered-failure Pareto curves the heuristic was designed to produce never appeared in real generator output. Bugbot caught this in PR #3 review (comment id 3409766432, medium severity). The fix wires the existing heuristic into the panel-construction pipeline so it actually does its job.
+
+The "multiplier > 1.0 only" gate matters: applying the baseline to every same-family component (multiplier == 1.0 for far candidates) would produce uniform secondary noise across the whole family and visually dilute the ±3 cluster around the primary. Gating on multiplier > 1.0 keeps far candidates clean and lets the Pareto curve show real clustering. `correlation_multiplier`'s contract is unchanged; only the *integration interprets* a 1.0 return as "no secondary draw."
+
+**Rejected:**
+- **Apply baseline to all same-family candidates** (uniform secondary rate, neighbors only get a multiplicative bump). Produces no visible aggregate Pareto signal — far candidates outnumber near ones and their cumulative secondary fails wash out the cluster.
+- **Bias the primary draw with the multiplier instead of doing secondary Bernoulli draws.** Changes what `_pick_failing_component` *means* (no longer uniform across the family) and complicates seed-reproducibility tests. Per-panel secondary draws keep the primary draw clean and add clustering as a separate orthogonal layer.
+- **Higher baseline (e.g. 0.5).** Empirically reaches the same Pareto target but makes failing panels dominated by 3–5 simultaneous component fails, which over-states realistic FP/ICT failure patterns. 0.3 was chosen as the lowest value that comfortably meets the test thresholds in `tests/test_generator/test_blocks.py` while keeping per-failing-panel fail counts in the 1–4 range.
+
+**Test contracts pinned (`tests/test_generator/test_blocks.py`):**
+- `test_neighbor_fail_rate_elevated_vs_far_when_primary_pinned` — 500 seeded panels with primary monkeypatched to R50: combined R49+R51 fail counts ≥ 3× R10 fail count.
+- `test_failure_pareto_clusters_around_primary_under_correlation` — 1000 seeded panels with primary monkeypatched to R50: top-3 failing refdes account for >30% of all failures (and the top-3 must include R50 plus at least one ±1 neighbor).
+- `test_correlation_secondary_fails_stay_within_same_family` — 500 seeded DIGITAL panels with primary pinned to U8: zero cross-family secondary fails.
+
+**Revisit:** When Phase 2 analytics surface the failure Pareto. If clustering looks too tight (always exactly R50 ±1) or too loose (per-panel fail counts ≥5), retune `BASELINE_SECONDARY_RATE` rather than the multiplier table — the multiplier is the heuristic's public contract.
+
+---
+
 ## 2026-06-14 — Dedicated `exec` sub-agent with hard tool restrictions
 
 **Decision:** Step 5 of the 10-step session-workflow uses a dedicated `exec` sub-agent defined at `.claude/agents/exec.md`, with a tool allowlist enforced by the agent definition itself. Other sub-agent roles (Explore, Plan-Reviewer, Verifier) continue to use the built-in `Explore` agent type or the existing skills.

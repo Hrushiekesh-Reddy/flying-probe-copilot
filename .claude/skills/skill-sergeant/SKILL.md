@@ -25,11 +25,13 @@
 | `/plan-architect` | `/plan-architect` | Plan any non-trivial task before writing code. Produces Goal Contract, What/Why/Where table, ordered steps. | "Plan this", "how should I approach", "design X", "I need a plan" |
 | `/execute-plan` | `/execute-plan` | Implement an approved plan, TDD-first. Never skips tests. | "Build it", "implement the plan", "go ahead", "execute" |
 | `/test-generator` | `/test-generator` | Write failing test stubs (RED phase) before implementation starts. | "Write tests for X", "create test stubs", "TDD setup" |
-| `/session-workflow` | `/session-workflow` | Orchestrate the full 10-step pipeline for complex multi-file tasks. | "Run the full workflow", "complex task", "end-to-end" |
+| `/session-workflow` | `/session-workflow` | Orchestrate the full 12-step pipeline for complex multi-file tasks. | "Run the full workflow", "complex task", "end-to-end" |
+| `/architecture-refactor` | `/architecture-refactor` | Break up a god-file / shallow module into deep modules behind a clean interface, one reviewable chunk at a time. Behavior-preserving. | "Refactor this god-file", "split this file", "extract a module", "deep modules", "reorganize without changing behavior" |
 | `/diagnose` | `/diagnose` | Root-cause analysis when something is broken. Read evidence, trace cause, propose fix. | "This test is failing", "something is wrong", "debug X", "why is X happening" |
 | `/deep-research` | `/deep-research` | Multi-source research with adversarial verification and cited output. | "Research X", "how does X library work", "find documentation for", "I need to understand X deeply" |
 | `/verify-execution` | `/verify-execution` | Post-implementation verification that output meets the plan's success criteria. | "Is this correct?", "verify the implementation", "does this meet the spec?" |
 | `/repo-doc` | `/repo-doc` | Generate or update project documentation (README, CLAUDE.md, specs, API docs). | "Update the docs", "write a README", "document this module", "update CLAUDE.md" |
+| `/frontend-design` | `/frontend-design` | UI/UX patterns, layout, accessibility, and design decisions. Primary question is how it should look/feel/behave. | "Design this component", "how should this look", "improve the UX", "accessibility audit", "responsive layout" |
 | `/evidence-dialogue` | `/evidence-dialogue` | Structured Q&A where every claim requires cited evidence. Prevents hallucination on architectural questions. | "Walk me through X with evidence", "is X true?", "justify this decision", "challenge this assumption" |
 
 ---
@@ -63,6 +65,12 @@ User has a task
        ├─ "Write / update documentation"
        │       → /repo-doc
        │
+       ├─ "Break up a god-file / split a big module" (no behavior change)
+       │       → /architecture-refactor
+       │
+       ├─ "How should this look / design this UI / improve the UX"
+       │       → /frontend-design
+       │
        └─ "Walk me through this decision with evidence"
           "Challenge this assumption"
                 → /evidence-dialogue
@@ -77,7 +85,7 @@ User has a task
 | "Write tests for this existing function" | `/test-generator` if doing TDD-first; `/diagnose` if tests already fail | Don't use `/execute-plan` for test-writing alone | execute-plan implements; test-generator writes the stubs |
 | "Fix this failing test" | `/diagnose` first, then `/execute-plan` for the fix | Don't jump to `/execute-plan` without diagnosing | Skipping diagnosis leads to random trial-and-error |
 | "Is this plan correct?" | `/plan-architect` (Step 5: pre-build review) | Not `/verify-execution` (that's post-implementation) | Verification needs an implementation to verify |
-| "Refactor this module" | `/plan-architect` to scope the refactor → `/execute-plan` | Not jumping straight to `/execute-plan` | Refactors without a plan cause scope drift |
+| "Refactor this module" | `/architecture-refactor` for a god-file / module split (behavior-preserving); `/plan-architect` → `/execute-plan` for a feature-changing rework | Not jumping straight to `/execute-plan` | architecture-refactor enforces chunked, interface-first, no-behavior-change; a plan covers reworks that change behavior |
 | "Explain how X library works" | `/deep-research` if it's an external library; `/evidence-dialogue` if it's your own architecture | Don't use `/repo-doc` (that generates docs, doesn't explain) | research vs explanation vs generation are different tasks |
 | "Review this code" | `/verify-execution` if checking against a spec; `/evidence-dialogue` if open-ended | Not `/diagnose` (that's for failures, not reviews) | diagnose traces an error; verify checks a spec; evidence-dialogue debates |
 | "I need comprehensive tests AND implementation" | `/session-workflow` (it orchestrates both) | Don't chain skills manually for complex tasks | session-workflow handles the full pipeline including gates |
