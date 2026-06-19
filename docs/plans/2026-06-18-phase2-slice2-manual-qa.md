@@ -13,11 +13,17 @@ engineer would expect. Run each block from the repo root in PowerShell.
 ## 0. Pre-flight: full test suite + coverage
 
 ```powershell
-uv run pytest -q
-uv run pytest --cov=src --cov-report=term-missing tests/test_analytics/
+uv run pytest --cov=src --cov-report=term-missing
 ```
-**PASS when:** whole suite green (no failures); `spc.py` and `anomaly.py` each ≥80% coverage;
-repo-wide coverage ≥97%.
+**PASS when:** the **full** suite is green — `292 passed, 1 xfailed, 0 failed`
+(the `1 xfailed` is the pre-existing slice-1 Y-12 marker, an *expected* failure — `x`, not `F` —
+not a real failure); in the per-file coverage table `spc.py` and `anomaly.py` are each ≥80%
+(they are 100%) and the `TOTAL` row is ≥97%.
+
+> Run the suite **without a path filter** for the coverage numbers. Scoping to
+> `tests/test_analytics/` runs only the analytics subset, so the `TOTAL` coverage row drops to
+> ~16% (generator/parser code isn't exercised) — that is expected and is **not** a failure
+> (there is no `--cov-fail-under` gate).
 
 ---
 
