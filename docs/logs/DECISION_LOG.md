@@ -5,6 +5,21 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-18 — Tests never write to the repo tree; use `tmp_path` (BUG-011)
+
+**Decision:** Test helpers that need a file on disk MUST write to pytest's per-test `tmp_path` (or `NamedTemporaryFile`), never to a fixed path inside the repo working tree. Applied to `_render_to_text` in `tests/test_parser/test_log_parser.py`, which had been writing to `repo_root / "tmp_test_render.log"`.
+
+**Why:** A fixed path in the repo tree is (a) shared across every caller — two tests using the helper raced the same file under any parallel/repeated execution — and (b) actively watched by editors (VS Code file watcher), git, antivirus, and the Windows Search indexer, which take transient locks on freshly-created repo-tree files. During a full-suite run that produced partial reads (assertion failures) and `PermissionError [WinError 32]`, while the test passed in isolation. `tmp_path` is unique per test and lives under the OS temp dir, outside those watchers. This was the root cause of BUG-011.
+
+**Rejected:**
+- **Unique-named file still at the repo root** (e.g. `f"tmp_render_{uuid}.log"`). Fixes the cross-caller sharing but not the repo-tree-watcher lock face of the bug, and litters the working tree if a test crashes before cleanup.
+- **In-memory render (no file).** Cleanest in theory, but `render_log` is a file-only serializer (`Path(path).write_bytes(...)`); adding a bytes-returning path would change production code for a test-only convenience — out of scope for a flaky-test fix.
+- **Forcing `PYTHONHASHSEED` / adding a randomization plugin.** Would only matter if test *content* were hash-dependent; it isn't (the generator threads all randomness through `random.Random(seed)` and the fixture path never calls `hash()`). Treating the symptom, not the cause.
+
+**Revisit when:** Never expected to reverse. If a future test genuinely needs a stable cross-test artifact, it belongs in a fixture with an explicit scope and teardown, still rooted under `tmp_path_factory`, never the repo tree.
+
+---
+
 ## 2026-06-16 — Phase 2 analytics: 6 v1 contract decisions
 
 **Decision:** The Phase 2 analytics foundation (`yield_over_time` + `failure_pareto`) ships with six v1 contracts that intentionally diverge from the Phase 1b notebook in places. Owner approved all six at Decision Gate as recommended.

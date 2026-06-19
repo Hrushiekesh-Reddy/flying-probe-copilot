@@ -4,6 +4,34 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-18 — Phase 2 — flaky-test fix (BUG-011) — branch: claude/beautiful-beaver-e50f90
+
+**Goal:** Diagnose and fix the flaky `tests/test_parser/test_log_parser.py::test_tokenize_balances_braces_returns_records` — passes in isolation, fails in the full suite. Constraint: no approval-gated files (pyproject.toml, db/schema.py, migrations/*, .claude/settings.json, .env.example); fix contained to test files or the production code the test exercises. Tier: Small (single-file fix).
+**Outcome:** Done. Root cause was test-only shared mutable state — **not** production code. The `_render_to_text` helper rendered to a single fixed path at the worktree root (`Path(__file__).parent.parent.parent / "tmp_test_render.log"`), shared by its two callers and exposed to repo-tree file-watcher/AV locks. Fixed by switching to pytest's per-test `tmp_path`. 236 passing, 1 xfailed, 0 failing.
+
+### Done
+- **Test fix (1 file):** `tests/test_parser/test_log_parser.py` — `_render_to_text` signature changed to `(batch_log, tmp_path, encoding="utf-8")`; body renders to `tmp_path / "render.log"` and drops the manual `unlink` (pytest cleans `tmp_path`). Both callers (`test_tokenize_balances_braces_returns_records`, `test_tokenize_returns_batch_and_btest_prefixes`) gained a `tmp_path` param.
+- **New regression test:** `test_render_helper_isolates_to_tmp_path_not_repo_root` — asserts the helper writes inside the per-test `tmp_path` and never creates the shared `tmp_test_render.log` at the repo root.
+- **No production-code change.** `renderers/log.py` and `parser/log_parser.py` were investigated and exonerated; the generator fixture is deterministic (`random.Random(seed)`, no `hash()` in its path).
+- **Docs:** BUG_LOG BUG-011 (RESOLVED); DECISION_LOG 2026-06-18 (tmp_path-over-fixed-path rule); SESSION_LOG (this entry); CLAUDE.md session-log line below.
+
+### Decisions
+- **Per-test `tmp_path` over the fixed repo-root path.** Every other test in the suite already uses `tmp_path`/`NamedTemporaryFile`; the helper was the lone exception. `tmp_path` is unique per test (no inter-caller sharing) and lives under the OS temp dir (outside editor/git/AV/indexer watchers that lock repo-tree files). Rejected: a unique-name file still at the repo root (solves sharing, not the watcher-lock face of the bug) and an in-memory render (would require changing `render_log`'s file-only contract — out of scope and touches production code).
+- **Kept the helper, didn't inline.** Two callers still share it; injecting `tmp_path` is the minimal, idiomatic change.
+
+### Bugs
+- **BUG-011 logged + resolved this session.** (It was referenced in the task brief but not actually present in BUG_LOG.md — added now.)
+- Reproduction evidence: standalone two-thread stress — shared fixed path 484/800 failures (380 `PermissionError [WinError 32]` + 104 assertion), isolated paths 0/800. Plus a real concurrent-sweep run that reproduced the live failure on old code and passed on fixed code.
+
+### Out-of-scope (logged, not fixed)
+- BUG-010 (TestJetRecord PytestCollectionWarning) — still open; surfaced again in this session's pytest output.
+
+### Next session
+- Phase 2 slice 2: SPC chart helpers + anomaly detection.
+- Phase 2 slice 3: Streamlit dashboard skeleton.
+
+---
+
 ## 2026-06-18 — Phase 2 — branch: feature/analytics-drop-placeholder-markers
 
 **Goal:** Land the chipped follow-up from the morning housekeeping pass: drop the now-stale `placeholder_fields` markers from `YieldRow` / `ParetoRow`. Markers were added 2026-06-16 to flag BUG-007-affected columns; BUG-007 closed 2026-06-17, so every emitted tuple is `()` and the field has become a self-described lie ("placeholder" on real data). Tier: Small.
