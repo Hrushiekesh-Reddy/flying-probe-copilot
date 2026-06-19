@@ -44,6 +44,41 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 2 slice 2 → Phase 2 slice 3 — 2026-06-18
+
+**From:** Claude Code parent (Phase 2 slice 2 — Large-tier full 12-step loop on `feature/phase2-slice2-spc-anomaly`)
+**To:** Next Claude Code or Cursor session (Phase 2 slice 3 — Streamlit dashboard)
+**Branch:** `feature/phase2-slice2-spc-anomaly` — committed at Step 10 (single coherent commit: source + tests + notebook + docs). NOT yet pushed (push + PR pending owner go-ahead).
+**Session goal:** Ship the SPC + anomaly analytics slice as pure library functions — a Shewhart individuals (XmR) control chart and a z-score anomaly detector — matching slice-1 contracts. No UI.
+
+### Completed this session
+- **Source (4 files, additive):** `analytics/models.py` (+`SPCPoint`, `AnomalyRow`), `analytics/spc.py` (NEW, `individuals_chart`), `analytics/anomaly.py` (NEW, `z_score_anomalies`), `analytics/__init__.py` (re-exports). `spc.py` + `anomaly.py` 100% coverage.
+- **Tests (4 files, 57 new):** `conftest.py` (+`_make_spc_db`/`_make_anomaly_db` helpers — populate `components`+`component_id`), `test_spc.py` (29), `test_anomaly.py` (24), `test_public_api.py` (+4). 292 passing / 1 xfailed / 0 failing, repo 97%.
+- **Notebook:** `01-queries.ipynb` Query 7 (SPC) + Query 8 (anomaly), smoke-tested in-process.
+- **Docs:** DECISION_LOG (2026-06-18 SPC+anomaly contracts), SESSION_LOG, ROADMAP (2 checkboxes + status), CLAUDE.md (Status + session line), BUG_LOG (BUG-011). Artifacts under `docs/plans/2026-06-18-phase2-slice2-*.md` (brief, plan+Revision 1, test-plan, decision-gate, triple-check, manual-qa).
+- **Owner Decision Gate (4 ratified):** Wheeler/XmR rules (default rule_1+rule_4, opt-in rule_2/rule_3, run length 8); add `refdes` selector; per-group failure-rate + leave-one-out anomaly; defer X-bar/R + Isolation Forest (no `sklearn`, no schema change).
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase2-slice2-spc-anomaly` → `dev` — committed locally, awaiting owner go-ahead (pushing is owner-initiated per agent-conduct).
+- **Manual QA** — owner runs `docs/plans/2026-06-18-phase2-slice2-manual-qa.md` (§0 suite+coverage, §2 SPC, §3 anomalies, §4 guards).
+
+### Blocked — needs owner input
+- None blocking. Push/PR is the only owner-gated action.
+
+### Test suite status
+- [x] All passing (292 passed, 1 xfailed, 0 failed; `uv run pytest -q`, parent-verified).
+- Pre-existing flaky: `test_tokenize_balances_braces_returns_records` (BUG-011, parser test order dependency — passed in the parent's full run; out of scope).
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (BUG-011)  [x] ROADMAP  [x] CLAUDE.md  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next agent should (ordered)
+1. Get owner go-ahead → push `feature/phase2-slice2-spc-anomaly`, open PR → `dev`, address any Bugbot review.
+2. Owner runs the slice-2 manual-QA script; sign off.
+3. Phase 2 slice 3 — Streamlit dashboard (`src/flying_probe_copilot/ui/`): Overview + Yield pages first, then Pareto / SPC (`individuals_chart`) / Anomalies (`z_score_anomalies`) pages, then filters (date/board/operator/line/shift) + `st.cache_data`. **First UI work → needs `streamlit` + `plotly` added to `pyproject.toml` (approval-gated — get owner sign-off).** SPC page should let the user pick `board_profile_id` + `refdes`; anomaly page picks `by`.
+
+---
+
 ### Handoff: Phase 2 first task → Phase 2 next task — 2026-06-16
 
 **From:** Claude Code parent (Phase 2 first task — Medium-tier 12-step loop on `feature/per-panel-operator`)

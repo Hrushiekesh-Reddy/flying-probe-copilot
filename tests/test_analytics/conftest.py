@@ -264,3 +264,300 @@ def _build_pareto_db(failures_spec: list[dict]) -> duckdb.DuckDBPyConnection:
 def _make_pareto_db():
     """Fixture that provides the ``_build_pareto_db`` helper to test functions."""
     return _build_pareto_db
+
+
+# ---------------------------------------------------------------------------
+# _build_spc_db — internal helper for SPC tests
+#
+# Accepts an explicit ordered list of (refdes, measured_value, start_ts) rows
+# and inserts the full parent hierarchy required by the measurements join
+# (boards → runs → panels → test_runs → components → measurements).
+# ---------------------------------------------------------------------------
+
+
+def _build_spc_db(
+    rows: list[tuple[str, float | None, datetime]],
+    *,
+    board_profile_id: str = "small",
+    extra_components: list[tuple[str, str]] | None = None,
+) -> duckdb.DuckDBPyConnection:
+    """Create a fresh in-memory DuckDB with exactly the measurement rows in ``rows``.
+
+    Parameters
+    ----------
+    rows:
+        List of ``(refdes, measured_value, start_ts)`` tuples.  Rows sharing
+        the same ``start_ts`` are grouped into one panel / test_run (same
+        ``panel_serial``), so that a single panel can hold multiple
+        measurements for the same refdes (SPC-22 multi-row per panel).
+    board_profile_id:
+        The board profile to use for all inserted data.
+    extra_components:
+        Optional additional ``(refdes, component_family)`` entries to insert
+        so that refdes-isolation tests (SPC-23) can populate a second refdes
+        without measurements.
+
+    Notes
+    -----
+    - Each unique ``(start_ts, panel_serial)`` pair maps to one test_run.
+    - ``component_id`` is derived from the refdes string's position in the
+      unique-refdes list, starting at 1.
+    - ``measurement_id`` is a global counter across all rows.
+    - The ``test_id`` column is required (NOT NULL in schema) — a single
+      synthetic test_id=1 is shared for simplicity.
+    """
+    con = duckdb.connect(":memory:")
+    init_database(con)
+
+    con.execute("""
+        INSERT OR IGNORE INTO boards
+            (board_profile_id, name, component_count, net_count, typical_test_count)
+        VALUES (?, ?, 50, 80, 120)
+    """, [board_profile_id, board_profile_id])
+
+    con.execute("""
+        INSERT INTO runs
+            (run_id, board_profile_id, seed, fault_rate, fault_profile,
+             panel_count, failing_boards)
+        VALUES ('run_spc', ?, 42, 0.05, 'random', 1, 0)
+    """, [board_profile_id])
+
+    # Insert a synthetic tests row (required for measurements FK).
+    con.execute("""
+        INSERT INTO tests
+            (test_id, board_profile_id, block_designator, record_type, target_refdes)
+        VALUES (1, ?, 'BLOCK-001', 'A-RES', NULL)
+    """, [board_profile_id])
+
+    # Collect unique refdes values to assign component_ids.
+    seen_refdes: dict[str, int] = {}
+    all_refdes = [r[0] for r in rows]
+    for rd in all_refdes:
+        if rd not in seen_refdes:
+            seen_refdes[rd] = len(seen_refdes) + 1
+
+    # Insert extra_components (e.g. for SPC-23 refdes isolation).
+    if extra_components:
+        for rd, family in extra_components:
+            if rd not in seen_refdes:
+                seen_refdes[rd] = len(seen_refdes) + 1
+
+    # Insert components for every distinct refdes.
+    for rd, cid in seen_refdes.items():
+        con.execute("""
+            INSERT OR IGNORE INTO components
+                (component_id, board_profile_id, refdes, component_family)
+            VALUES (?, ?, ?, 'resistor')
+        """, [cid, board_profile_id, rd])
+
+    # Group rows by start_ts to assign panel_serial / test_run_id.
+    # Rows with the same start_ts go into the same panel/test_run.
+    # Use (start_ts, panel_serial) pairs — derive panel_serial from
+    # insertion order within unique timestamps.
+    seen_ts: dict[datetime, tuple[str, int]] = {}  # ts → (panel_serial, test_run_id)
+    tr_counter = 1
+
+    for _, _, ts in rows:
+        if ts not in seen_ts:
+            serial = f"SPC-{len(seen_ts) + 1:04d}"
+            seen_ts[ts] = (serial, tr_counter)
+            con.execute(
+                "INSERT INTO panels "
+                "(panel_serial, board_profile_id, panel_position, line_id, shift, scheduled_ts) "
+                "VALUES (?, ?, 1, 'LINE-A', 'A', ?)",
+                [serial, board_profile_id, ts.strftime("%Y-%m-%d %H:%M:%S")],
+            )
+            con.execute(
+                "INSERT INTO test_runs "
+                "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
+                " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
+                "VALUES (?, ?, 'run_spc', 'OP-001', 0, ?, ?, 12, false, false, false, 1)",
+                [
+                    tr_counter,
+                    serial,
+                    ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    ts.strftime("%Y-%m-%d %H:%M:%S"),
+                ],
+            )
+            tr_counter += 1
+
+    # Insert measurements.
+    for mid, (refdes, measured_value, ts) in enumerate(rows, 1):
+        serial, tr_id = seen_ts[ts]
+        cid = seen_refdes[refdes]
+        if measured_value is None:
+            con.execute(
+                "INSERT INTO measurements "
+                "(measurement_id, test_run_id, test_id, component_id, record_type, "
+                " status, measured_value) "
+                "VALUES (?, ?, 1, ?, 'A-RES', 0, NULL)",
+                [mid, tr_id, cid],
+            )
+        else:
+            con.execute(
+                "INSERT INTO measurements "
+                "(measurement_id, test_run_id, test_id, component_id, record_type, "
+                " status, measured_value) "
+                "VALUES (?, ?, 1, ?, 'A-RES', 0, ?)",
+                [mid, tr_id, cid, measured_value],
+            )
+
+    return con
+
+
+@pytest.fixture
+def _make_spc_db():
+    """Fixture that provides the ``_build_spc_db`` helper to test functions."""
+    return _build_spc_db
+
+
+# ---------------------------------------------------------------------------
+# _build_anomaly_db — internal helper for anomaly tests
+#
+# Builds groups across a ``by`` dimension with explicit per-group
+# (total, failed) counts so anomaly tests can set exact rates.
+# ---------------------------------------------------------------------------
+
+
+def _build_anomaly_db(
+    groups: list[dict],
+    *,
+    by: str = "board",
+    anchor_ts: datetime | None = None,
+    window_days: int = 30,
+) -> duckdb.DuckDBPyConnection:
+    """Create a fresh in-memory DuckDB with per-group (total, failed) counts.
+
+    Parameters
+    ----------
+    groups:
+        List of dicts with keys:
+            - ``key``: group identifier (board_profile_id / shift / line_id /
+              operator_id depending on ``by``)
+            - ``total``: number of test_runs to insert for this group
+            - ``failed``: number of those test_runs with btest_status != 0
+            - ``in_window``: optional bool (default True); set False to place
+              all runs for this group outside the window (for window-exclusion
+              tests)
+    by:
+        Grouping dimension — determines which column to set per group.
+    anchor_ts:
+        Anchor timestamp (MAX start_ts).  Defaults to
+        ``datetime(2026, 4, 14, 10, 0, 0)``.
+    window_days:
+        Window size in days; in-window runs are placed 1 day before anchor.
+        Out-of-window runs are placed ``window_days + 2`` days before anchor.
+
+    Notes
+    -----
+    - Each group gets a distinct board_profile_id so panels can be inserted
+      (required for the panels JOIN in board/shift/line groupings).
+    - For ``by='operator'``, multiple boards share panel rows but test_runs
+      carry distinct operator_ids.
+    - A unique run_id and panel_serial_prefix are derived per group.
+    """
+    con = duckdb.connect(":memory:")
+    init_database(con)
+
+    if anchor_ts is None:
+        anchor_ts = datetime(2026, 4, 14, 10, 0, 0)
+
+    from datetime import timedelta
+
+    in_window_ts = anchor_ts - timedelta(days=1)
+    out_window_ts = anchor_ts - timedelta(days=window_days + 2)
+
+    tr_counter = 1
+    panel_counter = 1
+
+    for gidx, grp in enumerate(groups, 1):
+        key = str(grp["key"])
+        total = int(grp["total"])
+        failed = int(grp["failed"])
+        in_window = grp.get("in_window", True)
+        run_ts = in_window_ts if in_window else out_window_ts
+
+        # Each group gets its own board_profile_id (needed for panels FK).
+        board_id = f"board_{gidx}"
+        con.execute("""
+            INSERT OR IGNORE INTO boards
+                (board_profile_id, name, component_count, net_count, typical_test_count)
+            VALUES (?, ?, 50, 80, 120)
+        """, [board_id, board_id])
+
+        con.execute("""
+            INSERT INTO runs
+                (run_id, board_profile_id, seed, fault_rate, fault_profile,
+                 panel_count, failing_boards)
+            VALUES (?, ?, 42, 0.05, 'random', ?, ?)
+        """, [f"run_{gidx}", board_id, total, failed])
+
+        # Determine the shift/line_id/board_profile_id to use for panels.
+        if by == "board":
+            panel_board_id = key
+            panel_shift = "A"
+            panel_line = "LINE-A"
+        elif by == "shift":
+            panel_board_id = board_id
+            panel_shift = key
+            panel_line = "LINE-A"
+        elif by == "line":
+            panel_board_id = board_id
+            panel_shift = "A"
+            panel_line = key
+        else:  # operator — board_profile_id on panels is board_id
+            panel_board_id = board_id
+            panel_shift = "A"
+            panel_line = "LINE-A"
+
+        # Ensure the panel's board_profile_id exists in boards.
+        con.execute("""
+            INSERT OR IGNORE INTO boards
+                (board_profile_id, name, component_count, net_count, typical_test_count)
+            VALUES (?, ?, 50, 80, 120)
+        """, [panel_board_id, panel_board_id])
+
+        for i in range(total):
+            serial = f"ANM-{panel_counter:06d}"
+            panel_counter += 1
+            btest_status = 6 if i < failed else 0
+
+            # Offset each run by a few seconds so start_ts is unique per row.
+            from datetime import timedelta as td
+            row_ts = run_ts + td(seconds=i)
+
+            con.execute(
+                "INSERT INTO panels "
+                "(panel_serial, board_profile_id, panel_position, line_id, shift, scheduled_ts) "
+                "VALUES (?, ?, 1, ?, ?, ?)",
+                [serial, panel_board_id, panel_line, panel_shift,
+                 row_ts.strftime("%Y-%m-%d %H:%M:%S")],
+            )
+
+            # operator_id: use the key for operator grouping, 'OP-001' otherwise.
+            op_id = key if by == "operator" else "OP-001"
+
+            con.execute(
+                "INSERT INTO test_runs "
+                "(test_run_id, panel_serial, run_id, operator_id, btest_status, "
+                " start_ts, end_ts, duration_s, multiple_test, learning, known_good, board_number) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 12, false, false, false, 1)",
+                [
+                    tr_counter,
+                    serial,
+                    f"run_{gidx}",
+                    op_id,
+                    btest_status,
+                    row_ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    row_ts.strftime("%Y-%m-%d %H:%M:%S"),
+                ],
+            )
+            tr_counter += 1
+
+    return con
+
+
+@pytest.fixture
+def _make_anomaly_db():
+    """Fixture that provides the ``_build_anomaly_db`` helper to test functions."""
+    return _build_anomaly_db

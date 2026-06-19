@@ -7,6 +7,7 @@ and they survive pandas/Streamlit reshaping without losing identity.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -56,3 +57,66 @@ class ParetoRow:
     count: int
     pct_of_total: float
     cumulative_pct: float
+
+
+@dataclass(frozen=True)
+class SPCPoint:
+    """One point on a Shewhart individuals (XmR) control chart.
+
+    Fields
+    ------
+    panel_serial:
+        Primary key of the panel that produced this measurement point.
+    start_ts:
+        UTC timestamp of the test run (chart x-axis).
+    value:
+        Per-panel ``mean(measured_value)`` for the selected refdes (unrounded).
+    mean:
+        Grand mean of all per-panel values in the window (center line).
+        Identical on every returned row.
+    ucl:
+        Upper control limit = ``mean + 3 * (MR_bar / 1.128)``.
+    lcl:
+        Lower control limit = ``mean - 3 * (MR_bar / 1.128)``.
+    alarm_flags:
+        Subset of the ``rules`` argument that fired on this point.
+        Empty tuple ``()`` when no alarm.
+    """
+
+    panel_serial: str
+    start_ts: datetime
+    value: float
+    mean: float
+    ucl: float
+    lcl: float
+    alarm_flags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AnomalyRow:
+    """One row of z-score anomaly detection output.
+
+    Fields
+    ------
+    group_key:
+        The value of the grouping dimension (board_profile_id, shift, etc.).
+    value:
+        Per-group failure rate = ``failed / total`` (unrounded).
+    baseline_mean:
+        Leave-one-out mean of peer group failure rates.
+    baseline_std:
+        Leave-one-out sample std (ddof=1) of peer group failure rates.
+        ``0.0`` when fewer than 2 peers exist.
+    z_score:
+        ``(value - baseline_mean) / baseline_std``; ``0.0`` when
+        ``baseline_std == 0``.
+    flagged:
+        ``True`` when ``baseline_std > 0`` and ``abs(z_score) >= threshold``.
+    """
+
+    group_key: str
+    value: float
+    baseline_mean: float
+    baseline_std: float
+    z_score: float
+    flagged: bool
