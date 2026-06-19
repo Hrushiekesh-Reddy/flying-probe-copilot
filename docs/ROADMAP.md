@@ -73,19 +73,20 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 **Goal:** A working Streamlit dashboard over the data.
 
 ### Deliverables
-- [ ] `src/flying_probe_copilot/analytics/` module
+- [x] `src/flying_probe_copilot/analytics/` module
   - [x] Yield-over-time function (`yield_over_time`, 2026-06-16)
   - [x] Failure Pareto function (`failure_pareto`, 2026-06-16)
   - [x] SPC chart helpers — individuals (XmR) chart (`individuals_chart`, 2026-06-18; X-bar/R deferred — no rational subgroups)
   - [x] Anomaly detection — z-score leave-one-out baseline (`z_score_anomalies`, 2026-06-18; Isolation Forest deferred — would add `sklearn`)
-- [ ] `src/flying_probe_copilot/ui/` Streamlit app
-- [ ] Pages: Overview, Yield, Failure Pareto, SPC, Anomalies
-- [ ] Plotly charts with drill-down
-- [ ] Filter controls: date range, board, operator, line, shift
-- [ ] Caching with `st.cache_data` for query results
+- [x] `src/flying_probe_copilot/ui/` Streamlit app (`app.py`, `data.py`, `charts.py`, `views.py`; 2026-06-18)
+- [x] Pages: Overview, Yield, Failure Pareto, SPC, Anomalies (`st.navigation`; 2026-06-18)
+- [x] Plotly charts with drill-down (data-table expanders + hover; yield bar, Pareto bar+cumulative, SPC individuals w/ limits+alarms, anomaly z-score bar; 2026-06-18)
+- [x] Filter controls: date range (→ window_days/as_of) + group-by dimension {board, operator, line, shift} + value multiselect; SPC board/refdes/record_type/rules pickers (2026-06-18)
+- [x] Caching with `st.cache_data` for query results (+ `st.cache_resource` read-only connection; 2026-06-18)
 
 ### Exit criteria
 Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <2s on 100k records.
+**Met (2026-06-18):** launches headless, health OK ~1 s, default page renders in **0.23 s** on the sample DB.
 
 **Status (2026-06-16):** Phase 2 kicked off with a pre-analytics data-quality task. Per-panel operator-id repair landed (BUG-009 resolved, BUG-007 operator half closed). `@BTEST` now carries mandatory per-panel `operator_id` at field 12; `test_runs.operator_id` flipped to `VARCHAR NOT NULL`; per-operator analytics now sit on real data, not the batch-level placeholder. 196 tests passing, 97% coverage. Branch: `feature/per-panel-operator`. Shift + line_id half of BUG-007 still open — pick path next session. Analytics module / Streamlit not yet started.
 
