@@ -29,18 +29,21 @@ from flying_probe_copilot.generator.renderers.log import render_log
 # ---------------------------------------------------------------------------
 
 
-def _render_to_text(batch_log: BatchLog, encoding: str = "utf-8") -> str:
-    """Render a BatchLog to bytes and decode — avoids tmp_path for simple tests."""
-    import io
+def _render_to_text(batch_log: BatchLog, tmp_path: Path, encoding: str = "utf-8") -> str:
+    """Render a BatchLog to a per-test tmp file and decode it back to text.
 
+    Writes to the pytest-provided ``tmp_path`` (unique per test, under the OS
+    temp dir) instead of a single fixed path in the repo tree. The old helper
+    wrote to ``repo_root / 'tmp_test_render.log'`` — a path shared by every
+    caller — which raced under concurrent/repeated execution and was prone to
+    transient locks from repo-tree file watchers / AV on Windows, making the
+    tokenize tests flaky (BUG-011). No manual unlink: pytest cleans ``tmp_path``.
+    """
     from flying_probe_copilot.generator.renderers.log import render_log as _rl
 
-    tmp = Path(__file__).parent.parent.parent / "tmp_test_render.log"
-    _rl(batch_log, tmp, encoding=encoding)
-    data = tmp.read_bytes()
-    tmp.unlink(missing_ok=True)
-    text = data.decode(encoding)
-    return text
+    out = tmp_path / "render.log"
+    _rl(batch_log, out, encoding=encoding)
+    return out.read_bytes().decode(encoding)
 
 
 # ---------------------------------------------------------------------------
@@ -48,11 +51,11 @@ def _render_to_text(batch_log: BatchLog, encoding: str = "utf-8") -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_tokenize_balances_braces_returns_records(small_batch_log):
+def test_tokenize_balances_braces_returns_records(small_batch_log, tmp_path):
     """tokenize() must return at least 2 records from a small BatchLog."""
     from flying_probe_copilot.parser.log_parser import tokenize
 
-    text = _render_to_text(small_batch_log)
+    text = _render_to_text(small_batch_log, tmp_path)
     records = list(tokenize(text))
     # At minimum: 1 @BATCH + 1 @BTEST per board + 1+ @BLOCK per board
     assert len(records) >= 2 + len(small_batch_log.boards), (
@@ -60,14 +63,44 @@ def test_tokenize_balances_braces_returns_records(small_batch_log):
     )
 
 
-def test_tokenize_returns_batch_and_btest_prefixes(small_batch_log):
+def test_tokenize_returns_batch_and_btest_prefixes(small_batch_log, tmp_path):
     """tokenize() must return records with @BATCH and @BTEST prefixes."""
     from flying_probe_copilot.parser.log_parser import tokenize
 
-    text = _render_to_text(small_batch_log)
+    text = _render_to_text(small_batch_log, tmp_path)
     prefixes = [r[0] for r in tokenize(text)]
     assert "@BATCH" in prefixes, "Expected @BATCH record in tokenized output"
     assert "@BTEST" in prefixes, "Expected @BTEST record in tokenized output"
+
+
+def test_render_helper_isolates_to_tmp_path_not_repo_root(small_batch_log, tmp_path):
+    """BUG-011 regression: the render helper must write under the per-test
+    ``tmp_path`` and never create a shared file at the repo root.
+
+    The previous helper wrote to ``repo_root / 'tmp_test_render.log'`` — a single
+    fixed path shared by every caller. Under concurrent or repeated execution
+    (and under repo-tree file watchers / AV on Windows) that shared file raced,
+    yielding partial reads (too few tokenized records) or ``PermissionError``.
+    """
+    from flying_probe_copilot.parser.log_parser import tokenize
+
+    repo_root = Path(__file__).parent.parent.parent
+    stray = repo_root / "tmp_test_render.log"
+    stray_existed_before = stray.exists()
+
+    text = _render_to_text(small_batch_log, tmp_path)
+
+    # The helper renders parseable output...
+    assert text.startswith("{@BATCH"), "helper must return rendered log text"
+    assert len(list(tokenize(text))) >= 2 + len(small_batch_log.boards)
+    # ...writes its artifact inside the isolated per-test tmp_path...
+    assert any(tmp_path.iterdir()), "helper must write within the per-test tmp_path"
+    # ...and never touches the shared repo-root path.
+    if not stray_existed_before:
+        assert not stray.exists(), (
+            "render helper must not create the shared repo-root file "
+            "'tmp_test_render.log' (BUG-011)"
+        )
 
 
 # ---------------------------------------------------------------------------
