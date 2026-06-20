@@ -2,19 +2,41 @@
 
 Real-time overview of project status, timelines, and priorities.
 
-## Current Sprint
+## Current Phase: Phase 2 — Analytics & Dashboard
 
-**Sprint**: [TODO]  
-**Duration**: [TODO]  
-**Goal**: [TODO]
+**Phase Goal**: Working Streamlit dashboard over DuckDB data  
+**Phase Status**: Slice 3 of 3 — Streamlit dashboard (NEXT)  
+**Target Completion**: 8-10 weeks total from start (evenings + weekends)
 
-### Sprint Tasks
-- [ ] Task 1
-- [ ] Task 2
-- [ ] Task 3
+### Phase 2 Task Breakdown
 
-**Sprint Progress**: [TODO]%  
-**On Track**: Yes / No / At Risk
+| Slice | Deliverable | Status |
+|-------|-------------|--------|
+| Slice 1 | `yield_over_time` + `failure_pareto` | ✅ 2026-06-16 |
+| Slice 2 | `individuals_chart` (SPC/XmR) + `z_score_anomalies` | ✅ 2026-06-18 |
+| Slice 3 | Streamlit dashboard (`ui/`) with Plotly charts + filters | 🔵 NEXT |
+
+### Next Steps (Slice 3)
+- [ ] Create `src/flying_probe_copilot/ui/` module
+- [ ] Yield-over-time page with Plotly time series
+- [ ] Failure Pareto chart (interactive bar chart)
+- [ ] SPC individuals chart (with control limit lines)
+- [ ] Anomaly flag table
+- [ ] Board/date range filters
+- [ ] Wire to real DuckDB file via Streamlit `@st.cache_data`
+
+---
+
+## All Phases Overview
+
+| Phase | Goal | Status | Coverage |
+|-------|------|--------|----------|
+| Phase 0 | Setup & docs | ✅ Complete | — |
+| Phase 1a | Synthetic HP3070 generator | ✅ Complete | 94% |
+| Phase 1b | Parser + DuckDB schema | ✅ Complete | 97% |
+| Phase 2 | Analytics + Streamlit dashboard | 🟡 Slice 3 next | 97% |
+| Phase 3 | Hybrid RAG co-pilot | ⬜ Not started | — |
+| Phase 4 | Polish + portfolio launch | ⬜ Not started | — |
 
 ---
 
@@ -22,34 +44,41 @@ Real-time overview of project status, timelines, and priorities.
 
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Test Coverage | 80% | [TODO]% | 🔴 |
-| Documentation | 100% | [TODO]% | 🟡 |
-| Feature Velocity | 5 features/sprint | [TODO] | 🟡 |
+| Test Coverage | ≥97% | 97% | 🟢 |
+| Tests Passing | All green | 292 / 1 xfail | 🟢 |
+| Phase 2 Slices | 3 | 2 done | 🟡 |
+| Phases Complete | 4 | 3 (0, 1a, 1b) | 🟡 |
+| Modules Shipped | 5 (gen, parser, db, analytics, ui) | 4 | 🟡 |
+| RAG Q&A Correct | ≥8/10 | Not started | 🔵 |
 
 ---
 
-## Upcoming Milestones
+## Open Bugs
 
-| Milestone | Target Date | Status |
-|-----------|-------------|--------|
-| [Milestone 1] | [Date] | 🔵 Planned |
-| [Milestone 2] | [Date] | 🟡 In Progress |
+| Bug | Description | Status |
+|-----|-------------|--------|
+| BUG-010 | TestJetRecord pytest collection warning | 🟡 Open |
+| BUG-011 | Pre-existing flaky parser test | 🟡 Open |
 
----
-
-## Related Documentation
-
-- [[Roadmap|Product Roadmap]] - Long-term vision
-- [[Current-Sprint|Current Sprint Details]]
-- [[Backlog|Feature Backlog]]
-- [[02-Features/Features-Index|All Features]]
+*(Closed: BUG-001, BUG-002, BUG-004, BUG-007, BUG-009)*
 
 ---
 
-## Quick Links
+## Open Questions
 
-- GitHub Issues: [Link]
-- CI/CD Pipeline: [Link]
-- Test Results: [Link]
+- [ ] Whether to include digital test patterns or only analog/shorts in v1
+- [ ] Whether to ship an "import real logs" tool (Phase 4 consideration)
+- [ ] After Phase 2: do we add real-time ingest (file watcher)?
+- [ ] After Phase 3: swap to Claude API if Gemini quality disappoints?
+
+---
+
+## Related Notes
+
+- [[Roadmap|Product Roadmap]] — Full phased plan with deliverables
+- [[02-Features/Features-Index|Features Index]] — Feature-level detail
+- [[05-Learning/Learning-Log|Learning Log]] — Session notes and lessons
+
+---
 
 **Tags:** #project-planning #dashboard #status
