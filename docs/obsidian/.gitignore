@@ -1,0 +1,4 @@
+# Obsidian local settings (UI state)
+.obsidian/plugins/
+.obsidian/workspace.json
+.DS_Store
