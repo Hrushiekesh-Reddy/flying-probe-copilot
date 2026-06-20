@@ -14,6 +14,16 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-012] `use_container_width=True` deprecated in Streamlit 1.58 (P3) — OPEN, deferred (approval-gated fix)
+
+**Discovered:** 2026-06-18
+**Found during:** Phase 2 slice 3 (Streamlit dashboard) — parent Triple-Check live launch + `AppTest` render.
+**File:line:** `src/flying_probe_copilot/ui/views.py` (every `st.plotly_chart(..., use_container_width=True)` + `st.dataframe(..., use_container_width=True)`).
+**Symptom:** Streamlit 1.58.0 emits a deprecation warning at render time: "`use_container_width` will be removed after 2025-12-31 ... use `width='stretch'`". The app still renders correctly (parameter is deprecated, not removed, in the locked 1.58.0).
+**Severity estimate:** P3 (cosmetic — zero functional impact on the locked version; will break on a future Streamlit that removes the param).
+**Why not fixed now:** The forward-compatible replacement (`width='stretch'`) is only supported in newer Streamlit and is NOT available in the project's declared floor `streamlit>=1.40` (`pyproject.toml`). Migrating therefore requires bumping the dependency floor — an **approval-gated** `pyproject.toml` edit (out of scope for the UI slice). Keeping `use_container_width=True` works across the whole `>=1.40` range with the locked 1.58.0.
+**Fix:** NOT DONE — out of scope. Follow-up (chipped): bump `streamlit` floor to a version supporting `width=`, then replace `use_container_width=True`→`width='stretch'` / `use_container_width=False`→`width='content'` across `ui/views.py`.
+
 ## [BUG-011] Flaky `test_tokenize_balances_braces_returns_records` — shared repo-root render file (P2) — RESOLVED 2026-06-18
 
 **Discovered:** 2026-06-18

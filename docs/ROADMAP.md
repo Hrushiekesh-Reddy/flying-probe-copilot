@@ -73,25 +73,28 @@ See `specs/synthetic-log-generator.md` for the full spec (revised 2026-06-13 to 
 **Goal:** A working Streamlit dashboard over the data.
 
 ### Deliverables
-- [ ] `src/flying_probe_copilot/analytics/` module
+- [x] `src/flying_probe_copilot/analytics/` module
   - [x] Yield-over-time function (`yield_over_time`, 2026-06-16)
   - [x] Failure Pareto function (`failure_pareto`, 2026-06-16)
-  - [ ] SPC chart helpers (X-bar, R, individual)
-  - [ ] Anomaly detection (z-score baseline; Isolation Forest stretch)
-- [ ] `src/flying_probe_copilot/ui/` Streamlit app
-- [ ] Pages: Overview, Yield, Failure Pareto, SPC, Anomalies
-- [ ] Plotly charts with drill-down
-- [ ] Filter controls: date range, board, operator, line, shift
-- [ ] Caching with `st.cache_data` for query results
+  - [x] SPC chart helpers — individuals (XmR) chart (`individuals_chart`, 2026-06-18; X-bar/R deferred — no rational subgroups)
+  - [x] Anomaly detection — z-score leave-one-out baseline (`z_score_anomalies`, 2026-06-18; Isolation Forest deferred — would add `sklearn`)
+- [x] `src/flying_probe_copilot/ui/` Streamlit app (`app.py`, `data.py`, `charts.py`, `views.py`; 2026-06-18)
+- [x] Pages: Overview, Yield, Failure Pareto, SPC, Anomalies (`st.navigation`; 2026-06-18)
+- [x] Plotly charts with drill-down (data-table expanders + hover; yield bar, Pareto bar+cumulative, SPC individuals w/ limits+alarms, anomaly z-score bar; 2026-06-18)
+- [x] Filter controls: date range (→ window_days/as_of) + group-by dimension {board, operator, line, shift} + value multiselect; SPC board/refdes/record_type/rules pickers (2026-06-18)
+- [x] Caching with `st.cache_data` for query results (+ `st.cache_resource` read-only connection; 2026-06-18)
 
 ### Exit criteria
 Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <2s on 100k records.
+**Met (2026-06-18):** launches headless, health OK ~1 s, default page renders in **0.23 s** on the sample DB.
 
 **Status (2026-06-16):** Phase 2 kicked off with a pre-analytics data-quality task. Per-panel operator-id repair landed (BUG-009 resolved, BUG-007 operator half closed). `@BTEST` now carries mandatory per-panel `operator_id` at field 12; `test_runs.operator_id` flipped to `VARCHAR NOT NULL`; per-operator analytics now sit on real data, not the batch-level placeholder. 196 tests passing, 97% coverage. Branch: `feature/per-panel-operator`. Shift + line_id half of BUG-007 still open — pick path next session. Analytics module / Streamlit not yet started.
 
 **Status (2026-06-16):** Slice 1 of Phase 2 also complete — analytics module foundation. `yield_over_time(con, *, window_days=7, group_by="board", as_of=None) → list[YieldRow]` and `failure_pareto(con, *, window_days=7, by="record_type", top_n=10, as_of=None) → list[ParetoRow]` shipped as pure stdlib + duckdb library calls. 39 new tests (17 yield + 19 pareto + 3 public API), 224 total passing, 0 failing. Analytics package coverage 96-100% per file (target was ≥80%). Every code path that groups by BUG-007-affected columns (`shift`, `line_id`, `operator_id`) marks results via per-row `placeholder_fields: tuple[str, ...]`. Zero edits to existing files; pure additive. Six v1 contract decisions documented in `docs/logs/DECISION_LOG.md` (Pareto record-type-only, yield ordering `group_key ASC`, unrounded floats, strict `window_days >= 1` / `top_n >= 1` / naive UTC validation). Notebook Q4 (per-operator) ordering NOT matched — documented divergence.
 
 **Status (2026-06-17):** BUG-007 **FULLY RESOLVED**. Path A applied to the remaining two fields: `@BTEST` gains mandatory `shift: Literal["A","B","C"]` at field 13 and `line_id: str` at field 14; `_make_board_log` reads `btest.shift` / `btest.line_id`. Schema already `NOT NULL` for both — no flip needed. 200 tests passing, 97% coverage. Per-shift + per-operator + per-line analytics now all sit on real per-panel data. PR `feature/per-panel-operator` → `dev` closes both halves of BUG-007 in one feature PR. Analytics slice 2 (SPC + anomaly) and slice 3 (Streamlit dashboard) still pending — pick those up next.
+
+**Status (2026-06-18):** Slice 2 (SPC + anomaly) **complete**. `analytics/spc.py::individuals_chart` (Shewhart XmR chart, Wheeler rule_1/rule_4 default + rule_2/rule_3 opt-in, MR̄/1.128 sigma, per-(board,refdes) `measured_value`) and `analytics/anomaly.py::z_score_anomalies` (per-group failure-rate, leave-one-out baseline, severity-first) shipped as pure library functions. 57 new tests, 292 passing / 1 xfailed, `spc.py`+`anomaly.py` 100% coverage, repo 97%. Notebook Query 7 + Query 8 added. X-bar/R + Isolation Forest deferred at owner Decision Gate (no new dep, no schema change). Branch: `feature/phase2-slice2-spc-anomaly`. **Remaining Phase 2: slice 3 — Streamlit dashboard** (`ui/`, pages, Plotly, filters, caching).
 
 ---
 

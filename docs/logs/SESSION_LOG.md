@@ -4,6 +4,134 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-18 — Phase 2 slice 3 — branch: claude/zen-roentgen-2818ce
+
+**Goal:** Ship the Streamlit + Plotly UI (`src/flying_probe_copilot/ui/`) over the 4 existing pure
+analytics functions — 5 pages (Overview, Yield, Failure Pareto, SPC, Anomalies), filter controls,
+caching. The final Phase 2 deliverable. Tier: Medium (Document → Explore → Plan → Decision Gate →
+Execute → Triple Check → Documentation), full 12-step governance with parent-only gates.
+**Outcome:** Done. **Phase 2 complete.** 81 new tests, **373 passing / 1 xfailed / 97% coverage**
+(= slice-2 baseline). Dashboard launches and renders against the sample DB in **0.23 s** (exit
+criterion < 2 s). Zero edits to existing tracked files (pure additive `ui/` + `tests/test_ui/`); zero
+approval-gated files touched; analytics layer unchanged.
+
+### Done
+- **Source (5 files, additive):** `ui/data.py` (read-only `@st.cache_resource` connection, `@st.cache_data`
+  query wrappers → DataFrame, pure helpers `date_range_to_window`/`*_rows_to_df`/`filter_df_by_key`/
+  `overview_kpis`, `distinct_*`, `Filters`), `ui/charts.py` (pure Plotly builders: yield bar / Pareto
+  bar+cumulative / SPC individuals w/ center+UCL+LCL+alarm traces / anomaly z-score bar), `ui/views.py`
+  (5 `render_*(con, filters)` pages w/ controls + empty `st.info` guards + `st.expander` tables),
+  `ui/app.py` (`st.set_page_config(wide)`, missing-DB guard, sidebar date filter, `st.navigation`),
+  `ui/__init__.py`. `data.py` + `charts.py` 100% coverage; `views.py`/`app.py` 87%/86% (AppTest-thread
+  render lines).
+- **Tests (6 files, 81 new):** `test_ui/conftest.py` (`ui_db_path` temp file-DB: 2 boards, shift-C
+  elevated for an anomaly flag, 20 R1 measurements for SPC; teardown clears `cache_resource`),
+  `test_data.py`, `test_charts.py`, `test_views_smoke.py` (per-view `AppTest.from_function` incl.
+  empty/no-board branches), `test_app_smoke.py` (`AppTest.from_file`: valid / empty / missing DB).
+- **Sample DB:** regenerated `data/db/sample.duckdb` (gitignored) from 3 disjoint-week runs
+  (small drift + medium cluster + small process-change) — 2 boards, 3 shifts, 2 lines, 2 operators.
+- **Artifacts** under `docs/plans/2026-06-18-phase2-slice3-*.md`: brief, plan, decision-gate, triple-check,
+  manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-18)
+- Yield page = **bar of yield % per group** (not a time-series line; `day` grouping deferred at analytics).
+- Work on this worktree branch `claude/zen-roentgen-2818ce` → PR to `dev` (`feature/phase2-slice3-streamlit`
+  is empty + locked by another worktree).
+- No `pyproject.toml` edit (streamlit+plotly already declared + locked). Drill-down = expanders + hover +
+  filters (not analytics value-subsetting). Date-range → `(window_days, as_of)` mapping with safe +1.
+  Read-only `cache_resource` connection; `cache_data` results.
+
+### Workflow
+- Full 12-step loop at Medium tier. `/skill-sergeant` routed (proactive, mixed design+plan+execute) →
+  `/frontend-design` (5-page design contract) → `/plan-architect` (plan) → Decision Gate (owner sign-off
+  on 2 questions via AskUserQuestion) → `exec` agent TDD (RED→GREEN per step) → **parent Triple Check**
+  (independent: scope audit, line-by-line read, own full-suite run, live `streamlit run` + `AppTest`
+  against the real sample DB).
+- Triple-Check catches: (1) FIXED `app.py` missing-DB message referenced a non-existent `uv run ingest`
+  script → corrected to generator+parser; (2) LOGGED BUG-012.
+
+### Bugs
+- **BUG-012 logged** (`use_container_width=True` deprecated in Streamlit 1.58; forward fix needs an
+  approval-gated `pyproject.toml` floor bump). P3/OPEN, chipped.
+
+### Out-of-scope (logged, not fixed)
+- BUG-012 (above), BUG-011 + BUG-010 (pre-existing, OPEN). `data/db/sample.duckdb` regenerated locally
+  (gitignored, not committed).
+
+### Next session
+- Owner: run `docs/plans/2026-06-18-phase2-slice3-manual-qa.md`; then push `claude/zen-roentgen-2818ce`
+  + open PR → `dev`. After merge, promote `dev → main` at the Phase 2 boundary.
+- **Phase 3 — RAG co-pilot** (`src/flying_probe_copilot/rag/`): failure-mode KB, hybrid retrieval
+  (ChromaDB + rank_bm25 + RRF), Gemini integration, chat in the dashboard, 10-question eval. Reassess MCPs.
+
+---
+
+## 2026-06-18 — Phase 2 slice 2 — branch: feature/phase2-slice2-spc-anomaly
+
+**Goal:** Ship the SPC + anomaly analytics slice as pure library functions — a Shewhart individuals
+(XmR) control chart and a z-score anomaly detector — over the existing DuckDB schema, matching slice-1
+contracts. Tier: Large. Full 12-step session-workflow loop, owner Decision Gate sign-off, multi-agent
+research/red-team. No UI (slice 3).
+**Outcome:** Done. 57 new tests (29 SPC + 24 anomaly + 4 public-API), 292 passing / 1 xfailed / 0 failing,
+`spc.py` + `anomaly.py` 100% coverage, repo-wide 97% (= slice-1 baseline). Zero new dependencies, zero
+schema change, zero approval-gated-file edits.
+
+### Done
+- **Source (4 files):** `analytics/models.py` (+`SPCPoint`, `AnomalyRow`, frozen dataclasses),
+  `analytics/spc.py` (NEW — `individuals_chart`, Wheeler/XmR rules, MR̄/1.128 sigma, components-join
+  refdes filter), `analytics/anomaly.py` (NEW — `z_score_anomalies`, leave-one-out baseline,
+  severity-first ordering), `analytics/__init__.py` (re-export 2 fns + 2 dataclasses).
+- **Tests (4 files):** `test_analytics/conftest.py` (+`_make_spc_db`, `_make_anomaly_db` helper-fixtures
+  that populate `components`+`component_id` so the refdes join resolves), `test_spc.py` (NEW, 29:
+  SPC-01..25 + rule_4 9-run overlap + record_type two-branch), `test_anomaly.py` (NEW, 24: ANOM-01..21,
+  ANOM-09 parametrized over 4 `by` values), `test_public_api.py` (+4: import + dataclass shape, guards
+  `placeholder_fields` stays gone).
+- **Notebook:** `notebooks/01-queries.ipynb` Query 7 (SPC individuals chart) + Query 8 (z-score anomaly)
+  cells appended before Cleanup; both smoke-tested in-process against a freshly regenerated
+  `data/db/sample.duckdb` (medium 15 + small 20 panels, two boards so `by="board"` has peers).
+  SPC C1 = 20 in-control points; anomaly `by="shift"` = 3 groups, 1 flagged.
+- **Artifacts** under `docs/plans/2026-06-18-phase2-slice2-*.md`: brief, plan (+Revision 1), test-plan,
+  decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-18)
+- Wheeler/XmR rule family; default `{rule_1, rule_4}`, opt-in `{rule_2, rule_3}`; run length 8.
+- Sigma = MR̄/1.128 (exact, no literal 2.66), NOT sample stdev.
+- Individuals value = per-panel `mean(measured_value)` for a `(board_profile_id, refdes)`; signature
+  gains required `refdes` (+ optional `record_type`).
+- Anomaly = per-group failure rate, leave-one-out baseline (ddof=1), `flagged = |z| ≥ threshold`,
+  severity-first ordering (diverges from slice-1 `group_key ASC`, justified).
+- Deferred X-bar/R **and** Isolation Forest/sklearn → no new dep, no schema change.
+
+### Workflow
+- Full 12-step loop. Step 2 Explore = a 5-agent workflow (3 web SPC-rule surveys: Western Electric /
+  Nelson / Wheeler+sigma; 1 local code/data map; 1 synthesis). Step 4+5 = test-generator (50 behavior
+  cases) → adversarial red-team (verdict APPROVE_WITH_REVISIONS: 1 BLOCKER + 4 WARNING + 3 MINOR, all
+  folded into Plan Revision 1). Step 6 Decision Gate cleared with owner sign-off on 4 questions. Step 7
+  via the `exec` agent (TDD). Step 9 Triple Check = parent's independent diff-scope + line-by-line read
+  + own pytest run → CLEAN.
+- Red-team catches that mattered: BLOCKER B1 (2.66 vs 3/1.128 precision trap — a `rel_tol=1e-9` test on
+  the rounded form would fail a correct exact-division impl); WARNING W1 (refdes lives on `components`,
+  not `measurements` — SQL must join `components`, fixtures must set `component_id`, else every SPC test
+  silently returns `[]`); W4 (`statistics.stdev` raises on a 1-element peer list — needs a `<2` guard).
+
+### Bugs
+- **BUG-011 logged** (`test_tokenize_balances_braces_returns_records` flaky under full suite — pre-existing
+  parser-test order dependency, confirmed pre-branch, passed in the parent's own full-suite run). P2/OPEN,
+  out of scope, chipped.
+
+### Out-of-scope (logged, not fixed)
+- BUG-011 (above), BUG-010 (TestJetRecord collection warning) — both OPEN, pre-existing.
+- `data/db/sample.duckdb` is regenerated locally for the notebook smoke test (gitignored, not committed).
+
+### Next session
+- Phase 2 slice 3: Streamlit dashboard skeleton (`src/flying_probe_copilot/ui/`) — Overview + Yield,
+  then Pareto / SPC / Anomalies pages, filters, `st.cache_data`. First UI work; `streamlit` + `plotly`
+  are listed in the locked stack but not yet installed → a `pyproject.toml` add (approval-gated).
+- Owner: run `docs/plans/2026-06-18-phase2-slice2-manual-qa.md`; then PR `feature/phase2-slice2-spc-anomaly`
+  → `dev`.
+
+---
+
 ## 2026-06-18 — Phase 2 — flaky-test fix (BUG-011) — branch: claude/beautiful-beaver-e50f90
 
 **Goal:** Diagnose and fix the flaky `tests/test_parser/test_log_parser.py::test_tokenize_balances_braces_returns_records` — passes in isolation, fails in the full suite. Constraint: no approval-gated files (pyproject.toml, db/schema.py, migrations/*, .claude/settings.json, .env.example); fix contained to test files or the production code the test exercises. Tier: Small (single-file fix).

@@ -5,6 +5,133 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-18 — Phase 2 slice 3: Streamlit dashboard UI contracts
+
+**Decision:** The `src/flying_probe_copilot/ui/` Streamlit dashboard ships with these contracts. The two
+headline product choices were owner-ratified at the Decision Gate
+(`docs/plans/2026-06-18-phase2-slice3-decision-gate.md`).
+
+1. **No `pyproject.toml` edit.** `streamlit>=1.40` + `plotly>=5.24` were already declared (Phase 0 stack
+   lock) and present in `uv.lock` (verified: 1.58.0 / 6.8.0 import + app launches). The handover's
+   anticipated approval-gated dependency add was **moot**; zero gated files touched this slice.
+2. **Yield page = bar of yield % per group, NOT a time-series line.** `yield_over_time` returns one
+   aggregate row per group for the window; `group_by="day"` was deferred at the analytics layer
+   (DECISION_LOG 2026-06-16). Faking a trend by looping the function per day would reimplement the
+   deferred bucketing AND produce overlapping windows. Owner approved bar-per-group.
+3. **"Drill-down" = data-table `st.expander` + Plotly hover + the dimension/value filters**, NOT
+   analytics-layer value-subsetting. The four analytics functions aggregate-by-dimension and do not
+   accept a "show only board X" filter; adding one would change their signatures (out of scope). The
+   value multiselect post-filters the returned grouped rows in the UI (`data.filter_df_by_key`).
+4. **Date-range → analytics window mapping.** The sidebar date-range picker maps to the native window API
+   via `data.date_range_to_window(start, end)`: `as_of = combine(end, 23:59:59)` (naive UTC, includes the
+   whole end day) and `window_days = max(1, (end - start).days + 1)`. The `+1` over-includes at most one
+   day (minus one second) on the low end — the **safe** direction (never silently drops the chosen start
+   day), since the analytics window is `[as_of - window_days, as_of]` and exposes no separate lower bound.
+5. **Connection caching = `st.cache_resource`, read-only.** `data.get_connection(db_path)` opens
+   `duckdb.connect(db_path, read_only=True)` once per process (the dashboard never writes; read-only also
+   lets the file open while a generator/parser holds a writer elsewhere). Query results are cached with
+   `st.cache_data` returning **DataFrames**; the connection is passed as `_con` (leading underscore →
+   excluded from the cache hash) and `db_path` is the hashed cache key.
+6. **DB path via `FPC_DB_PATH` env var**, default `data/db/sample.duckdb` (gitignored, regenerated
+   locally). Missing DB → `st.error` + `st.stop()` (no traceback). Empty window → `st.info` guidance.
+
+**Why:** Honour the pure-function analytics contracts rather than bending them for presentation — the UI
+formats what the functions return and never reimplements analytics logic. Read-only cached connection +
+`cache_data`-on-results is the documented Streamlit + DuckDB pattern and meets the < 2 s / 100k exit
+criterion (measured 0.23 s page load on the 70-panel sample). Loud missing-DB / empty-window states avoid
+the silent-wrong-data class the project has repeatedly guarded against.
+
+**Rejected:**
+- **UI-composed daily yield trend line** — overlapping windows + reimplements deferred `day` grouping.
+- **Analytics-layer value filters / new `where=` params** — would change the four tested function
+  signatures; out of scope for a UI slice.
+- **`width='stretch'` instead of `use_container_width=True`** — cleaner on 1.58 but unsupported on the
+  declared `streamlit>=1.40` floor; deferred behind an approval-gated floor bump (BUG-012).
+- **Caching the connection with `st.cache_data`** — wrong tool (connections aren't serializable);
+  `cache_resource` is the correct primitive.
+- **Streamlit `pages/` magic directory** — replaced by explicit `st.navigation` + a `views.py` module of
+  `render_*(con, filters)` functions, which is unit/`AppTest`-testable and keeps filter state in one place.
+
+**Revisit when:**
+- A real consumer needs a genuine yield time-series → add `group_by="day"` (or a bucketed variant) at the
+  **analytics** layer first, then a line chart consumes it.
+- A page needs true single-value drill-down → add an optional `where`/value filter to the analytics
+  function (additive) rather than post-filtering in the UI.
+- The Streamlit floor is bumped → migrate `use_container_width` → `width=` (BUG-012).
+
+**Verification:** 81 new tests in `tests/test_ui/` (pure helpers + chart builders unit-tested; views + app
+via `AppTest`, incl. empty-window, no-boards, empty-DB, missing-DB branches). Full suite 373 passed /
+1 xfailed / 97% coverage (`ui/data.py` + `ui/charts.py` 100%). Live `streamlit run` + `AppTest.from_file`
+against the real sample DB render the default page with 5 KPI cards in 0.23 s. See
+`docs/plans/2026-06-18-phase2-slice3-{plan,decision-gate,triple-check,manual-qa}.md`.
+
+---
+
+## 2026-06-18 — Phase 2 slice 2: SPC (individuals chart) + z-score anomaly contracts
+
+**Decision:** The SPC + anomaly slice ships two pure-library functions —
+`individuals_chart` and `z_score_anomalies` — with the following contracts. All four headline
+choices were owner-ratified at the Decision Gate (`docs/plans/2026-06-18-phase2-slice2-decision-gate.md`).
+
+1. **Alarm-rule family = Wheeler / XmR doctrine.** Default-on `rules=('rule_1','rule_4')`; opt-in
+   `('rule_2','rule_3')`. rule_1 = point beyond 3σ; rule_4 = run of **8** consecutive points one side
+   of the centre line; rule_2 = 2-of-3 beyond 2σ same side; rule_3 = 4-of-5 beyond 1σ same side. A rule
+   flags **every** point whose trailing window satisfies its pattern (so a 9-run flags points 8 and 9).
+2. **Sigma estimator = MR̄ / 1.128** (d2 for span-2 moving ranges). Limits = `mean ± 3·(MR̄/1.128)`.
+   The literal `2.66` (= 3/1.128 rounded) is never used in code or test assertions — exact division only.
+3. **Individuals-chart value = per-panel `mean(measured_value)` for a single `(board_profile_id, refdes)`**
+   (optional `record_type`). Signature gains required `refdes`. Window/validation contracts mirror slice 1.
+4. **Anomaly metric = per-group failure rate** (`failed/total`, `failed = COUNT(btest_status != 0)`).
+   `by ∈ {board, shift, line, operator}` (slice-1 vocabulary).
+5. **Leave-one-out baseline.** For group `g`, `baseline_mean`/`baseline_std` are computed over the
+   failure rates of all OTHER in-window groups (g excluded from both). `baseline_std` uses **ddof=1**
+   (sample). `< 2` peers ⇒ `baseline_std = 0.0` (never call `statistics.stdev` on one element).
+   `baseline_std == 0` ⇒ `z = 0.0`, not flagged (no divide-by-zero).
+6. **`flagged = abs(z) >= threshold`** (two-sided). `threshold <= 0` raises `ValueError`.
+7. **Anomaly ordering = `abs(z_score) DESC, group_key ASC`** (severity-first). **Diverges** from slice-1's
+   universal `group_key ASC` (2026-06-16 Decision #2) — anomaly lists are inherently severity-ranked, and
+   the slice-1 log already left an additive `order_by` revisit path open. `individuals_chart` orders
+   `start_ts ASC, panel_serial ASC` (time-ordered, required for the moving-range sequence).
+8. **Stretch items deferred (owner choice).** **X-bar/R** charts deferred — they need rational subgroups
+   of size > 1, which the per-panel synthetic data does not naturally have (forcing artificial subgroups
+   would fabricate variance structure). **Isolation Forest** deferred — it needs a `sklearn` dependency
+   (`pyproject.toml` is approval-gated) and clashes with the deterministic leave-one-out z-score. **No
+   schema change** — existing `measurements`/`components`/`test_runs`/`panels` columns are sufficient.
+
+**Why:** The data is the textbook XmR case — one reading per time point, no rational subgroup. Wheeler's
+"Rule 1 by default, others in reserve" avoids the ~4–9× false-alarm inflation that stacking zone rules
+causes on autocorrelated, possibly-skewed per-panel data (Step 2 research: NIST/SEMATECH e-Handbook ARL
+370→91.75 for all-WECO; Nelson all-8 ARL→38). MR̄/1.128 is mandatory over the global sample stdev because
+the global stdev silently absorbs the sustained shifts the chart exists to detect, widening the limits.
+`duration_s` is hardcoded to 12 (zero variance), so a refdes-selected `measured_value` is the only
+defensible continuous I-MR value; failure rate / counts are attribute data that want c/u/p-charts, not
+individuals. Leave-one-out prevents an anomalous group from inflating its own baseline and hiding itself.
+
+**Rejected:**
+- **Nelson 8-rule set** — N7/N8 require subgroups (n≥2); our chart is n=1 per refdes. Full stack → ARL≈38.
+- **Rule-1-only** — misses the sustained small shifts rule_4 catches.
+- **`duration_s` as the I-MR value** — constant 12 in synthetic data → a flat, useless chart.
+- **Raw failure count** as the anomaly metric — scales with group volume → high-volume groups self-flag.
+- **Binary per-panel pass/fail z-score** — 0/1 attribute data, infinite-tail z.
+- **Population std (ddof=0)** for the baseline — understates spread on small peer sets.
+- **One-sided z flag** — would miss anomalously-LOW failure rates (which can also signal a process change).
+- **X-bar/R now / Isolation Forest now** — deferred per the owner Decision Gate (above).
+
+**Revisit when:**
+- A genuine rational subgroup emerges (e.g. replicate probes per net per panel) → add X-bar/R.
+- A real consumer wants ML anomaly detection → add `sklearn` + Isolation Forest behind the same
+  `AnomalyRow` shape (owner-approved dependency add).
+- A real caller needs proportion-z normality at small N → add a logit/arcsin transform option to
+  `z_score_anomalies` (additive; default stays raw proportion).
+- A caller wants the MR chart companion (UCL = D4·MR̄ = 3.267·MR̄) → add a sibling function.
+
+**Verification:** 57 new tests (29 SPC + 24 anomaly + 4 public-API) in `tests/test_analytics/test_spc.py`
+and `test_anomaly.py`; `spc.py` + `anomaly.py` 100% coverage; full suite 292 passed / 1 xfailed / 0 failed;
+repo coverage 97%. Plan + red-team resolutions in `docs/plans/2026-06-18-phase2-slice2-{plan,test-plan,
+triple-check}.md`.
+
+---
+
 ## 2026-06-18 — Tests never write to the repo tree; use `tmp_path` (BUG-011)
 
 **Decision:** Test helpers that need a file on disk MUST write to pytest's per-test `tmp_path` (or `NamedTemporaryFile`), never to a fixed path inside the repo working tree. Applied to `_render_to_text` in `tests/test_parser/test_log_parser.py`, which had been writing to `repo_root / "tmp_test_render.log"`.
