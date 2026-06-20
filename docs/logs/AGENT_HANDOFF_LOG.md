@@ -44,6 +44,73 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 2 slice 3 → Phase 3 (RAG) — 2026-06-18
+
+**From:** Claude Code parent (Phase 2 slice 3 — Medium-tier 12-step loop on `claude/zen-roentgen-2818ce`)
+**To:** Next session (Phase 3 — RAG co-pilot)
+**Branch:** `claude/zen-roentgen-2818ce` — committed at Step 10 (single coherent commit: `ui/` source +
+`tests/test_ui/` + docs/plans + log updates). NOT yet pushed (push + PR owner-initiated).
+**Session goal:** Ship the Streamlit+Plotly UI over the 4 analytics functions — the final Phase 2 deliverable.
+**Outcome:** Done. **Phase 2 COMPLETE.** 81 new tests, 373 passing / 1 xfailed / 97% coverage. Dashboard
+launches and renders the default page in 0.23 s (exit < 2 s). Additive-only; analytics untouched; no
+approval-gated files touched.
+
+### Completed this session
+- **Source (5 files):** `src/flying_probe_copilot/ui/` — `data.py` (read-only `@st.cache_resource` conn +
+  `@st.cache_data` query wrappers → DataFrame + pure helpers + `distinct_*` + `Filters`), `charts.py` (pure
+  Plotly builders), `views.py` (5 `render_*(con, filters)` pages), `app.py` (`st.navigation` entry +
+  sidebar date filter + missing-DB guard), `__init__.py`. `data.py`+`charts.py` 100% cov.
+- **Tests (6 files, 81):** `test_ui/conftest.py` (`ui_db_path` temp file-DB fixture), `test_data.py`,
+  `test_charts.py`, `test_views_smoke.py` (`AppTest.from_function` per view), `test_app_smoke.py`
+  (`AppTest.from_file`: valid/empty/missing DB).
+- **Docs:** DECISION_LOG (2026-06-18 UI contracts), SESSION_LOG, ROADMAP (5 boxes + analytics parent +
+  status + exit-criterion-met), CLAUDE.md (Status + phase table + session line), BUG_LOG (BUG-012),
+  AGENT_HANDOFF_LOG (this entry). Artifacts: `docs/plans/2026-06-18-phase2-slice3-{brief,plan,decision-gate,
+  triple-check,manual-qa}.md`.
+- **Owner Decision Gate (2 ratified):** yield = bar-per-group (not time-series); work on this worktree
+  branch → PR to `dev`. (pyproject dep-add was moot — already declared+locked.)
+
+### In progress — needs pickup
+- **Push + open PR** `claude/zen-roentgen-2818ce` → `dev` — committed locally, awaiting owner go-ahead.
+- **Manual QA** — owner runs `docs/plans/2026-06-18-phase2-slice3-manual-qa.md` (§0 suite, §2 launch,
+  §3 pages, §4 edges).
+- After merge to `dev`: **promote `dev → main`** at the Phase 2 boundary.
+
+### Blocked — needs owner input
+- None blocking. Push/PR + the eventual `dev → main` promotion are the only owner-gated actions.
+
+### Test suite status
+- [x] All passing — 373 passed, 1 xfailed, 0 failed (`python -m uv run pytest -q`, parent-verified). 97% cov.
+- Pre-existing: BUG-011 (flaky parser test, xfail), BUG-010 (TestJetRecord collection warning). BUG-012 new
+  (use_container_width deprecation, P3).
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (BUG-012)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next agent should (ordered)
+1. Owner go-ahead → push `claude/zen-roentgen-2818ce`, open PR → `dev`, address any Bugbot review.
+2. Owner runs the slice-3 manual-QA script; sign off. Then promote `dev → main` (Phase 2 boundary).
+3. **Begin Phase 3 — RAG co-pilot** (`src/flying_probe_copilot/rag/`): failure-mode KB in
+   `docs/knowledge-base/`, hybrid retrieval (ChromaDB vector + rank_bm25 lexical + reciprocal rank fusion),
+   Gemini API integration with citation-forcing prompt, chat interface wired into the existing Streamlit
+   dashboard (`ui/`), 10 representative Q&A tests + anti-hallucination refusal test. Reassess MCPs (CLAUDE.md
+   permits revisiting beyond Context7 in Phase 3).
+4. Consider chipped follow-ups: BUG-012 (streamlit floor bump + `width=` migration — gated), a `ui/` README,
+   and full click-event cross-filtering / a real yield time-series (needs analytics `day` grouping first).
+
+### Hand-off notes
+- **The dashboard reads a gitignored `data/db/sample.duckdb`** — regenerate it locally before launching
+  (manual-QA §1: 3 disjoint-week generator runs + parser ingest). The DB is NOT committed.
+- **`feature/phase2-slice3-streamlit` exists but is empty + checked out in worktree
+  `xenodochial-black-3cc4d9`** — that's why this work landed on `claude/zen-roentgen-2818ce` instead. If the
+  owner prefers the conventional branch name, the empty one can be deleted and this branch renamed.
+- **AppTest specifics:** `AppTest.from_function(fn, kwargs=...)` works for per-view smoke (closure-free,
+  kwargs-passed); `AppTest.from_file` runs `app.py` as `__main__` so `main()` fires. `at.exception` is an
+  empty `ElementList` when there's no error (assert `not at.exception`).
+
+---
+
 ### Handoff: Phase 2 slice 2 → Phase 2 slice 3 — 2026-06-18
 
 **From:** Claude Code parent (Phase 2 slice 2 — Large-tier full 12-step loop on `feature/phase2-slice2-spc-anomaly`)

@@ -4,6 +4,68 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-18 — Phase 2 slice 3 — branch: claude/zen-roentgen-2818ce
+
+**Goal:** Ship the Streamlit + Plotly UI (`src/flying_probe_copilot/ui/`) over the 4 existing pure
+analytics functions — 5 pages (Overview, Yield, Failure Pareto, SPC, Anomalies), filter controls,
+caching. The final Phase 2 deliverable. Tier: Medium (Document → Explore → Plan → Decision Gate →
+Execute → Triple Check → Documentation), full 12-step governance with parent-only gates.
+**Outcome:** Done. **Phase 2 complete.** 81 new tests, **373 passing / 1 xfailed / 97% coverage**
+(= slice-2 baseline). Dashboard launches and renders against the sample DB in **0.23 s** (exit
+criterion < 2 s). Zero edits to existing tracked files (pure additive `ui/` + `tests/test_ui/`); zero
+approval-gated files touched; analytics layer unchanged.
+
+### Done
+- **Source (5 files, additive):** `ui/data.py` (read-only `@st.cache_resource` connection, `@st.cache_data`
+  query wrappers → DataFrame, pure helpers `date_range_to_window`/`*_rows_to_df`/`filter_df_by_key`/
+  `overview_kpis`, `distinct_*`, `Filters`), `ui/charts.py` (pure Plotly builders: yield bar / Pareto
+  bar+cumulative / SPC individuals w/ center+UCL+LCL+alarm traces / anomaly z-score bar), `ui/views.py`
+  (5 `render_*(con, filters)` pages w/ controls + empty `st.info` guards + `st.expander` tables),
+  `ui/app.py` (`st.set_page_config(wide)`, missing-DB guard, sidebar date filter, `st.navigation`),
+  `ui/__init__.py`. `data.py` + `charts.py` 100% coverage; `views.py`/`app.py` 87%/86% (AppTest-thread
+  render lines).
+- **Tests (6 files, 81 new):** `test_ui/conftest.py` (`ui_db_path` temp file-DB: 2 boards, shift-C
+  elevated for an anomaly flag, 20 R1 measurements for SPC; teardown clears `cache_resource`),
+  `test_data.py`, `test_charts.py`, `test_views_smoke.py` (per-view `AppTest.from_function` incl.
+  empty/no-board branches), `test_app_smoke.py` (`AppTest.from_file`: valid / empty / missing DB).
+- **Sample DB:** regenerated `data/db/sample.duckdb` (gitignored) from 3 disjoint-week runs
+  (small drift + medium cluster + small process-change) — 2 boards, 3 shifts, 2 lines, 2 operators.
+- **Artifacts** under `docs/plans/2026-06-18-phase2-slice3-*.md`: brief, plan, decision-gate, triple-check,
+  manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-18)
+- Yield page = **bar of yield % per group** (not a time-series line; `day` grouping deferred at analytics).
+- Work on this worktree branch `claude/zen-roentgen-2818ce` → PR to `dev` (`feature/phase2-slice3-streamlit`
+  is empty + locked by another worktree).
+- No `pyproject.toml` edit (streamlit+plotly already declared + locked). Drill-down = expanders + hover +
+  filters (not analytics value-subsetting). Date-range → `(window_days, as_of)` mapping with safe +1.
+  Read-only `cache_resource` connection; `cache_data` results.
+
+### Workflow
+- Full 12-step loop at Medium tier. `/skill-sergeant` routed (proactive, mixed design+plan+execute) →
+  `/frontend-design` (5-page design contract) → `/plan-architect` (plan) → Decision Gate (owner sign-off
+  on 2 questions via AskUserQuestion) → `exec` agent TDD (RED→GREEN per step) → **parent Triple Check**
+  (independent: scope audit, line-by-line read, own full-suite run, live `streamlit run` + `AppTest`
+  against the real sample DB).
+- Triple-Check catches: (1) FIXED `app.py` missing-DB message referenced a non-existent `uv run ingest`
+  script → corrected to generator+parser; (2) LOGGED BUG-012.
+
+### Bugs
+- **BUG-012 logged** (`use_container_width=True` deprecated in Streamlit 1.58; forward fix needs an
+  approval-gated `pyproject.toml` floor bump). P3/OPEN, chipped.
+
+### Out-of-scope (logged, not fixed)
+- BUG-012 (above), BUG-011 + BUG-010 (pre-existing, OPEN). `data/db/sample.duckdb` regenerated locally
+  (gitignored, not committed).
+
+### Next session
+- Owner: run `docs/plans/2026-06-18-phase2-slice3-manual-qa.md`; then push `claude/zen-roentgen-2818ce`
+  + open PR → `dev`. After merge, promote `dev → main` at the Phase 2 boundary.
+- **Phase 3 — RAG co-pilot** (`src/flying_probe_copilot/rag/`): failure-mode KB, hybrid retrieval
+  (ChromaDB + rank_bm25 + RRF), Gemini integration, chat in the dashboard, 10-question eval. Reassess MCPs.
+
+---
+
 ## 2026-06-18 — Phase 2 slice 2 — branch: feature/phase2-slice2-spc-anomaly
 
 **Goal:** Ship the SPC + anomaly analytics slice as pure library functions — a Shewhart individuals
