@@ -329,6 +329,10 @@ class ShortsRecord(BaseModel):
 class TestJetRecord(BaseModel):
     """Maps to @TJET."""
 
+    # Opt out of pytest's "Test*" class collection heuristic — this is a
+    # Pydantic model, not a test class (BUG-010).
+    __test__ = False
+
     model_config = ConfigDict(extra="forbid")
 
     status: TwoDigitStatus

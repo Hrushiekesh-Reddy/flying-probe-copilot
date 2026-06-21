@@ -75,7 +75,7 @@ The Phase 3 exit criterion was a live ≥8/10 evaluation against the real Gemini
 
 The fix was three lines (`DEFAULT_GEMINI_MODEL` constant + a test-side string for accuracy + the `.env.example` doc). The model id bumped to `gemini-3.5-flash`. The re-run passed 10/10 in 37.13 seconds — a 4× speedup over the failing run, all of it explained by not retrying a dead endpoint.
 
-The class of bug: **vendor model IDs are versioned external state, not constants in your code.** A "constant" in `src/.../llm.py` is a contract with a remote API that can be revoked unilaterally. The lesson I took: any external model ID should be paired with a fast-failing health check, and the SDK should be the current one. The follow-up — migrating from the now-deprecated `google-generativeai` SDK to the successor `google-genai` — is queued as a Phase 4 backlog item. Logged as BUG-013 (P0 — RESOLVED 2026-06-21).
+The class of bug: **vendor model IDs are versioned external state, not constants in your code.** A "constant" in `src/.../llm.py` is a contract with a remote API that can be revoked unilaterally. The lesson I took: any external model ID should be paired with a fast-failing health check, and the SDK should be the current one. The follow-up — migrating from the deprecated `google-generativeai` SDK to the successor `google-genai` — was queued at the time and landed the same day on a separate branch ([PR #30](https://github.com/Hrushiekesh-Reddy/flying-probe-copilot/pull/30)); the live ≥8/10 eval re-ran green on the new SDK without changing the model id. Logged as BUG-013 (P0 — RESOLVED 2026-06-21).
 
 ### 4c. BUG-011 — flaky test under parallel load (Phase 2)
 
@@ -118,7 +118,7 @@ Every passing test runs offline (no network, no API key). The live RAG eval is t
 
 Three things, honestly:
 
-**Migrate the Gemini SDK earlier.** BUG-013 surfaced because `google-generativeai` is the legacy SDK; the successor (`google-genai`) was already the recommended path when I wrote Phase 3 slice 2. I deferred the migration to stay focused. The model-retirement 404 forced the issue anyway. Lesson: when a vendor SDK is end-of-support at the time you adopt it, the cost of migrating later is rarely smaller than the cost of migrating now. The migration is queued as a Phase 4 follow-up.
+**Migrate the Gemini SDK earlier.** BUG-013 surfaced because `google-generativeai` is the legacy SDK; the successor (`google-genai`) was already the recommended path when I wrote Phase 3 slice 2. I deferred the migration to stay focused. The model-retirement 404 forced the issue anyway. Lesson: when a vendor SDK is end-of-support at the time you adopt it, the cost of migrating later is rarely smaller than the cost of migrating now. The migration shipped the same day on a follow-up PR; the live ≥8/10 eval re-ran green on the new SDK without changing the model id.
 
 **Capture screenshots from CI, not by hand.** Phase 4 slice 1 (this writeup) needed six dashboard screenshots. I captured them by launching Streamlit locally and snipping the browser. A CI-driven headless Playwright run would have been a one-time setup that paid off every time the dashboard's visual design changes. Slice 1.5 candidate.
 

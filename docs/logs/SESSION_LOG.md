@@ -52,6 +52,65 @@ None new this slice. Existing chips still open: SDK migration (`task_decc4276`),
 ### Next session should
 1. Owner reviews `feature/phase4-slice1-readme → dev` PR (rendered README + hero strip + case-study on GitHub).
 2. Merge → start Phase 4 slice 2 (demo gif + Playwright headless capture for future slice updates).
+---
+
+## 2026-06-21 — Phase 4 P3 cleanups: BUG-010 + BUG-012 — branch: feature/p3-cleanups-bug-010-012
+
+**Goal:** Close the last two P3-deferred Phase 4 chips in one branch: BUG-010 (`TestJetRecord` PytestCollectionWarning on every test run) and BUG-012 (Streamlit `use_container_width` deprecation in `ui/views.py`). Tier: Small.
+**Outcome:** Both bugs RESOLVED. Full offline suite **519 passed / 1 skipped / 1 xfailed / 97%** (baseline held). Warnings audit dropped from 3 → 1 — the only remaining warning is the unrelated opentelemetry `SelectableGroups` DeprecationWarning (transitive via chromadb).
+
+### Done — BUG-010
+- Added `__test__ = False` as a class attribute on `TestJetRecord` in `src/flying_probe_copilot/generator/models.py:329` — pytest's documented per-class opt-out from the `Test*` collection heuristic. Picked over the rename-to-`TJetRecord` alternative because the dunder is the surgical single-line fix; the rename would have touched many call sites for zero behavior gain.
+- Verified Pydantic v2 compatibility: dunders are invisible to Pydantic's field-detection metaclass (no `__annotations__` entry), so `ConfigDict(extra="forbid")` is unaffected. Confirmed empirically: re-ran only the two affected test files (`test_log_parser.py` + `test_roundtrip.py`) — 50 passed in 33.74s with zero warnings; the two `PytestCollectionWarning` entries previously printed for these files are gone.
+
+### Done — BUG-012
+- Owner-approved approval-gated `pyproject.toml` edit: `streamlit>=1.40` → `streamlit>=1.45` (`uv.lock` unchanged — already on 1.58.0; floor bump is non-disruptive).
+- All 10 call sites in `src/flying_probe_copilot/ui/views.py` migrated `use_container_width=True` → `width="stretch"` via a single `replace_all`. All sites were `=True` (zero `=False` cases), so no `width="content"` substitution was needed. Double-quoted `"stretch"` matches the file's existing string-quote convention. Grep across `src/` + `tests/` confirms zero remaining `use_container_width` references.
+
+### Decisions (owner-ratified)
+- Branching: one feature branch with two coherent commits (one per bug). Both are P3 cleanups; bundling makes review trivial without violating "one coherent change per commit". Branch: `feature/p3-cleanups-bug-010-012` off latest `dev` (post-PR #30).
+- Streamlit floor target: `>=1.45` (broad floor matching project pattern; uv.lock still pins 1.58.0).
+- BUG-010 fix shape: `__test__ = False` dunder (surgical), not rename.
+
+### Phase 4 status
+- All three Phase 4 chips carried out of the 2026-06-20 / 2026-06-21 Phase 3 wrap-up are now closed in code:
+  - SDK migration (`google-generativeai` → `google-genai`) ✅ shipped PR #30 (merged into `dev` as commit `e4e9a0a`).
+  - BUG-010 `TestJetRecord` ✅ this session.
+  - BUG-012 Streamlit `use_container_width` ✅ this session.
+- Remaining Phase 4 work: README polish, portfolio writeup, demo gif.
+
+### Next session should
+1. Open `feature/p3-cleanups-bug-010-012 → dev` PR.
+2. Continue Phase 4 polish (README + portfolio writeup + demo gif).
+
+---
+
+## 2026-06-21 — Phase 4 chip: SDK migrate google-generativeai → google-genai — branch: feature/sdk-migrate-google-genai
+
+**Goal:** Close the Phase 4 chip carried out of the 2026-06-21 Phase 3 exit-criterion session — migrate the end-of-support `google-generativeai` 0.8.6 package to the supported `google-genai` package, on the same model id (`gemini-3.5-flash`). Tier: Small-to-Medium (single touchpoint: one function body + 2 docstring lines + 1 pyproject line + lockfile refresh).
+**Outcome:** Dep swap landed, `_call_model` rewritten on the new client API, full offline suite still **519 passed / 1 skipped / 1 xfailed / 97%** (identical to pre-migration baseline), **live `RAG_RUN_LLM_EVAL=1` ≥8/10 eval re-confirmed PASSED on the new SDK** (`gemini-3.5-flash`, single invocation, 166.20s wall-clock — longer than the prior 37.13s only because this run paid the cold sentence-transformers + Chroma bootstrap cost; the model call itself is unchanged). BUG-013 follow-up note closed. Ready for `dev` PR.
+
+### Done
+- Confirmed new SDK shape on PyPI (`google-genai` 2.9.0, released 2026-06-19): `from google import genai; from google.genai import types; client = genai.Client(api_key=...); client.models.generate_content(model=..., contents=..., config=types.GenerateContentConfig(response_mime_type="application/json")).text`.
+- Owner sign-off captured before any approval-gated edit (`pyproject.toml` swap: `google-generativeai>=0.8` → `google-genai>=1.0`, floor pattern matches `duckdb>=1.1` / `chromadb>=0.6` style).
+- `uv sync` refreshed `uv.lock`: `google-generativeai` removed, `google-genai==2.9.0` resolved.
+- `src/flying_probe_copilot/rag/llm.py` — `_call_model` body swapped (7 lines, still `# pragma: no cover - live API`); module docstring `google.generativeai` → `google.genai`; `GeminiClient` class docstring `(google-generativeai 0.8.x)` → `(google-genai 1.x+)`. No public API change, no protocol change.
+- Offline LLM contract suite (LLM-01..05b) still green — those tests cover lazy construction + key resolution + Protocol conformance, none of which change.
+- Warnings audit on the offline run: 3 warnings = 1 opentelemetry `SelectableGroups` (transitive via chromadb, pre-existing) + 2 × `TestJetRecord` PytestCollectionWarning (BUG-010, deferred). **Zero `google.generativeai` FutureWarnings, zero `google.genai` warnings.** Clean.
+
+### Decisions (owner-ratified)
+- pyproject floor = `google-genai>=1.0` (broad floor + lockfile pin; matches the project's existing style).
+- No new offline test for `_call_model` — exercising it would need ~30 LOC of `sys.modules` monkeypatching to mock `from google import genai`. The 6-line body change is mechanical; the live env-gated ≥8/10 eval is the real acceptance test (same posture as the BUG-013 model-bump session).
+- Worktree branch renamed locally `claude/naughty-gates-63f1a9` → `feature/sdk-migrate-google-genai` before any commit.
+
+### Phase 3 / 4 status
+- Phase 3 exit criterion still MET (no model id change; `gemini-3.5-flash` unchanged).
+- Phase 4 SDK-migrate chip now closed in code; outstanding chip BUG-010 (TestJetRecord) + BUG-012 (Streamlit `use_container_width` floor bump) remain P3-deferred.
+
+### Next session should
+1. ~~Owner runs `RAG_RUN_LLM_EVAL=1` ≥8/10 acceptance test~~ — **DONE this session: PASSED on the new SDK.**
+2. Open `feature/sdk-migrate-google-genai → dev` PR.
+3. Continue Phase 4 polish (README + portfolio writeup + demo gif).
 
 ---
 
