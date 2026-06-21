@@ -4,6 +4,45 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-20 — Phase 3 slice 3 — branch: feature/phase3-slice3-chat-ui
+
+**Goal:** Finish Phase 3 — a Co-Pilot chat page in the Streamlit dashboard over `answer()`, plus
+the 10-question evaluation (offline citation-pattern tests + an env-gated live ≥8/10 harness = the
+Phase 3 exit criterion). Tier: Large — full 12-step governance.
+**Outcome:** Done. **Phase 3 code deliverables all shipped.** ~23 new tests, **519 passing /
+1 skipped (live eval) / 1 xfailed / 97% coverage** (`ui/chat.py` 100%). Offline + secret-safe.
+
+### Done
+- **Source:** `ui/chat.py` (`render_chat` — chat_input → `answer_question` → render answer +
+  citations in an expander; refusal renders `REFUSAL_TEXT`; backend errors → `st.error`; live
+  wiring `get_retriever`/`get_client`/`answer_question` all `# pragma: no cover`). `ui/app.py`
+  registers a 6th "Co-Pilot" page (declared edit; "5 pages"→"6 pages" docs).
+- **Eval:** `tests/test_rag/eval_dataset.py` (`EVAL_QUESTIONS` — 10 questions over all 8 KB docs) +
+  `docs/eval/phase3-eval-questions.md` (same 10, run instructions).
+- **Tests (~23):** `tests/test_ui/test_chat_smoke.py` (6 AppTest cases via self-contained
+  `_smoke_chat` wrapper + monkeypatched backend), `tests/test_rag/test_eval.py` (dataset integrity +
+  10 offline citation-pattern + hallucinated-cite refusal + off-domain refusal + env-gated live
+  ≥8/10). Autouse env-strip added to `tests/test_ui/conftest.py`.
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice3-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified — DECISION_LOG 2026-06-20 slice 3)
+- Chat as 6th dashboard page (DB-gated shell); graceful `st.error` on backend failure; eval =
+  offline citation-pattern test + env-gated live ≥8/10 harness (`RAG_RUN_LLM_EVAL`); declared app.py
+  edit; autouse env-strip for ui tests; commit, no push.
+
+### Red-team caught 1 BLOCKER (resolved in Plan Revision 1 before Execute)
+- `AppTest.from_function(render_chat)` can't run a real module function (source-extracts only the
+  body) → use self-contained `_smoke_chat` wrappers with inner imports + module-global backend patch.
+  Multi-turn persistence was empirically de-risked (works).
+
+### Phase 3 status
+- **All Phase 3 code deliverables shipped** (slices 1 retrieval + 2 LLM + 3 chat UI/eval). The
+  exit-criterion live ≥8/10 number is the owner's env-gated run with the (rotated) key. After merge:
+  run the live eval + promote `dev → main` at the Phase 3 boundary. Next: Phase 4 (polish/portfolio).
+
+---
+
 ## 2026-06-20 — Phase 3 slice 2 — branch: feature/phase3-slice2-llm
 
 **Goal:** Gemini LLM answer layer on top of slice-1 retrieval — grounded, citation-forced

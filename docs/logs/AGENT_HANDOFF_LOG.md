@@ -44,6 +44,61 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 3 slice 3 → Phase 4 (polish) — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 3 — Large-tier full 12-step loop on `feature/phase3-slice3-chat-ui`)
+**To:** Next session (owner live eval + Phase 3→main promotion, then Phase 4)
+**Branch:** `feature/phase3-slice3-chat-ui` (off `dev`) — committed at Step 10. Push/PR per owner.
+**Session goal:** Chat UI over `answer()` + the 10-question evaluation. **Closes Phase 3 code.**
+**Outcome:** Done. ~23 new tests, **519 passing / 1 skipped (live eval) / 1 xfailed / 97%**, `ui/chat.py` 100%.
+
+### Completed this session
+- **Source:** `ui/chat.py` (Co-Pilot chat page, injectable backend) + `ui/app.py` 6th page (declared edit).
+- **Eval:** `tests/test_rag/eval_dataset.py` (10 Q) + `docs/eval/phase3-eval-questions.md`.
+- **Tests (~23):** `tests/test_ui/test_chat_smoke.py`, `tests/test_rag/test_eval.py`, autouse env-strip in
+  `tests/test_ui/conftest.py`.
+- **Docs:** SESSION_LOG, DECISION_LOG (6 contracts), ROADMAP (3 boxes + status + close), CLAUDE.md, this
+  handoff. Artifacts: `docs/plans/2026-06-20-phase3-slice3-*`.
+- **Owner Decision Gate (7 ratified — "use your recommendations").**
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice3-chat-ui` → `dev` — committed locally, awaiting owner go-ahead.
+- **Live ≥8/10 eval (exit criterion):** owner runs `RAG_RUN_LLM_EVAL=1 python -m uv run pytest
+  tests/test_rag/test_eval.py -q` with a valid key. Then the slice-3 manual QA
+  (`docs/plans/2026-06-20-phase3-slice3-manual-qa.md`).
+- **Promote `dev → main`** at the Phase 3 boundary after the above pass.
+
+### Blocked — needs owner input
+- **ROTATE the Google API key** (still pending from slice 2) — surfaced in a subagent; needed for the
+  live eval + the chat page in real use.
+
+### Test suite status
+- [x] 519 passed, 1 skipped (env-gated live eval), 1 xfailed (BUG-011), 0 failed; 97% coverage.
+  Suite makes zero network/API calls; live eval is `skipif(not RAG_RUN_LLM_EVAL)`.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice3-chat-ui`, open PR → `dev`, address any Bugbot review.
+2. Owner rotates the key, runs the live ≥8/10 eval + slice-3 manual QA (launch dashboard → Co-Pilot page).
+3. Promote `dev → main` (Phase 3 boundary).
+4. **Phase 4 — polish & portfolio:** README + architecture diagram (Mermaid) + screenshots/demo gif,
+   case-study writeup, `docs/DEMO.md`, GitHub Actions (lint+tests on PR), flip repo public after the
+   guardrails checklist, resume bullet. Also chipped follow-ups: BUG-012 (`use_container_width`
+   deprecation), google-generativeai → google-genai migration (parked), KB expansion with real failure modes.
+
+### Hand-off notes
+- **Chat page needs the dashboard DB to launch** (app `st.stop()`s without it) — regenerate
+  `data/db/sample.duckdb` locally before launching (see slice-3 manual QA). The chat logic itself uses no DB.
+- **First Co-Pilot use downloads the embedding model** (all-MiniLM-L6-v2) + calls Gemini — needs the key
+  + network. Both are lazy/cached (`@st.cache_resource`).
+- **Strict refusal is by design.** If the live eval scores < 8/10 or answers refuse too often, the fix is
+  KB expansion / prompt tuning, NOT weakening the grounding rule.
+
+---
+
 ### Handoff: Phase 3 slice 2 → Phase 3 slice 3 — 2026-06-20
 
 **From:** Claude Code parent (Phase 3 slice 2 — Large-tier full 12-step loop on `feature/phase3-slice2-llm`)
