@@ -44,6 +44,65 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 3 slice 1 → Phase 3 slice 2 — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 1 — Large-tier full 12-step loop on `feature/phase3-slice1-rag-retrieval`)
+**To:** Next session (Phase 3 slice 2 — Gemini LLM + citation prompt + anti-hallucination)
+**Branch:** `feature/phase3-slice1-rag-retrieval` (off `dev`) — committed at Step 10 (single coherent
+commit: `rag/` source + `tests/test_rag/` + `docs/knowledge-base/` + docs/plans + log updates).
+**NOT pushed** (push + PR owner-initiated per decision #9).
+**Session goal:** Ship the offline hybrid-retrieval core (ChromaDB vector + rank_bm25 lexical + RRF)
+over a seeded failure-mode KB — everything buildable without the Gemini key.
+**Outcome:** Done. 80 new tests, **454 passing / 1 xfailed / 97% coverage**, rag 99–100% per file.
+Additive-only; zero approval-gated edits.
+
+### Completed this session
+- **Source (6 files):** `src/flying_probe_copilot/rag/` — `models.py`, `kb_loader.py`,
+  `lexical_index.py`, `vector_index.py`, `retriever.py`, `__init__.py` (7 public names).
+- **KB scaffold:** `docs/knowledge-base/` README + 00-index + 8 synthetic failure-mode docs.
+- **Tests (7 files, 80):** `tests/test_rag/` incl. model-free `FakeEmbedder` (binary presence vectors).
+- **Docs:** SESSION_LOG, DECISION_LOG (9 contracts), ROADMAP (3 boxes + status + status-log), CLAUDE.md
+  (Status + phase table + session line), this handoff. Artifacts: `docs/plans/2026-06-20-phase3-slice1-*`
+  (brief, plan +Revision 1, test-plan, decision-gate, triple-check, manual-qa).
+- **Owner Decision Gate (9 ratified — "use your recommendations"):** see DECISION_LOG 2026-06-20.
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice1-rag-retrieval` → `dev` — committed locally, awaiting owner go-ahead.
+- **Manual QA** — owner runs `docs/plans/2026-06-20-phase3-slice1-manual-qa.md`.
+
+### Blocked — needs owner input
+- **Slice 2 needs the Gemini API key** in `.env` as `GEMINI_API_KEY` / `GOOGLE_API_KEY` (`.env` is gitignored;
+  never commit it). Slice 1 does not need it.
+
+### Test suite status
+- [x] All passing — 454 passed, 1 xfailed, 0 failed (`python -m uv run pytest -q`, parent + independent
+  verifier confirmed). 97% coverage. Pre-existing: BUG-011 (flaky parser test, xfail), BUG-010 (collection
+  warning), BUG-012 (use_container_width deprecation, P3) — none touched.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice1-rag-retrieval`, open PR → `dev`, address any Bugbot review.
+2. Owner runs the slice-1 manual-QA script; sign off.
+3. **Phase 3 slice 2** — Gemini LLM (`google-generativeai`, already a dep) behind a thin client; a
+   structured-output prompt that forces citation of retrieved chunk_ids; anti-hallucination refusal when
+   retrieval returns nothing. Build the LLM client mockable so unit tests don't call the API; gate any live
+   call behind an env var like the slice-1 model test. **Get the Gemini key first.**
+4. Owner expands `docs/knowledge-base/` with real field-learned failure modes (same heading structure).
+
+### Hand-off notes
+- **Offline by design:** the unit suite injects `FakeEmbedder`; the real `all-MiniLM-L6-v2` model is only
+  loaded by an env-gated test (`RAG_RUN_MODEL_TESTS`) and its load path is `# pragma: no cover`. Don't
+  "fix" coverage by forcing the real model into CI.
+- **Chroma quirk:** `EphemeralClient` shares process-level state, so `VectorIndex` uses a per-instance
+  collection name `kb_{uuid}` and `hnsw:space="cosine"` (NOT default L2). Keep both if refactoring.
+- **Retrieval is KB-corpus-only** this slice. Grounding answers in DuckDB *rows* is a slice-2/3 concern
+  once the LLM can read query results.
+
+---
+
 ### Handoff: Phase 2 slice 3 → Phase 3 (RAG) — 2026-06-18
 
 **From:** Claude Code parent (Phase 2 slice 3 — Medium-tier 12-step loop on `claude/zen-roentgen-2818ce`)
