@@ -4,6 +4,54 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-20 — Phase 3 slice 2 — branch: feature/phase3-slice2-llm
+
+**Goal:** Gemini LLM answer layer on top of slice-1 retrieval — grounded, citation-forced
+answers with strict anti-hallucination refusal, fully mockable (no live API in the unit suite).
+Tier: Large — full 12-step governance (Document → Explore → Plan +Revision 1 → Test-Case Plan →
+adversarial red-team → Decision Gate → Execute TDD → Verify → Triple Check → Documentation).
+**Outcome:** Done. **42 new tests, 496 passing / 1 xfailed / 97% coverage** (new modules 100%).
+Additive except one declared slice-1 test edit (`test_public_api` __all__ set). Zero approval-gated
+files touched.
+
+### Done
+- **Source (4 files):** `rag/llm.py` (`LLMClient` runtime_checkable Protocol + `GeminiClient` —
+  lazy, `_resolve_key` from api_key/`.env`/env, missing→`ValueError`, live `_call_model` lazy-imports
+  google-generativeai + `# pragma: no cover`), `rag/prompts.py` (`build_answer_prompt` — citation-
+  forcing, JSON-output instruction), `rag/answer.py` (`Answer` frozen + `answer()` orchestrator with
+  the strict grounding rule + `REFUSAL_TEXT`), `rag/__init__.py` (+4 exports → 11 public names).
+- **Tests (4 new files + 1 edit, 42):** conftest gains autouse env-strip + `FakeLLMClient` /
+  `RaisingLLMClient` / `StubRetriever`; `test_llm` (4), `test_prompts` (10), `test_answer` (24),
+  `test_public_api` (edited __all__ set + new slice-2 import test).
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice2-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Anti-hallucination contract (the product point)
+A non-refused `Answer` requires ALL of: retrieval hits, valid JSON dict, `sufficient is True`
+(strict), non-empty answer, and ≥1 citation that was actually retrieved. Any failure → refuse with
+`REFUSAL_TEXT` + empty citations. The LLM is **never called** on blank/None question or no-hits paths.
+Hallucinated (non-retrieved) citations are dropped; all-hallucinated → refuse.
+
+### Decisions (owner-ratified — DECISION_LOG 2026-06-20 slice 2)
+- Strict grounding; citations = chunk_ids in retrieval order (deduped); lock google-generativeai 0.8.6
+  (defer google-genai); Gemini-only (no Claude fallback); edit the slice-1 __all__ test; defer live
+  10-Q eval + chat UI to slice 3; rotate the API key (it surfaced in a subagent); commit, no push.
+
+### Red-team caught 2 BLOCKERs (resolved in Plan Revision 1 before Execute)
+- B-A: `load_dotenv()` would inject the real `.env` key into the test process → suite-wide autouse
+  env-strip + load_dotenv no-op'd in the key-guard test + lazy genai import. B-C: existing
+  `test_api03` asserts exact 7-name `__all__` → declared edit to expect 11.
+
+### Security
+- A real `GOOGLE_API_KEY` is in gitignored `.env` (not committed) but surfaced in a subagent's
+  analysis this session — **owner should rotate it.**
+
+### Next session
+- **Phase 3 slice 3:** chat interface in the Streamlit dashboard (`ui/`) over `answer()`, and the live
+  10-question ≥8/10 representative-Q&A evaluation (needs the real Gemini key + manual run).
+
+---
+
 ## 2026-06-20 — Phase 3 slice 1 — branch: feature/phase3-slice1-rag-retrieval
 
 **Goal:** Begin Phase 3 (RAG co-pilot) with slice 1 — an OFFLINE hybrid-retrieval core

@@ -5,6 +5,41 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-20 — Phase 3 slice 2: LLM answer-layer contracts
+
+**Decision:** The Gemini answer layer ships with these contracts (owner-ratified "use your
+recommendations" at `docs/plans/2026-06-20-phase3-slice2-decision-gate.md`).
+
+1. **Strict anti-hallucination grounding.** A non-refused `Answer` requires ALL of: retrieval hits,
+   a valid JSON object, `sufficient is True` (strict identity — missing/`"yes"`/`0`/`false` all
+   refuse), non-empty `answer_text`, and ≥1 citation that is in the retrieved chunk ids. Any failure
+   → refuse with a fixed `REFUSAL_TEXT` + `citations=()`. Rejected: trusting the model's own
+   sufficiency claim (lenient) — ungrounded answers could escape, defeating the project's point.
+2. **The LLM is never called when there is nothing to ground on** — blank/None question or zero
+   retrieval hits return a refusal WITHOUT invoking the client (proven in tests via a client that
+   raises if called).
+3. **Citations = chunk_ids, returned in retrieval order, de-duplicated.** Non-retrieved ("hallucinated")
+   citations are dropped; non-string items ignored; if none remain → refuse.
+4. **Lock to google-generativeai 0.8.6.** Migrating to the newer `google-genai` SDK is a parking-lot
+   item (revisit at Phase 4 polish). google-genai is not installed.
+5. **Gemini only; no Claude fallback** this slice (CLAUDE.md parks the backup-LLM decision until after
+   Phase 3).
+6. **Offline + secret-safe test suite.** The live path (`GeminiClient._call_model`) lazily imports
+   google-generativeai and is `# pragma: no cover`; an autouse conftest fixture strips
+   `GOOGLE_API_KEY`/`ANTHROPIC_API_KEY` from the environment for every test; the missing-key guard
+   raises `ValueError` and is covered offline. No test reads a real key or makes a network call.
+7. **`GeminiClient` requests `response_mime_type="application/json"`** but the orchestrator parses +
+   validates the JSON DEFENSIVELY regardless (never trusts the model blindly). `response_schema` is
+   intentionally NOT used in slice 2.
+8. **Declared deviation from additive-only:** the slice-1 test
+   `test_public_api.py::test_api03_all_lists_exactly_the_public_names` was edited to expect the 11-name
+   `__all__` set (7 slice-1 + answer/Answer/GeminiClient/LLMClient) — required to keep the full suite green.
+
+**Security note:** a real `GOOGLE_API_KEY` placed in the gitignored `.env` surfaced in a subagent's
+analysis this session. Not committed (repo exposure nil), but the owner should rotate it.
+
+---
+
 ## 2026-06-20 — Phase 3 slice 1: RAG retrieval-core contracts
 
 **Decision:** The offline hybrid-retrieval core (`src/flying_probe_copilot/rag/`) ships with these
