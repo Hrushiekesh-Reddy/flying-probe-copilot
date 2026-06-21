@@ -26,15 +26,17 @@ Severity:
 **Time to resolve:** ~25 min (diagnosis ~10, doc lookup ~5, 3 edits + offline tests + live re-run ~10).
 **Follow-up:** The SDK itself (`google-generativeai` 0.8.6) is end-of-support and emits a `FutureWarning` on every import (cf. `llm.py:32`). Phase 4 backlog: migrate to the `google-genai` package. **RESOLVED 2026-06-21** on branch `feature/sdk-migrate-google-genai`: dep swapped (`google-generativeai>=0.8` → `google-genai>=1.0`, uv.lock pinned to `google-genai==2.9.0`), `_call_model` rewritten on the new `genai.Client(...).models.generate_content(...)` API (still `# pragma: no cover - live API`), model id unchanged. Full offline suite 519 passed / 1 skipped / 1 xfailed / 97% (identical to pre-migration baseline). Live env-gated `RAG_RUN_LLM_EVAL=1` ≥8/10 eval re-ran on the new SDK in 166.20s (single invocation; cold sentence-transformers + Chroma bootstrap accounts for the delta vs the prior warm 37.13s) and **PASSED**.
 
-## [BUG-012] `use_container_width=True` deprecated in Streamlit 1.58 (P3) — OPEN, deferred (approval-gated fix)
+## [BUG-012] `use_container_width=True` deprecated in Streamlit 1.58 (P3) — RESOLVED 2026-06-21
 
 **Discovered:** 2026-06-18
 **Found during:** Phase 2 slice 3 (Streamlit dashboard) — parent Triple-Check live launch + `AppTest` render.
 **File:line:** `src/flying_probe_copilot/ui/views.py` (every `st.plotly_chart(..., use_container_width=True)` + `st.dataframe(..., use_container_width=True)`).
 **Symptom:** Streamlit 1.58.0 emits a deprecation warning at render time: "`use_container_width` will be removed after 2025-12-31 ... use `width='stretch'`". The app still renders correctly (parameter is deprecated, not removed, in the locked 1.58.0).
 **Severity estimate:** P3 (cosmetic — zero functional impact on the locked version; will break on a future Streamlit that removes the param).
-**Why not fixed now:** The forward-compatible replacement (`width='stretch'`) is only supported in newer Streamlit and is NOT available in the project's declared floor `streamlit>=1.40` (`pyproject.toml`). Migrating therefore requires bumping the dependency floor — an **approval-gated** `pyproject.toml` edit (out of scope for the UI slice). Keeping `use_container_width=True` works across the whole `>=1.40` range with the locked 1.58.0.
-**Fix:** NOT DONE — out of scope. Follow-up (chipped): bump `streamlit` floor to a version supporting `width=`, then replace `use_container_width=True`→`width='stretch'` / `use_container_width=False`→`width='content'` across `ui/views.py`.
+**Root Cause:** API rename in Streamlit's deprecation cycle (`use_container_width` boolean → unified `width=` accepting `'stretch'` / `'content'` / pixel int). The project's declared floor `streamlit>=1.40` predated the new param, so the migration was blocked on an approval-gated `pyproject.toml` floor bump.
+**Fix:** Owner-approved approval-gated edit to `pyproject.toml`: `streamlit>=1.40` → `streamlit>=1.45` (uv.lock unchanged — already on 1.58.0). All 10 call sites in `src/flying_probe_copilot/ui/views.py` migrated `use_container_width=True` → `width="stretch"` (all sites were `=True`; zero `=False` cases, so no `width="content"` substitution needed). Double-quoted `"stretch"` matches the file's existing string-quote convention.
+**Verification:** Full suite 519 passed / 1 skipped / 1 xfailed / 97% (baseline held). Warnings audit dropped from 3 → 1; the single remaining warning is the unrelated opentelemetry `SelectableGroups` DeprecationWarning (transitive via chromadb, not ours). Zero `use_container_width` deprecation warnings remain. Grep across the source tree confirms zero `use_container_width` references in any `src/` or `tests/` file. UI `AppTest` suite in `tests/test_ui/` stays green (those tests don't assert chart-render kwargs).
+**Time to resolve:** ~10 min (single approval-gated edit + uv sync + mechanical 10-site replace_all + suite re-run).
 
 ## [BUG-011] Flaky `test_tokenize_balances_braces_returns_records` — shared repo-root render file (P2) — RESOLVED 2026-06-18
 
@@ -47,15 +49,17 @@ Severity:
 **Verification:** (1) RED→GREEN: the three affected tests fail against the old helper signature, pass after the fix. (2) Standalone before/after stress: two threads × 400 iterations of render→read→tokenize — **sharing one fixed path → 484/800 failures (380 PermissionError + 104 assertion); isolated per-actor paths → 0/800 failures.** (3) Real environment: while two pytest sweeps ran concurrently in the same worktree, an old-code iteration reproduced the failure (1 failed); the post-fix iteration (92 tests incl. the new regression) passed under the same concurrency. (4) New regression test `test_render_helper_isolates_to_tmp_path_not_repo_root` asserts the helper writes within `tmp_path` and never creates the shared repo-root file. Full suite: 236 passing, 1 xfailed, 0 failing.
 **Time to resolve:** ~50 min (repro + confirm + fix + verify + docs).
 
-## [BUG-010] `TestJetRecord` Pydantic model name causes PytestCollectionWarning on every test run (P3) — OPEN, deferred
+## [BUG-010] `TestJetRecord` Pydantic model name causes PytestCollectionWarning on every test run (P3) — RESOLVED 2026-06-21
 
 **Discovered:** 2026-06-16
 **Found during:** Phase 2 operator_id wiring session
-**File:line:** `src/flying_probe_copilot/generator/models.py:327`
+**File:line:** `src/flying_probe_copilot/generator/models.py:329` (line drift +2 from the 2026-06-16 entry's `327` as the file grew).
 **Symptom:** pytest emits `PytestCollectionWarning: cannot collect test class 'TestJetRecord' because it has a __init__ constructor` for two test files (`test_log_parser.py`, `test_roundtrip.py`) that import from models. Not a test failure — just noise in every test run output.
 **Root Cause:** Pydantic model class name `TestJetRecord` begins with `Test`, so pytest's default collection heuristic tries to gather it as a test class.
 **Severity estimate:** P3 (cosmetic/noise — zero impact on correctness)
-**Fix:** NOT DONE — out of scope this session. Rename to `TJetRecord` in models.py + all usages, or add `python_classes` conftest filter to exclude it. spawn_task chip created at Step 10.
+**Fix:** Added `__test__ = False` as a class attribute on `TestJetRecord` — pytest's documented per-class opt-out from the `Test*` collection heuristic. Picked this over the alternative (rename to `TJetRecord`) because the rename would touch every call site for zero behavior gain; the dunder is the surgical single-line fix. Dunders are invisible to Pydantic v2's field-detection metaclass (no `__annotations__` entry → not treated as a model field), so `ConfigDict(extra="forbid")` is unaffected and instance construction stays clean.
+**Verification:** Re-running only the two affected test files (`tests/test_parser/test_log_parser.py` + `tests/test_parser/test_roundtrip.py`) before the fix emits 2 × `PytestCollectionWarning`; after the fix both files run with zero warnings (50 passed in 33.74s, clean output). Full suite 519 passed / 1 skipped / 1 xfailed / 97% (baseline held). The previously-printed 2 collection warnings are now gone from the full-run warnings summary.
+**Time to resolve:** ~5 min (single-line addition + targeted re-run).
 
 ## [BUG-009] `test_runs.operator_id` was always batch-level (per-panel operator-id lost in per-board logs) (P2) — RESOLVED 2026-06-16
 
