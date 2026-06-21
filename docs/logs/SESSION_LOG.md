@@ -4,6 +4,67 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 slice 2 — headless screenshot capture + demo gif — branch: feature/phase4-slice2-screenshots
+
+**Goal:** Phase 4 slice 2: ship `scripts/capture_screenshots.py` (Playwright + Pillow) as the auto-recapture infrastructure that closes the "Capture screenshots from CI, not by hand" follow-up named in slice 1's case-study retrospective. Six dashboard JPGs + `docs/img/demo.gif` regenerate from one command against the gitignored `data/db/sample.duckdb`, no live Gemini key needed. Tier: Medium (full 12-step loop).
+**Outcome:** Shipped. New `scripts/` package (`capture_screenshots.py` 400 LOC + `_capture_app.py` Streamlit shim) + `tests/test_scripts/` (38 unit + 4 shim tests = 42 new green; 5 new env-gated correctly skipped) over a Playwright>=1.49 dev-group dep add. **Suite: 566 passing / 5 skipped / 1 xfailed / 97% coverage on `src/` denominator** (baseline 524/3/1 → +42/+2). Six 60-145 KB JPGs + 748 KB GIF89a regenerated against the freshly-built 900-panel `sample.duckdb`; README hero strip embedded the gif above the table. Zero `src/flying_probe_copilot/**` edits. Zero `.claude/**` edits. Ready for `feature/phase4-slice2-screenshots → dev` PR.
+
+### Done — code (executor sub-agent)
+- `scripts/capture_screenshots.py` (NEW, 400 LOC): pure helpers `build_canned_answer` / `assemble_gif` / `pick_free_port` / `check_outputs_complete` / `parse_args`; orchestration `capture_screenshots(db_path, out_dir, port=None)` launches `sys.executable -m streamlit run scripts/_capture_app.py` (W-3 fix: no `uv run` middleman → `proc.terminate()` reaches the actual server); Playwright Chromium 1440×900 viewport; sidebar-nav clicks scoped to `[data-testid='stSidebarNav']` with regex name to handle Streamlit's emoji-prefixed labels (B-5); Co-Pilot branch fills `stChatInput`, waits for `[data-testid='stChatMessage']`, clicks the "Citations (N)" expander via `get_by_text` (Streamlit renders `st.expander` as `<details><summary>`, not `<button>`); gif assembled via Pillow's `Image.save(save_all=True, append_images=..., duration=2000, loop=0, optimize=True)`. Constants: `CANNED_CITATION_ID = "failure-modes/tombstoning.md#3"` (B-1 fix from red-team; chunk #0 was the title section), `PAGE_CAPTURE_SPECS` (6-tuple in README hero-strip order).
+- `scripts/_capture_app.py` (NEW, 32 LOC): Streamlit shim. Imports `chat as _chat`, rebinds `_chat.answer_question = build_canned_answer`, then defensive `assert _chat.answer_question is build_canned_answer` (B-4 fix), then `from flying_probe_copilot.ui.app import main; main()`. `FPC_CAPTURE_DRY_IMPORT` sentinel short-circuits `main()` for subprocess import tests.
+- `scripts/__init__.py` + `tests/test_scripts/__init__.py` (NEW): empty package markers.
+- `tests/test_scripts/test_capture_screenshots.py` (NEW, 38 tests): unit-tests every pure helper (CAP-01..81 from the test-plan).
+- `tests/test_scripts/test_capture_shim.py` (NEW, 4 tests): subprocess-based shim monkeypatch survival checks (CAP-20..23).
+- `tests/test_scripts/test_capture_real.py` (NEW, 4 tests env-gated on `CAPTURE_RUN_PLAYWRIGHT=1`): end-to-end Playwright smoke; correctly skipped by default.
+- `tests/test_scripts/test_streamlit_sidebar_dom_shape.py` (NEW, 1 test env-gated): F18 sidebar-DOM canary; pins `data-testid='stSidebarNav'` against future Streamlit releases.
+- `tests/test_scripts/conftest.py` (NEW): autouse `_strip_llm_env` for defense-in-depth.
+- `tests/conftest.py` (MOD): `ui_db_path` fixture + `_populate_ui_db` helper lifted from `tests/test_ui/conftest.py` (MD-3 ratification); session-scope unchanged, no caller-name changes; both `test_ui/` and `test_scripts/` now resolve the fixture by name.
+- `tests/test_ui/conftest.py` (MOD): stripped to just `_strip_llm_env`; 270 → ~30 lines.
+- `tests/test_ui/test_chat_smoke.py` (MOD): declared parallel edit — `_grounded()` stub's `citations` + `retrieved_ids` tuples + CHAT-03's assertion all `tombstoning.md#0` → `#3` to keep the fixture and the capture shim's canned answer in sync (B-1 closure ripple).
+
+### Done — approval-gated dep + config (owner-ratified at Decision Gate)
+- `pyproject.toml`: added `playwright>=1.49` to `[dependency-groups].dev` (alphabetized; lockfile pinned 1.60.0); added `pythonpath = [".", "src"]` to `[tool.pytest.ini_options]` so `from scripts import capture_screenshots` resolves in tests (B-3 fix). MD-5 bundled both edits under one owner approval.
+- `uv.lock`: regenerated; +110 lines (playwright 1.60.0 + greenlet 3.5.2 + pyee 13.0.1).
+- One-time runtime: `uv run playwright install chromium` (NOT committed; AppData install).
+
+### Done — capture invocation (parent at Plan Step 11)
+- Pre-flight: built `data/db/sample.duckdb` via `bash scripts/build-portfolio-data.sh` (~3 min for 3×300-panel batches, 900 panels total, ~18 MB DB).
+- Two iterations of the capture script: (1) first run timed out on the Citations expander click (`get_by_role("button"...)` against Streamlit's `<details><summary>` → fixed to `get_by_text`); Overview screenshot was chart-skeletons only (2000ms initial settle insufficient for Overview's twin Plotly charts in `st.columns` → bumped initial settle to 4000ms, per-nav settle to 2500ms). (2) Second run produced all 7 portfolio-grade outputs.
+- Final outputs in `docs/img/`: `screenshot-overview.jpg` (91 KB; KPIs + Yield-by-board + Failure-Pareto-top-5 charts + sidebar filter dates), `screenshot-yield.jpg` (62 KB; 96.0% / 94.3% / 93.3% by board), `screenshot-pareto.jpg` (80 KB; A-RES dominant + cumulative %), `screenshot-spc.jpg` (145 KB; XmR chart with rule_1 + rule_4 alarms), `screenshot-anomalies.jpg` (83 KB; z-score by shift), `screenshot-copilot.jpg` (111 KB; canned tombstoning answer + **expanded** Citations (1) showing `failure-modes/tombstoning.md#3` — exactly the BUG-014 narrative artifact). `docs/img/demo.gif` (748 KB GIF89a; 6-frame cycle, 2 s/frame, 12 s loop).
+
+### Done — docs (parent at Plan Steps 12-13)
+- `README.md`: inserted `![Demo walkthrough](docs/img/demo.gif)` between the "Dashboard at a glance" header and the hero-strip table (D8 ratification — above strip, after intro).
+- `docs/case-study.md:123`: footnote-resolved the "Slice 1.5 candidate" line with `*[Resolved 2026-06-21 — slice 2 shipped automated capture; see scripts/capture_screenshots.py and the slice-2 brief.]*` (MD-2 ratification — preserves retrospective candor + adds receipt).
+- `docs/ROADMAP.md`: Phase 4 deliverable line for "README polished … screenshot strip" now reads "… (Phase 4 slice 1, 2026-06-21) + demo gif (Phase 4 slice 2, 2026-06-21)".
+- `docs/logs/DECISION_LOG.md`: full slice-2 entry covering the 18 owner-ratified decisions + 5 BLOCKER closures + rejected alternatives + revisit conditions.
+- `docs/plans/2026-06-21-phase4-slice2-{brief,plan,plan-rev1,test-plan,redteam,decision-gate,exec-report}.md`: 7 artifacts committed.
+- `CLAUDE.md`: Status block flipped Phase 4 slice 1 IN PR → slice 2 IN PR; this session-log line appended.
+
+### Step 5 red-team caught 5 BLOCKERs + 12 WARNINGs + 6 MISSING DECISIONs (all closed in Plan-Rev1 before Execute)
+- **B-1** Canned citation `#0` was the **title chunk** (empty body), not "Likely causes" — `failure-modes/tombstoning.md` chunk #3 is the section that actually answers "what causes tombstoning?". Closed: `CANNED_CITATION_ID = "...#3"` + declared parallel edit to `test_chat_smoke.py:24`.
+- **B-2** `st.expander` defaults to **collapsed** — the Co-Pilot screenshot would have shown an unopened "Citations (1)" disclosure, defeating the whole point of the demo. Closed: Playwright must click the expander toggle after rerun, before screenshot. No `chat.py` edit (out-of-scope).
+- **B-3** `from scripts import …` fails in pytest without `pythonpath = [".", "src"]` in `[tool.pytest.ini_options]`. Closed: bundled with the playwright dep-add under MD-5.
+- **B-4** Monkeypatch could be clobbered by Streamlit's rerun. Closed: defensive `assert` line in the shim + subprocess-based RED test.
+- **B-5** Sidebar nav `name="Overview"` won't match Streamlit's emoji-prefixed `"📊 Overview"`. Closed: regex name match scoped to `[data-testid='stSidebarNav']`.
+
+### Live-capture issues caught in-session (out of red-team scope)
+- Citations expander selector: red-team's `get_by_role("button", name=...)` recommendation was wrong — `st.expander` renders as `<details><summary>`, not a `<button>`. Switched to `get_by_text(re.compile(r"Citations \(\d+\)"))`. Worked first try after the fix.
+- Overview chart settle: initial 2000ms wait was enough for KPIs + sidebar but not for the two Plotly charts inside `st.columns`. Bumped initial settle 2000 → 4000ms; per-nav settle 1500 → 2500ms. All 4 of {yield, pareto, spc, anomalies} pages with single charts rendered cleanly at the original settle; Overview's twin-column layout was the outlier.
+
+### Bugs surfaced
+None new this slice. The Co-Pilot canned answer text (471 chars, parent-drafted at Decision Gate MD-6) is grounded entirely in `tombstoning.md` §Likely causes + §ICT signature — no factual drift from the cited chunk.
+
+### Phase 4 status
+- **Slice 1**: shipped (PR-merged Phase 4 slice 1 README + case-study).
+- **Slice 2 IN PR.** Capture script + demo gif + auto-recaptured hero strip on branch.
+- **Slice 3 queued**: GitHub Actions workflow (lint + tests + screenshot-recapture-on-PR), repo flip to public after guardrails audit.
+- **Slice 4 queued**: portfolio promotion (blog post + LinkedIn + resume bullet).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice2-screenshots → dev` PR (new gif renders on GitHub, hero strip looks fresh, capture script is single-command).
+2. Merge → start Phase 4 slice 3 (GH Actions workflow that runs `python scripts/capture_screenshots.py all` on dashboard-touching PRs + lint + tests; repo public flip after final guardrails audit).
+---
+
 ## 2026-06-21 — Phase 4 slice 1 — README polish + portfolio writeup — branch: feature/phase4-slice1-readme
 
 **Goal:** Phase 4 slice 1: replace the Phase-0 README with a portfolio-grade rewrite (hero strip, Mermaid diagram, status table, About-the-author footer) and author `docs/case-study.md` (~2,000 words) anchored on three engineering stories and the verified metrics suite. Tier: Medium (reduced loop, no code, no tests).
