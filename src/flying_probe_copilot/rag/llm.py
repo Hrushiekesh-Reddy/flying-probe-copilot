@@ -15,7 +15,7 @@ from typing import Protocol, runtime_checkable
 
 from dotenv import load_dotenv
 
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 
 
 @runtime_checkable

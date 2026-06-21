@@ -4,6 +4,35 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 3 exit-criterion run + model bump (BUG-013) — branch: claude/tender-pascal-30e50a
+
+**Goal:** Run the live ≥8/10 `RAG_RUN_LLM_EVAL=1` eval (Phase 3 exit criterion) against the rotated `GOOGLE_API_KEY`, then start Phase 4. Tier: Small (one-line model bump after a 404 surfaced).
+**Outcome:** Eval **PASSED** in 37.13s (≥8/10 cited expected source doc). **Phase 3 exit criterion MET.** BUG-013 logged + resolved. Ready for `dev → main` promotion PR.
+
+### Done
+- First live-eval attempt failed in 2m31s with `google.api_core.exceptions.NotFound: 404 This model models/gemini-2.0-flash is no longer available` — Google retired the model. The 2:31 wall-clock was entirely the gRPC client's 600s deadline + retries, not real API work.
+- Confirmed via Context7 (`/websites/ai_google_dev_gemini-api`): `gemini-3.5-flash` is the current flash-tier id; 2.0 Flash is officially shut down.
+- Bumped default model to `gemini-3.5-flash` at three sites: `src/flying_probe_copilot/rag/llm.py:18`, `tests/test_rag/test_llm.py:23`, `.env.example:14`.
+- Re-ran live eval against `gemini-3.5-flash` → **PASSED 10/10 in 37.13s**. Offline LLM tests 4/4 green either way.
+- Logged BUG-013 (P0 — RESOLVED 2026-06-21) with full traceback context + Context7 citation.
+
+### Decisions (owner-ratified)
+- All 3 model-name sites flip together as one coherent change.
+- Owner explicitly signed off on the `.env.example` edit (otherwise approval-gated per `agent-conduct.md`).
+- Live eval re-run authorized immediately after the bump landed.
+
+### Phase 3 status
+- **EXIT CRITERION MET.** Slices 1 (retrieval) + 2 (LLM) + 3 (chat UI/eval) all shipped; live ≥8/10 eval PASSED with the rotated key + current model. Ready for `dev → main` promotion.
+
+### Phase 4 backlog (chips to surface)
+- Migrate deprecated `google-generativeai` 0.8.6 → `google-genai` (FutureWarning emitted on every import; cf. `llm.py:32`).
+
+### Next session should
+1. Open `dev → main` PR promoting Phase 3 (slices 1 + 2 + 3 + BUG-013 fix once it merges to `dev`).
+2. Start Phase 4 slice 1 — README polish + portfolio writeup.
+
+---
+
 ## 2026-06-20 — Phase 3 slice 3 — branch: feature/phase3-slice3-chat-ui
 
 **Goal:** Finish Phase 3 — a Co-Pilot chat page in the Streamlit dashboard over `answer()`, plus
