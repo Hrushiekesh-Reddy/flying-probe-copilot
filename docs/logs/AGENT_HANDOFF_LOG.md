@@ -44,6 +44,178 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 3 slice 3 → Phase 4 (polish) — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 3 — Large-tier full 12-step loop on `feature/phase3-slice3-chat-ui`)
+**To:** Next session (owner live eval + Phase 3→main promotion, then Phase 4)
+**Branch:** `feature/phase3-slice3-chat-ui` (off `dev`) — committed at Step 10. Push/PR per owner.
+**Session goal:** Chat UI over `answer()` + the 10-question evaluation. **Closes Phase 3 code.**
+**Outcome:** Done. ~23 new tests, **519 passing / 1 skipped (live eval) / 1 xfailed / 97%**, `ui/chat.py` 100%.
+
+### Completed this session
+- **Source:** `ui/chat.py` (Co-Pilot chat page, injectable backend) + `ui/app.py` 6th page (declared edit).
+- **Eval:** `tests/test_rag/eval_dataset.py` (10 Q) + `docs/eval/phase3-eval-questions.md`.
+- **Tests (~23):** `tests/test_ui/test_chat_smoke.py`, `tests/test_rag/test_eval.py`, autouse env-strip in
+  `tests/test_ui/conftest.py`.
+- **Docs:** SESSION_LOG, DECISION_LOG (6 contracts), ROADMAP (3 boxes + status + close), CLAUDE.md, this
+  handoff. Artifacts: `docs/plans/2026-06-20-phase3-slice3-*`.
+- **Owner Decision Gate (7 ratified — "use your recommendations").**
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice3-chat-ui` → `dev` — committed locally, awaiting owner go-ahead.
+- **Live ≥8/10 eval (exit criterion):** owner runs `RAG_RUN_LLM_EVAL=1 python -m uv run pytest
+  tests/test_rag/test_eval.py -q` with a valid key. Then the slice-3 manual QA
+  (`docs/plans/2026-06-20-phase3-slice3-manual-qa.md`).
+- **Promote `dev → main`** at the Phase 3 boundary after the above pass.
+
+### Blocked — needs owner input
+- **ROTATE the Google API key** (still pending from slice 2) — surfaced in a subagent; needed for the
+  live eval + the chat page in real use.
+
+### Test suite status
+- [x] 519 passed, 1 skipped (env-gated live eval), 1 xfailed (BUG-011), 0 failed; 97% coverage.
+  Suite makes zero network/API calls; live eval is `skipif(not RAG_RUN_LLM_EVAL)`.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice3-chat-ui`, open PR → `dev`, address any Bugbot review.
+2. Owner rotates the key, runs the live ≥8/10 eval + slice-3 manual QA (launch dashboard → Co-Pilot page).
+3. Promote `dev → main` (Phase 3 boundary).
+4. **Phase 4 — polish & portfolio:** README + architecture diagram (Mermaid) + screenshots/demo gif,
+   case-study writeup, `docs/DEMO.md`, GitHub Actions (lint+tests on PR), flip repo public after the
+   guardrails checklist, resume bullet. Also chipped follow-ups: BUG-012 (`use_container_width`
+   deprecation), google-generativeai → google-genai migration (parked), KB expansion with real failure modes.
+
+### Hand-off notes
+- **Chat page needs the dashboard DB to launch** (app `st.stop()`s without it) — regenerate
+  `data/db/sample.duckdb` locally before launching (see slice-3 manual QA). The chat logic itself uses no DB.
+- **First Co-Pilot use downloads the embedding model** (all-MiniLM-L6-v2) + calls Gemini — needs the key
+  + network. Both are lazy/cached (`@st.cache_resource`).
+- **Strict refusal is by design.** If the live eval scores < 8/10 or answers refuse too often, the fix is
+  KB expansion / prompt tuning, NOT weakening the grounding rule.
+
+---
+
+### Handoff: Phase 3 slice 2 → Phase 3 slice 3 — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 2 — Large-tier full 12-step loop on `feature/phase3-slice2-llm`)
+**To:** Next session (Phase 3 slice 3 — chat UI + live 10-Q eval)
+**Branch:** `feature/phase3-slice2-llm` (off `dev`, post-#25-merge) — committed at Step 10. Push/PR per owner.
+**Session goal:** Gemini answer layer over slice-1 retrieval — grounded, citation-forced, strict refusal.
+**Outcome:** Done. 42 new tests, **496 passing / 1 xfailed / 97%** (new modules 100%). Offline + secret-safe.
+
+### Completed this session
+- **Source (4 files):** `rag/llm.py` (LLMClient Protocol + lazy GeminiClient), `rag/prompts.py`
+  (`build_answer_prompt`), `rag/answer.py` (`Answer` + `answer()` strict grounding), `rag/__init__.py`
+  (11 public names).
+- **Tests (4 new + 1 edited slice-1 test):** conftest autouse env-strip + FakeLLMClient/RaisingLLMClient/
+  StubRetriever; test_llm, test_prompts, test_answer, test_public_api (declared __all__ edit).
+- **Docs:** SESSION_LOG, DECISION_LOG (8 contracts), ROADMAP (3 boxes + 2 status), CLAUDE.md, this handoff.
+  Artifacts: `docs/plans/2026-06-20-phase3-slice2-*` (brief, plan +Revision 1, test-plan, decision-gate,
+  triple-check, manual-qa).
+- **Owner Decision Gate (8 ratified — "use your recommendations"):** see DECISION_LOG 2026-06-20 slice 2.
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice2-llm` → `dev` — committed locally, awaiting owner go-ahead.
+- **Manual QA** (live) — owner runs `docs/plans/2026-06-20-phase3-slice2-manual-qa.md` with a real key.
+
+### Blocked — needs owner input
+- **ROTATE the Google API key** — a real key in gitignored `.env` surfaced in a subagent's analysis this
+  session. Not committed, but rotate at aistudio.google.com/apikey and update `.env`.
+- Slice 3's live 10-Q eval needs the (rotated) key.
+
+### Test suite status
+- [x] All passing — 496 passed, 1 xfailed, 0 failed (parent + independent verifier). 97% coverage.
+  New modules `llm.py`/`prompts.py`/`answer.py` 100%. Suite makes zero network/API calls.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice2-llm`, open PR → `dev`, address any Bugbot review.
+2. Owner rotates the API key + runs the slice-2 live manual QA.
+3. **Phase 3 slice 3** — wire a chat page into `src/flying_probe_copilot/ui/` calling `answer()`
+   (build the retriever once via `st.cache_resource`; show answer + clickable citations → the cited
+   chunks; show the refusal text when refused). Then the **live 10-question ≥8/10 representative-Q&A
+   eval** against the real Gemini model (the Phase 3 exit criterion) — likely an env-gated test +
+   manual run, since it needs the key + network.
+
+### Hand-off notes
+- **answer() contract:** `answer(question, *, retriever, client, top_k=5) -> Answer`. `Answer` =
+  (question, answer_text, citations, refused, retrieved_ids). For the UI, build a `GeminiClient()` and a
+  `build_retriever("docs/knowledge-base")` (real ST embedder — downloads all-MiniLM-L6-v2 once). The
+  retriever's default embedder needs network on first use; cache it.
+- **Offline-test pattern continues:** any slice-3 test must inject FakeLLMClient (never the real client);
+  the autouse env-strip in `tests/test_rag/conftest.py` only covers `tests/test_rag/` — add an equivalent
+  if UI tests touch the LLM.
+- **Strict refusal is by design** — if live answers refuse too often in QA, that's a prompt/KB-coverage
+  tuning task (expand the KB / loosen the prompt), NOT a reason to weaken the grounding rule.
+
+---
+
+### Handoff: Phase 3 slice 1 → Phase 3 slice 2 — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 1 — Large-tier full 12-step loop on `feature/phase3-slice1-rag-retrieval`)
+**To:** Next session (Phase 3 slice 2 — Gemini LLM + citation prompt + anti-hallucination)
+**Branch:** `feature/phase3-slice1-rag-retrieval` (off `dev`) — committed at Step 10 (single coherent
+commit: `rag/` source + `tests/test_rag/` + `docs/knowledge-base/` + docs/plans + log updates).
+**NOT pushed** (push + PR owner-initiated per decision #9).
+**Session goal:** Ship the offline hybrid-retrieval core (ChromaDB vector + rank_bm25 lexical + RRF)
+over a seeded failure-mode KB — everything buildable without the Gemini key.
+**Outcome:** Done. 80 new tests, **454 passing / 1 xfailed / 97% coverage**, rag 99–100% per file.
+Additive-only; zero approval-gated edits.
+
+### Completed this session
+- **Source (6 files):** `src/flying_probe_copilot/rag/` — `models.py`, `kb_loader.py`,
+  `lexical_index.py`, `vector_index.py`, `retriever.py`, `__init__.py` (7 public names).
+- **KB scaffold:** `docs/knowledge-base/` README + 00-index + 8 synthetic failure-mode docs.
+- **Tests (7 files, 80):** `tests/test_rag/` incl. model-free `FakeEmbedder` (binary presence vectors).
+- **Docs:** SESSION_LOG, DECISION_LOG (9 contracts), ROADMAP (3 boxes + status + status-log), CLAUDE.md
+  (Status + phase table + session line), this handoff. Artifacts: `docs/plans/2026-06-20-phase3-slice1-*`
+  (brief, plan +Revision 1, test-plan, decision-gate, triple-check, manual-qa).
+- **Owner Decision Gate (9 ratified — "use your recommendations"):** see DECISION_LOG 2026-06-20.
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice1-rag-retrieval` → `dev` — committed locally, awaiting owner go-ahead.
+- **Manual QA** — owner runs `docs/plans/2026-06-20-phase3-slice1-manual-qa.md`.
+
+### Blocked — needs owner input
+- **Slice 2 needs the Gemini API key** in `.env` as `GEMINI_API_KEY` / `GOOGLE_API_KEY` (`.env` is gitignored;
+  never commit it). Slice 1 does not need it.
+
+### Test suite status
+- [x] All passing — 454 passed, 1 xfailed, 0 failed (`python -m uv run pytest -q`, parent + independent
+  verifier confirmed). 97% coverage. Pre-existing: BUG-011 (flaky parser test, xfail), BUG-010 (collection
+  warning), BUG-012 (use_container_width deprecation, P3) — none touched.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice1-rag-retrieval`, open PR → `dev`, address any Bugbot review.
+2. Owner runs the slice-1 manual-QA script; sign off.
+3. **Phase 3 slice 2** — Gemini LLM (`google-generativeai`, already a dep) behind a thin client; a
+   structured-output prompt that forces citation of retrieved chunk_ids; anti-hallucination refusal when
+   retrieval returns nothing. Build the LLM client mockable so unit tests don't call the API; gate any live
+   call behind an env var like the slice-1 model test. **Get the Gemini key first.**
+4. Owner expands `docs/knowledge-base/` with real field-learned failure modes (same heading structure).
+
+### Hand-off notes
+- **Offline by design:** the unit suite injects `FakeEmbedder`; the real `all-MiniLM-L6-v2` model is only
+  loaded by an env-gated test (`RAG_RUN_MODEL_TESTS`) and its load path is `# pragma: no cover`. Don't
+  "fix" coverage by forcing the real model into CI.
+- **Chroma quirk:** `EphemeralClient` shares process-level state, so `VectorIndex` uses a per-instance
+  collection name `kb_{uuid}` and `hnsw:space="cosine"` (NOT default L2). Keep both if refactoring.
+- **Retrieval is KB-corpus-only** this slice. Grounding answers in DuckDB *rows* is a slice-2/3 concern
+  once the LLM can read query results.
+
+---
+
 ### Handoff: Phase 2 slice 3 → Phase 3 (RAG) — 2026-06-18
 
 **From:** Claude Code parent (Phase 2 slice 3 — Medium-tier 12-step loop on `claude/zen-roentgen-2818ce`)

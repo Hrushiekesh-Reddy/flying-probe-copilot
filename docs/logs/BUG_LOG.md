@@ -14,6 +14,18 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-013] Default Gemini model `gemini-2.0-flash` retired by Google → live eval 404s (P0) — RESOLVED 2026-06-21
+
+**Discovered:** 2026-06-21
+**Phase:** Phase 3 exit-criterion run (live `RAG_RUN_LLM_EVAL=1` ≥8/10 eval).
+**File:line:** `src/flying_probe_copilot/rag/llm.py:18` (`DEFAULT_GEMINI_MODEL`), `tests/test_rag/test_llm.py:23`, `.env.example:14`.
+**Symptom:** `uv run pytest tests/test_rag/test_eval.py::test_eval_live_at_least_8_of_10` failed with `google.api_core.exceptions.NotFound: 404 This model models/gemini-2.0-flash is no longer available. Please update your code to use a newer model for the latest features and improvements.` First-run wall-clock 2m31s was wholly accounted for by the gRPC client's 600s deadline + retries against the missing model — not by any actual API work.
+**Root Cause:** Google retired `gemini-2.0-flash` (alongside 2.0 Flash-Lite, 3.1 Flash-Lite Preview, 3 Pro). Confirmed via current Gemini API docs (Context7: `/websites/ai_google_dev_gemini-api`, "Previous models, now shut down"). The constant in `llm.py` was set when 2.0 Flash was the current flash tier (Phase 3 slice 2, 2026-06-20).
+**Fix:** Bumped `DEFAULT_GEMINI_MODEL` to `gemini-3.5-flash` (current flash tier per Google docs) across three sites in one coherent change: `llm.py:18` (active default), `tests/test_rag/test_llm.py:23` (explicit-string constructor test — string update for accuracy), `.env.example:14` (documentation — approval-gated file; owner sign-off explicit before edit).
+**Verification:** Offline LLM tests 4/4 green; live eval re-ran in 37.13s and **PASSED** (≥8/10 of the 10 questions cited the expected source doc), satisfying the Phase 3 exit criterion.
+**Time to resolve:** ~25 min (diagnosis ~10, doc lookup ~5, 3 edits + offline tests + live re-run ~10).
+**Follow-up:** The SDK itself (`google-generativeai` 0.8.6) is end-of-support and emits a `FutureWarning` on every import (cf. `llm.py:32`). Phase 4 backlog: migrate to the `google-genai` package.
+
 ## [BUG-012] `use_container_width=True` deprecated in Streamlit 1.58 (P3) — OPEN, deferred (approval-gated fix)
 
 **Discovered:** 2026-06-18

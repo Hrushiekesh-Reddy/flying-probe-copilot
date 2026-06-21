@@ -5,6 +5,117 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-20 — Phase 3 slice 3: chat UI + evaluation contracts
+
+**Decision:** The Co-Pilot chat page + 10-question evaluation ship with these contracts
+(owner-ratified "use your recommendations" at `docs/plans/2026-06-20-phase3-slice3-decision-gate.md`).
+
+1. **Chat is a 6th `st.navigation` page** inside the existing DB-gated dashboard shell (not a separate
+   entrypoint). The chat logic needs no DB, but the dashboard still requires the DuckDB to launch
+   (unchanged Phase-2 `st.stop()` behavior). Rejected: standalone chat entrypoint (more surface, splits app).
+2. **Backend failures degrade gracefully:** `render_chat` wraps the `answer_question` call in
+   `try/except Exception → st.error`, appending no turn. Covers the live no-key `ValueError` / network
+   errors without crashing the page. Rejected: propagating the exception.
+3. **Injectable backend for offline tests.** `get_retriever`/`get_client`/`answer_question` are
+   `# pragma: no cover` live seams; `render_chat` calls the module-global `answer_question`, which tests
+   monkeypatch to a fake. AppTest smoke uses self-contained `_smoke_chat` wrappers with inner imports
+   (because `AppTest.from_function` source-extracts only the passed function's body). An autouse env-strip
+   was added to `tests/test_ui/conftest.py` (the slice-2 strip covered only `tests/test_rag/`).
+4. **Evaluation is split:** an OFFLINE citation-pattern test (scripted StubRetriever + FakeLLMClient
+   proving each question→expected-doc citation for all 10, deterministically) PLUS an env-gated live
+   accuracy test (`@skipif(not RAG_RUN_LLM_EVAL)`, default-skipped) that measures the ≥8/10 exit criterion
+   against the real Gemini model. The actual ≥8/10 number is the owner's manual/env-gated run — the
+   offline suite cannot measure real accuracy (needs model + embeddings + key). The live test must be
+   verified by skip-inspection only, never executed in CI.
+5. **`EVAL_QUESTIONS` (10) live in code** (`tests/test_rag/eval_dataset.py`) mirrored by
+   `docs/eval/phase3-eval-questions.md`; expected_doc is the KB-relative POSIX doc_id
+   (`failure-modes/<name>.md`), matching the slice-1 `kb_loader` chunk_id prefix. All 8 seeded docs covered.
+6. **Declared deviation from additive-only:** `ui/app.py` edited to register the page + update its
+   "5 pages" docs to "6 pages". No approval-gated files touched.
+
+**Phase 3 close:** with this slice all Phase 3 code deliverables are shipped; the owner runs the live
+≥8/10 eval with the (rotated) key and promotes `dev → main` at the Phase 3 boundary.
+
+---
+
+## 2026-06-20 — Phase 3 slice 2: LLM answer-layer contracts
+
+**Decision:** The Gemini answer layer ships with these contracts (owner-ratified "use your
+recommendations" at `docs/plans/2026-06-20-phase3-slice2-decision-gate.md`).
+
+1. **Strict anti-hallucination grounding.** A non-refused `Answer` requires ALL of: retrieval hits,
+   a valid JSON object, `sufficient is True` (strict identity — missing/`"yes"`/`0`/`false` all
+   refuse), non-empty `answer_text`, and ≥1 citation that is in the retrieved chunk ids. Any failure
+   → refuse with a fixed `REFUSAL_TEXT` + `citations=()`. Rejected: trusting the model's own
+   sufficiency claim (lenient) — ungrounded answers could escape, defeating the project's point.
+2. **The LLM is never called when there is nothing to ground on** — blank/None question or zero
+   retrieval hits return a refusal WITHOUT invoking the client (proven in tests via a client that
+   raises if called).
+3. **Citations = chunk_ids, returned in retrieval order, de-duplicated.** Non-retrieved ("hallucinated")
+   citations are dropped; non-string items ignored; if none remain → refuse.
+4. **Lock to google-generativeai 0.8.6.** Migrating to the newer `google-genai` SDK is a parking-lot
+   item (revisit at Phase 4 polish). google-genai is not installed.
+5. **Gemini only; no Claude fallback** this slice (CLAUDE.md parks the backup-LLM decision until after
+   Phase 3).
+6. **Offline + secret-safe test suite.** The live path (`GeminiClient._call_model`) lazily imports
+   google-generativeai and is `# pragma: no cover`; an autouse conftest fixture strips
+   `GOOGLE_API_KEY`/`ANTHROPIC_API_KEY` from the environment for every test; the missing-key guard
+   raises `ValueError` and is covered offline. No test reads a real key or makes a network call.
+7. **`GeminiClient` requests `response_mime_type="application/json"`** but the orchestrator parses +
+   validates the JSON DEFENSIVELY regardless (never trusts the model blindly). `response_schema` is
+   intentionally NOT used in slice 2.
+8. **Declared deviation from additive-only:** the slice-1 test
+   `test_public_api.py::test_api03_all_lists_exactly_the_public_names` was edited to expect the 11-name
+   `__all__` set (7 slice-1 + answer/Answer/GeminiClient/LLMClient) — required to keep the full suite green.
+
+**Security note:** a real `GOOGLE_API_KEY` placed in the gitignored `.env` surfaced in a subagent's
+analysis this session. Not committed (repo exposure nil), but the owner should rotate it.
+
+---
+
+## 2026-06-20 — Phase 3 slice 1: RAG retrieval-core contracts
+
+**Decision:** The offline hybrid-retrieval core (`src/flying_probe_copilot/rag/`) ships with these
+contracts. Slicing + the 9 gate decisions were owner-ratified ("use your recommendations") at the
+Decision Gate (`docs/plans/2026-06-20-phase3-slice1-decision-gate.md`).
+
+1. **Phase 3 is sliced into 3.** Slice 1 = offline retrieval core + KB scaffold (this session, no
+   Gemini key); slice 2 = Gemini LLM + citation prompt + anti-hallucination; slice 3 = chat UI +
+   10-Q eval. Rejected: building all 7 deliverables at once (blocks on the API key, high single-session
+   risk). Revisit: never — Phase 2 precedent (3 slices) validated.
+2. **ChromaDB collection uses `hnsw:space="cosine"`, not the default L2.** Red-team B1: under default
+   L2, raw bag-of-words vectors rank by magnitude, not overlap. Cosine + binary presence vectors (the
+   test fake embedder) make nearest = most-overlapping. Production ST embeddings are unit-norm-friendly
+   under cosine. Collection name is per-instance `kb_{uuid}` because `EphemeralClient` shares
+   process-level state (a fixed name collided across instances in one test run).
+3. **Lexical match = token overlap, NOT BM25 score > 0.** Red-team B3: `rank_bm25` returns ≤0 scores
+   for a term present in the only/most documents, so a sole matching chunk can score ≤0. A chunk is a
+   candidate iff it shares ≥1 query token; candidates are ranked by BM25 score (negatives allowed),
+   tiebreak chunk_id ASC. Rejected: "drop score ≤0" (would erase legitimate single-doc matches).
+4. **RRF: `score = Σ 1/(rrf_k + rank)`, rank base 1, `rrf_k=60`, equal weight; sort score DESC then
+   chunk_id ASC.** Red-team B2: RRF does NOT universally rank a both-list chunk above a one-list chunk
+   (a one-list rank-1 chunk at `1/61` can beat a both-list pair at high ranks). SUCCESS-WHEN re-scoped
+   to the low-rank regime of the small RET-01 corpus; no general guarantee is claimed.
+5. **Embedder is injectable; the default `SentenceTransformerEmbedder` (all-MiniLM-L6-v2) is lazy.**
+   Unit tests inject a deterministic model-free fake embedder → the suite is fully offline + reproducible
+   with no model download. The real model is exercised only by an env-gated test
+   (`RAG_RUN_MODEL_TESTS`, default-skipped); its load/embed body is `# pragma: no cover` so the ≥80%
+   coverage gate is attainable offline. Rejected: tests hitting the real model (slow, network-dependent,
+   CI-fragile).
+6. **`RetrievedChunk` exposes the fused score + per-retriever ranks (`lexical_rank`/`vector_rank`,
+   `None` if absent) — NOT raw per-retriever scores.** Ranks are what RRF + future citation need; raw
+   scores deferred. Revisit if slice 2 citation needs raw relevance scores.
+7. **Chunking:** ATX-heading sections, fence-aware (a `#` inside a ```` ``` ```` block is not a heading);
+   preamble/heading-less → one chunk with `heading=""`; bodies > `MAX_CHUNK_CHARS=1200` sub-split on
+   blank lines, hard char-split as fallback; deterministic ids `"{posix_relpath}#{ordinal}"`. Bad
+   `kb_dir` raises `FileNotFoundError`/`NotADirectoryError` (never a silent `[]`).
+8. **`top_k`/`rrf_k` boundaries:** `top_k==0 → []`, `top_k<0 → ValueError`, `rrf_k<1 → ValueError`,
+   uniform across lexical/vector/retriever.
+9. **Slice 1 retrieves over the KB markdown corpus only**, not DuckDB rows — row-grounding waits for
+   the LLM (slice 2/3). No approval-gated file touched (all deps already in `pyproject.toml` + `uv.lock`).
+
+---
+
 ## 2026-06-18 — Phase 2 slice 3: Streamlit dashboard UI contracts
 
 **Decision:** The `src/flying_probe_copilot/ui/` Streamlit dashboard ships with these contracts. The two

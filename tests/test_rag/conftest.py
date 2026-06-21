@@ -1,0 +1,143 @@
+"""Shared fixtures for the Phase 3 slice-1 RAG retrieval tests.
+
+The unit suite is fully offline and deterministic: it injects a model-free
+``FakeEmbedder`` (binary bag-of-words over a closed vocabulary) so vector search
+ranks strictly by vocabulary overlap and the nearest chunk is hand-computable.
+No SentenceTransformer model is ever loaded or downloaded by these tests.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Callable
+
+import pytest
+
+from flying_probe_copilot.rag.lexical_index import _tokenize
+
+
+class FakeEmbedder:
+    """Deterministic, model-free embedder for tests.
+
+    Embeds each text as a binary presence vector over a fixed, ordered
+    vocabulary: position ``i`` is ``1.0`` when the vocab term at index ``i``
+    appears in the (tokenized) text, else ``0.0``.  Under cosine distance this
+    makes similarity order strictly by vocabulary overlap, so a test can know in
+    advance which chunk is nearest a given query.  A text sharing no vocab term
+    embeds to the all-zero vector (the no-overlap / no-match case).
+    """
+
+    def __init__(self, vocab: list[str]) -> None:
+        self._vocab = list(vocab)
+        self._index = {term: i for i, term in enumerate(self._vocab)}
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for text in texts:
+            vec = [0.0] * len(self._vocab)
+            for token in set(_tokenize(text)):
+                pos = self._index.get(token)
+                if pos is not None:
+                    vec[pos] = 1.0
+            vectors.append(vec)
+        return vectors
+
+
+@pytest.fixture
+def fake_embedder() -> FakeEmbedder:
+    """A FakeEmbedder over a small, fixed failure-mode vocabulary."""
+    return FakeEmbedder(
+        [
+            "solder",
+            "bridge",
+            "open",
+            "short",
+            "tombstone",
+            "resistor",
+            "capacitor",
+            "drift",
+        ]
+    )
+
+
+@pytest.fixture
+def write_kb(tmp_path: Path) -> Callable[[dict[str, str]], Path]:
+    """Factory: write a KB tree from ``{relpath: markdown}`` and return its dir.
+
+    Relative paths may include subdirectories (POSIX ``/``); parents are
+    created as needed.  Returns the KB root directory.
+    """
+
+    def _write(files: dict[str, str]) -> Path:
+        kb_dir = tmp_path / "kb"
+        kb_dir.mkdir(exist_ok=True)
+        for rel, content in files.items():
+            target = kb_dir / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        return kb_dir
+
+    return _write
+
+
+# ---------------------------------------------------------------------------
+# Slice 2 — offline LLM-answer-layer fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _strip_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Suite-wide guard: no real LLM key is ever visible to a test.
+
+    The repo `.env` may hold a real GOOGLE_API_KEY; this removes it (and the
+    Anthropic key) from the environment for every test so nothing can make a
+    live API call or read a real secret.
+    """
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+
+class FakeLLMClient:
+    """Deterministic, offline stand-in for an ``LLMClient``.
+
+    Constructed with either a fixed ``response`` string or a ``responder``
+    callable ``(prompt) -> str``. Records every prompt it is asked to generate
+    for, so tests can assert exactly-once invocation and inspect the prompt.
+    """
+
+    def __init__(self, response: str = "", responder=None) -> None:
+        self._response = response
+        self._responder = responder
+        self.prompts: list[str] = []
+
+    @property
+    def call_count(self) -> int:
+        return len(self.prompts)
+
+    def generate(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        if self._responder is not None:
+            return self._responder(prompt)
+        return self._response
+
+
+class RaisingLLMClient:
+    """An ``LLMClient`` whose ``generate`` fails loudly if ever called.
+
+    Injected on every refusal-before-LLM path to prove the client is not called.
+    """
+
+    def generate(self, prompt: str) -> str:
+        raise AssertionError("LLM client must NOT be called on this path")
+
+
+class StubRetriever:
+    """Minimal retriever returning scripted hits, recording the top_k used."""
+
+    def __init__(self, hits: list) -> None:
+        self._hits = list(hits)
+        self.calls: list[int] = []
+
+    def retrieve(self, query: str, *, top_k: int = 5, rrf_k: int = 60) -> list:
+        self.calls.append(top_k)
+        return list(self._hits)

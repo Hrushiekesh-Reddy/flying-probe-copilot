@@ -103,17 +103,49 @@ Dashboard runs locally with `uv run streamlit run src/.../ui/app.py`. Loads in <
 **Goal:** Natural-language Q&A grounded in the data.
 
 ### Deliverables
-- [ ] `src/flying_probe_copilot/rag/` module
-- [ ] Failure-mode knowledge base in `docs/knowledge-base/` (markdown, owner-authored)
-- [ ] Hybrid retrieval: ChromaDB (vector) + rank_bm25 (lexical) + reciprocal rank fusion
-- [ ] LLM integration via Gemini API
-- [ ] Structured-output prompt template that forces citation of retrieved evidence
-- [ ] Chat interface integrated into Streamlit dashboard
-- [ ] Tests: 10 representative questions with expected citation patterns
-- [ ] Anti-hallucination test: questions with no supporting data must be refused
+- [x] `src/flying_probe_copilot/rag/` module (slice 1, 2026-06-20)
+- [x] Failure-mode knowledge base in `docs/knowledge-base/` (markdown scaffold seeded with 8 synthetic docs; owner expands — slice 1, 2026-06-20)
+- [x] Hybrid retrieval: ChromaDB (vector) + rank_bm25 (lexical) + reciprocal rank fusion (slice 1, 2026-06-20)
+- [x] LLM integration via Gemini API (slice 2, 2026-06-20)
+- [x] Structured-output prompt template that forces citation of retrieved evidence (slice 2, 2026-06-20)
+- [x] Chat interface integrated into Streamlit dashboard (slice 3, 2026-06-20)
+- [x] Tests: 10 representative questions with expected citation patterns (slice 3, 2026-06-20 — offline pattern test + env-gated live ≥8/10 harness)
+- [x] Anti-hallucination test: questions with no supporting data must be refused (slice 2, 2026-06-20)
 
 ### Exit criteria
 Co-pilot correctly answers ≥8 of 10 representative root-cause questions with citations. Refuses ungrounded questions.
+
+**Status (2026-06-20, slice 3):** Phase 3 **slice 3 complete — all Phase 3 code deliverables shipped.**
+Co-Pilot chat page (`ui/chat.py`, 6th `st.navigation` page) over `answer()` — renders grounded
+answers + citations, refuses ungrounded, graceful `st.error` on backend failure. 10-question eval:
+`EVAL_QUESTIONS` (code) + `docs/eval/phase3-eval-questions.md`, an offline citation-pattern test (all
+10) + an **env-gated live ≥8/10 harness** (`RAG_RUN_LLM_EVAL`, default-skipped) = the exit-criterion
+measurement. ~23 new tests, **519 passing / 1 skipped / 1 xfailed / 97%** (`ui/chat.py` 100%);
+offline + secret-safe. Red-team caught 1 BLOCKER (AppTest `from_function` can't run a real module
+function → self-contained wrappers). Branch: `feature/phase3-slice3-chat-ui`. **Exit criterion:** owner
+runs `RAG_RUN_LLM_EVAL=1` with the (rotated) key for the live ≥8/10 number, then promotes `dev → main`.
+**Next: Phase 4 — polish & portfolio.**
+
+**Status (2026-06-20, slice 2):** Phase 3 **slice 2 complete** — Gemini answer layer shipped.
+`rag/llm.py` (mockable `LLMClient` + lazy `GeminiClient`), `rag/prompts.py` (citation-forcing
+prompt), `rag/answer.py` (`answer()` + `Answer` with strict anti-hallucination grounding: refuse
+unless retrieval hits + valid JSON + `sufficient is True` + non-empty answer + ≥1 retrieved
+citation). 42 new tests, **496 passing / 1 xfailed / 97%** (new modules 100%); fully offline +
+secret-safe (live Gemini path `# pragma: no cover`, autouse env-strip, lazy SDK import). Red-team
+caught 2 BLOCKERs (`.env` key leaking into the test process; `__all__` exact-set test break) resolved
+in Plan Revision 1. Branch: `feature/phase3-slice2-llm`. **Remaining Phase 3: slice 3 — chat UI in the
+Streamlit dashboard + the live 10-question ≥8/10 eval (needs the real Gemini key).**
+
+**Status (2026-06-20):** Phase 3 **slice 1 complete** — offline hybrid-retrieval core shipped.
+`rag/` (6 files: models, kb_loader, lexical_index, vector_index, retriever, __init__) does
+ChromaDB-cosine vector + rank_bm25 lexical + reciprocal-rank fusion over a seeded
+`docs/knowledge-base/` (README + index + 8 synthetic failure-mode docs). 80 new tests,
+**454 passing / 1 xfailed / 97% coverage** (rag package 99–100% per file). Fully offline +
+deterministic (injected fake embedder; real all-MiniLM-L6-v2 env-gated). Full 12-step loop ran
+clean; Step 5 red-team caught 3 BLOCKERs (chroma L2-vs-cosine, RRF non-universal both>one claim,
+BM25 ≤0-score match test) resolved in Plan Revision 1 before Execute. Branch:
+`feature/phase3-slice1-rag-retrieval`. **Remaining Phase 3: slice 2 (Gemini LLM + citation prompt +
+anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q eval).**
 
 ---
 
@@ -153,4 +185,7 @@ A recruiter can land on the repo, watch the demo gif, read the case study, and u
 - 2026-06-13 — Phase 0: 8/9 deliverables done. Keysight manuals not yet downloaded. Log format will be researched from public sources in Phase 1a Step 2 (Explore).
 - 2026-06-13 — Phase 1a: 8/9 deliverables done in a single session. Synthetic HP3070 / Keysight i3070 ICT log generator complete. Format target revised mid-session to real Keysight Log Record Format (authoritative reference found via Virinco public mirror). 81 tests passing, 94% coverage, 1000 panels in ~1 s. README deliverable deferred to a follow-up doc session.
 - 2026-06-14 — Phase 1b: 6/7 deliverables done in a single Large-tier session. Parser module + DuckDB 9-table schema + ingest CLI + round-trip integrity tests + named yield-query test all green. 179 tests passing, 0 failing, 97% total coverage. Notebook deliverable deferred. 10-step loop completed end-to-end with Step 4 red-team Revision 1 catching 2 BLOCKERs + 5 WARNINGs that would have produced wrong-data round-trips.
+- 2026-06-20 — Phase 3 slice 3 (chat UI + 10-Q eval) complete — all Phase 3 code deliverables shipped. Co-Pilot chat page over answer(); 10-Q offline citation-pattern test + env-gated live ≥8/10 harness. 519 passing / 1 skipped / 1 xfailed / 97%. Exit criterion = owner's live RAG_RUN_LLM_EVAL run + dev→main promotion. Next: Phase 4.
+- 2026-06-20 — Phase 3 slice 2 (Gemini LLM answer layer) complete. Grounded, citation-forced answers with strict anti-hallucination refusal; mockable client (no live API in suite). 42 new tests, 496 passing / 1 xfailed / 97%. Red-team caught 2 BLOCKERs (`.env` key leak into tests, `__all__` exact-set break) resolved pre-Execute. Slice 3 (chat UI + live 10-Q eval) needs the real Gemini key.
+- 2026-06-20 — Phase 3 started, slice 1 (offline RAG retrieval core + KB scaffold) complete. ChromaDB-cosine + rank_bm25 + RRF over a seeded 8-doc failure-mode KB. 80 new tests, 454 passing / 1 xfailed / 97% coverage. Red-team caught 3 BLOCKERs (cosine space, RRF non-universal claim, BM25 token-overlap match) resolved pre-Execute. Slice 2 (Gemini LLM + citations) needs owner's API key; slice 3 (chat UI + 10-Q eval) follows.
 - 2026-06-16 — Phase 2 started, slice 1 (analytics foundation) complete. `yield_over_time` + `failure_pareto` shipped in a Medium-tier session. 39 new tests, 224 total passing, 0 failing. Analytics package coverage 96-100% per file. Per-row `placeholder_fields` marker keeps BUG-007-affected fields visible. 12-step session-workflow loop ran end-to-end; Step 5 adversarial review caught 7 BLOCKERs around notebook-canonical-SQL divergences that Plan Revision 1 resolved before Execute. Six v1 contract decisions documented in DECISION_LOG. Slice 2 (SPC + anomaly) and slice 3 (Streamlit dashboard) deferred to follow-up sessions.

@@ -4,6 +4,174 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 3 exit-criterion run + model bump (BUG-013) — branch: claude/tender-pascal-30e50a
+
+**Goal:** Run the live ≥8/10 `RAG_RUN_LLM_EVAL=1` eval (Phase 3 exit criterion) against the rotated `GOOGLE_API_KEY`, then start Phase 4. Tier: Small (one-line model bump after a 404 surfaced).
+**Outcome:** Eval **PASSED** in 37.13s (≥8/10 cited expected source doc). **Phase 3 exit criterion MET.** BUG-013 logged + resolved. Ready for `dev → main` promotion PR.
+
+### Done
+- First live-eval attempt failed in 2m31s with `google.api_core.exceptions.NotFound: 404 This model models/gemini-2.0-flash is no longer available` — Google retired the model. The 2:31 wall-clock was entirely the gRPC client's 600s deadline + retries, not real API work.
+- Confirmed via Context7 (`/websites/ai_google_dev_gemini-api`): `gemini-3.5-flash` is the current flash-tier id; 2.0 Flash is officially shut down.
+- Bumped default model to `gemini-3.5-flash` at three sites: `src/flying_probe_copilot/rag/llm.py:18`, `tests/test_rag/test_llm.py:23`, `.env.example:14`.
+- Re-ran live eval against `gemini-3.5-flash` → **PASSED 10/10 in 37.13s**. Offline LLM tests 4/4 green either way.
+- Logged BUG-013 (P0 — RESOLVED 2026-06-21) with full traceback context + Context7 citation.
+
+### Decisions (owner-ratified)
+- All 3 model-name sites flip together as one coherent change.
+- Owner explicitly signed off on the `.env.example` edit (otherwise approval-gated per `agent-conduct.md`).
+- Live eval re-run authorized immediately after the bump landed.
+
+### Phase 3 status
+- **EXIT CRITERION MET.** Slices 1 (retrieval) + 2 (LLM) + 3 (chat UI/eval) all shipped; live ≥8/10 eval PASSED with the rotated key + current model. Ready for `dev → main` promotion.
+
+### Phase 4 backlog (chips to surface)
+- Migrate deprecated `google-generativeai` 0.8.6 → `google-genai` (FutureWarning emitted on every import; cf. `llm.py:32`).
+
+### Next session should
+1. Open `dev → main` PR promoting Phase 3 (slices 1 + 2 + 3 + BUG-013 fix once it merges to `dev`).
+2. Start Phase 4 slice 1 — README polish + portfolio writeup.
+
+---
+
+## 2026-06-20 — Phase 3 slice 3 — branch: feature/phase3-slice3-chat-ui
+
+**Goal:** Finish Phase 3 — a Co-Pilot chat page in the Streamlit dashboard over `answer()`, plus
+the 10-question evaluation (offline citation-pattern tests + an env-gated live ≥8/10 harness = the
+Phase 3 exit criterion). Tier: Large — full 12-step governance.
+**Outcome:** Done. **Phase 3 code deliverables all shipped.** ~23 new tests, **519 passing /
+1 skipped (live eval) / 1 xfailed / 97% coverage** (`ui/chat.py` 100%). Offline + secret-safe.
+
+### Done
+- **Source:** `ui/chat.py` (`render_chat` — chat_input → `answer_question` → render answer +
+  citations in an expander; refusal renders `REFUSAL_TEXT`; backend errors → `st.error`; live
+  wiring `get_retriever`/`get_client`/`answer_question` all `# pragma: no cover`). `ui/app.py`
+  registers a 6th "Co-Pilot" page (declared edit; "5 pages"→"6 pages" docs).
+- **Eval:** `tests/test_rag/eval_dataset.py` (`EVAL_QUESTIONS` — 10 questions over all 8 KB docs) +
+  `docs/eval/phase3-eval-questions.md` (same 10, run instructions).
+- **Tests (~23):** `tests/test_ui/test_chat_smoke.py` (6 AppTest cases via self-contained
+  `_smoke_chat` wrapper + monkeypatched backend), `tests/test_rag/test_eval.py` (dataset integrity +
+  10 offline citation-pattern + hallucinated-cite refusal + off-domain refusal + env-gated live
+  ≥8/10). Autouse env-strip added to `tests/test_ui/conftest.py`.
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice3-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified — DECISION_LOG 2026-06-20 slice 3)
+- Chat as 6th dashboard page (DB-gated shell); graceful `st.error` on backend failure; eval =
+  offline citation-pattern test + env-gated live ≥8/10 harness (`RAG_RUN_LLM_EVAL`); declared app.py
+  edit; autouse env-strip for ui tests; commit, no push.
+
+### Red-team caught 1 BLOCKER (resolved in Plan Revision 1 before Execute)
+- `AppTest.from_function(render_chat)` can't run a real module function (source-extracts only the
+  body) → use self-contained `_smoke_chat` wrappers with inner imports + module-global backend patch.
+  Multi-turn persistence was empirically de-risked (works).
+
+### Phase 3 status
+- **All Phase 3 code deliverables shipped** (slices 1 retrieval + 2 LLM + 3 chat UI/eval). The
+  exit-criterion live ≥8/10 number is the owner's env-gated run with the (rotated) key. After merge:
+  run the live eval + promote `dev → main` at the Phase 3 boundary. Next: Phase 4 (polish/portfolio).
+
+---
+
+## 2026-06-20 — Phase 3 slice 2 — branch: feature/phase3-slice2-llm
+
+**Goal:** Gemini LLM answer layer on top of slice-1 retrieval — grounded, citation-forced
+answers with strict anti-hallucination refusal, fully mockable (no live API in the unit suite).
+Tier: Large — full 12-step governance (Document → Explore → Plan +Revision 1 → Test-Case Plan →
+adversarial red-team → Decision Gate → Execute TDD → Verify → Triple Check → Documentation).
+**Outcome:** Done. **42 new tests, 496 passing / 1 xfailed / 97% coverage** (new modules 100%).
+Additive except one declared slice-1 test edit (`test_public_api` __all__ set). Zero approval-gated
+files touched.
+
+### Done
+- **Source (4 files):** `rag/llm.py` (`LLMClient` runtime_checkable Protocol + `GeminiClient` —
+  lazy, `_resolve_key` from api_key/`.env`/env, missing→`ValueError`, live `_call_model` lazy-imports
+  google-generativeai + `# pragma: no cover`), `rag/prompts.py` (`build_answer_prompt` — citation-
+  forcing, JSON-output instruction), `rag/answer.py` (`Answer` frozen + `answer()` orchestrator with
+  the strict grounding rule + `REFUSAL_TEXT`), `rag/__init__.py` (+4 exports → 11 public names).
+- **Tests (4 new files + 1 edit, 42):** conftest gains autouse env-strip + `FakeLLMClient` /
+  `RaisingLLMClient` / `StubRetriever`; `test_llm` (4), `test_prompts` (10), `test_answer` (24),
+  `test_public_api` (edited __all__ set + new slice-2 import test).
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice2-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Anti-hallucination contract (the product point)
+A non-refused `Answer` requires ALL of: retrieval hits, valid JSON dict, `sufficient is True`
+(strict), non-empty answer, and ≥1 citation that was actually retrieved. Any failure → refuse with
+`REFUSAL_TEXT` + empty citations. The LLM is **never called** on blank/None question or no-hits paths.
+Hallucinated (non-retrieved) citations are dropped; all-hallucinated → refuse.
+
+### Decisions (owner-ratified — DECISION_LOG 2026-06-20 slice 2)
+- Strict grounding; citations = chunk_ids in retrieval order (deduped); lock google-generativeai 0.8.6
+  (defer google-genai); Gemini-only (no Claude fallback); edit the slice-1 __all__ test; defer live
+  10-Q eval + chat UI to slice 3; rotate the API key (it surfaced in a subagent); commit, no push.
+
+### Red-team caught 2 BLOCKERs (resolved in Plan Revision 1 before Execute)
+- B-A: `load_dotenv()` would inject the real `.env` key into the test process → suite-wide autouse
+  env-strip + load_dotenv no-op'd in the key-guard test + lazy genai import. B-C: existing
+  `test_api03` asserts exact 7-name `__all__` → declared edit to expect 11.
+
+### Security
+- A real `GOOGLE_API_KEY` is in gitignored `.env` (not committed) but surfaced in a subagent's
+  analysis this session — **owner should rotate it.**
+
+### Next session
+- **Phase 3 slice 3:** chat interface in the Streamlit dashboard (`ui/`) over `answer()`, and the live
+  10-question ≥8/10 representative-Q&A evaluation (needs the real Gemini key + manual run).
+
+---
+
+## 2026-06-20 — Phase 3 slice 1 — branch: feature/phase3-slice1-rag-retrieval
+
+**Goal:** Begin Phase 3 (RAG co-pilot) with slice 1 — an OFFLINE hybrid-retrieval core
+(`src/flying_probe_copilot/rag/`: ChromaDB vector + rank_bm25 lexical + reciprocal rank
+fusion) over a seeded failure-mode knowledge base, plus the KB scaffold. Zero LLM calls,
+needs no Gemini key. Tier: Large — full 12-step governance (Document → Explore → Plan +
+Revision 1 → Test-Case Plan → adversarial red-team → Decision Gate → Execute TDD → Verify
+→ Triple Check → Documentation).
+**Outcome:** Done. **80 new tests, 454 passing / 1 xfailed / 97% coverage.** rag package
+99–100% per file. Pure additive — zero edits to existing source/tests; zero approval-gated
+files touched (all deps already declared + locked).
+
+### Done
+- **Source (6 files):** `rag/models.py` (`Chunk`, `RetrievedChunk` frozen), `rag/kb_loader.py`
+  (`load_kb` — fence-aware ATX heading chunking, 1200-char cap, deterministic POSIX-relpath
+  ids, skips README/`_*`, raises on bad dir), `rag/lexical_index.py` (`LexicalIndex` over
+  BM25Okapi + `_tokenize`; match by token-overlap not score sign), `rag/vector_index.py`
+  (`VectorIndex` over in-memory chroma `hnsw:space="cosine"`, injectable `Embedder` protocol,
+  lazy default `SentenceTransformerEmbedder`, all-zero guard), `rag/retriever.py`
+  (`HybridRetriever.retrieve` RRF k=60 + `build_retriever`), `rag/__init__.py` (7 public names).
+- **KB scaffold:** `docs/knowledge-base/` README + 00-index + 8 synthetic failure-mode docs
+  (opens, shorts, cold-solder-joint, tombstoning, insufficient-solder, component-misorientation,
+  out-of-tolerance-analog, missing-component). Guardrail-compliant: standards by section number
+  only; no IPC/J-STD/Keysight verbatim.
+- **Tests (7 files, 80):** `test_rag/conftest.py` (model-free FakeEmbedder = binary presence
+  vectors over a closed vocab + tmp-KB writer), `test_models` (6), `test_kb_loader` (18),
+  `test_lexical_index` (15), `test_vector_index` (17), `test_retriever` (21), `test_public_api` (3).
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice1-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-20)
+- Slice Phase 3 into 3 (slice 1 = offline retrieval core this session); seed 6–8 synthetic KB
+  docs; default embedder all-MiniLM-L6-v2; RRF k=60 equal weight, tiebreak chunk_id ASC;
+  inject fake embedder for offline tests (real model env-gated `RAG_RUN_MODEL_TESTS`);
+  `RetrievedChunk` exposes ranks only (raw scores deferred); KB-corpus-only (no DuckDB-row
+  grounding this slice); commit, do not push.
+
+### Red-team caught 3 BLOCKERs (resolved in Plan Revision 1 before Execute)
+- B1: chroma defaults to L2 → set cosine space + binary fake vectors. B2: "both-list always
+  outranks one-list" is a false universal → SUCCESS-WHEN re-scoped to the small RET-01 corpus.
+  B3: BM25 yields ≤0 scores → match by token-overlap, not score sign.
+
+### Execution fixes (in-scope)
+- Chroma collection name → per-instance `kb_{uuid}` (EphemeralClient shares process state).
+- `# pragma: no cover` on the two default-ST-embedder lines (clean offline coverage, G12).
+
+### Next session
+- **Phase 3 slice 2:** Gemini LLM integration + citation-forcing structured-output prompt +
+  anti-hallucination refusal. **Needs the owner's Gemini API key** (`.env`, gitignored).
+
+---
+
 ## 2026-06-18 — Phase 2 slice 3 — branch: claude/zen-roentgen-2818ce
 
 **Goal:** Ship the Streamlit + Plotly UI (`src/flying_probe_copilot/ui/`) over the 4 existing pure

@@ -24,6 +24,18 @@ from flying_probe_copilot.db.schema import init_database
 
 
 # ---------------------------------------------------------------------------
+# Offline guard: no real LLM key is visible to any UI test (chat page included)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _strip_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove LLM keys for every UI test so the chat page cannot call a live API."""
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+
+# ---------------------------------------------------------------------------
 # Helper: insert all required rows into a writable connection
 # ---------------------------------------------------------------------------
 
