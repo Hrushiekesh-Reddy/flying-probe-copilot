@@ -5,6 +5,39 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-20 — Phase 3 slice 3: chat UI + evaluation contracts
+
+**Decision:** The Co-Pilot chat page + 10-question evaluation ship with these contracts
+(owner-ratified "use your recommendations" at `docs/plans/2026-06-20-phase3-slice3-decision-gate.md`).
+
+1. **Chat is a 6th `st.navigation` page** inside the existing DB-gated dashboard shell (not a separate
+   entrypoint). The chat logic needs no DB, but the dashboard still requires the DuckDB to launch
+   (unchanged Phase-2 `st.stop()` behavior). Rejected: standalone chat entrypoint (more surface, splits app).
+2. **Backend failures degrade gracefully:** `render_chat` wraps the `answer_question` call in
+   `try/except Exception → st.error`, appending no turn. Covers the live no-key `ValueError` / network
+   errors without crashing the page. Rejected: propagating the exception.
+3. **Injectable backend for offline tests.** `get_retriever`/`get_client`/`answer_question` are
+   `# pragma: no cover` live seams; `render_chat` calls the module-global `answer_question`, which tests
+   monkeypatch to a fake. AppTest smoke uses self-contained `_smoke_chat` wrappers with inner imports
+   (because `AppTest.from_function` source-extracts only the passed function's body). An autouse env-strip
+   was added to `tests/test_ui/conftest.py` (the slice-2 strip covered only `tests/test_rag/`).
+4. **Evaluation is split:** an OFFLINE citation-pattern test (scripted StubRetriever + FakeLLMClient
+   proving each question→expected-doc citation for all 10, deterministically) PLUS an env-gated live
+   accuracy test (`@skipif(not RAG_RUN_LLM_EVAL)`, default-skipped) that measures the ≥8/10 exit criterion
+   against the real Gemini model. The actual ≥8/10 number is the owner's manual/env-gated run — the
+   offline suite cannot measure real accuracy (needs model + embeddings + key). The live test must be
+   verified by skip-inspection only, never executed in CI.
+5. **`EVAL_QUESTIONS` (10) live in code** (`tests/test_rag/eval_dataset.py`) mirrored by
+   `docs/eval/phase3-eval-questions.md`; expected_doc is the KB-relative POSIX doc_id
+   (`failure-modes/<name>.md`), matching the slice-1 `kb_loader` chunk_id prefix. All 8 seeded docs covered.
+6. **Declared deviation from additive-only:** `ui/app.py` edited to register the page + update its
+   "5 pages" docs to "6 pages". No approval-gated files touched.
+
+**Phase 3 close:** with this slice all Phase 3 code deliverables are shipped; the owner runs the live
+≥8/10 eval with the (rotated) key and promotes `dev → main` at the Phase 3 boundary.
+
+---
+
 ## 2026-06-20 — Phase 3 slice 2: LLM answer-layer contracts
 
 **Decision:** The Gemini answer layer ships with these contracts (owner-ratified "use your
