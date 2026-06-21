@@ -5,6 +5,49 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-20 — Phase 3 slice 1: RAG retrieval-core contracts
+
+**Decision:** The offline hybrid-retrieval core (`src/flying_probe_copilot/rag/`) ships with these
+contracts. Slicing + the 9 gate decisions were owner-ratified ("use your recommendations") at the
+Decision Gate (`docs/plans/2026-06-20-phase3-slice1-decision-gate.md`).
+
+1. **Phase 3 is sliced into 3.** Slice 1 = offline retrieval core + KB scaffold (this session, no
+   Gemini key); slice 2 = Gemini LLM + citation prompt + anti-hallucination; slice 3 = chat UI +
+   10-Q eval. Rejected: building all 7 deliverables at once (blocks on the API key, high single-session
+   risk). Revisit: never — Phase 2 precedent (3 slices) validated.
+2. **ChromaDB collection uses `hnsw:space="cosine"`, not the default L2.** Red-team B1: under default
+   L2, raw bag-of-words vectors rank by magnitude, not overlap. Cosine + binary presence vectors (the
+   test fake embedder) make nearest = most-overlapping. Production ST embeddings are unit-norm-friendly
+   under cosine. Collection name is per-instance `kb_{uuid}` because `EphemeralClient` shares
+   process-level state (a fixed name collided across instances in one test run).
+3. **Lexical match = token overlap, NOT BM25 score > 0.** Red-team B3: `rank_bm25` returns ≤0 scores
+   for a term present in the only/most documents, so a sole matching chunk can score ≤0. A chunk is a
+   candidate iff it shares ≥1 query token; candidates are ranked by BM25 score (negatives allowed),
+   tiebreak chunk_id ASC. Rejected: "drop score ≤0" (would erase legitimate single-doc matches).
+4. **RRF: `score = Σ 1/(rrf_k + rank)`, rank base 1, `rrf_k=60`, equal weight; sort score DESC then
+   chunk_id ASC.** Red-team B2: RRF does NOT universally rank a both-list chunk above a one-list chunk
+   (a one-list rank-1 chunk at `1/61` can beat a both-list pair at high ranks). SUCCESS-WHEN re-scoped
+   to the low-rank regime of the small RET-01 corpus; no general guarantee is claimed.
+5. **Embedder is injectable; the default `SentenceTransformerEmbedder` (all-MiniLM-L6-v2) is lazy.**
+   Unit tests inject a deterministic model-free fake embedder → the suite is fully offline + reproducible
+   with no model download. The real model is exercised only by an env-gated test
+   (`RAG_RUN_MODEL_TESTS`, default-skipped); its load/embed body is `# pragma: no cover` so the ≥80%
+   coverage gate is attainable offline. Rejected: tests hitting the real model (slow, network-dependent,
+   CI-fragile).
+6. **`RetrievedChunk` exposes the fused score + per-retriever ranks (`lexical_rank`/`vector_rank`,
+   `None` if absent) — NOT raw per-retriever scores.** Ranks are what RRF + future citation need; raw
+   scores deferred. Revisit if slice 2 citation needs raw relevance scores.
+7. **Chunking:** ATX-heading sections, fence-aware (a `#` inside a ```` ``` ```` block is not a heading);
+   preamble/heading-less → one chunk with `heading=""`; bodies > `MAX_CHUNK_CHARS=1200` sub-split on
+   blank lines, hard char-split as fallback; deterministic ids `"{posix_relpath}#{ordinal}"`. Bad
+   `kb_dir` raises `FileNotFoundError`/`NotADirectoryError` (never a silent `[]`).
+8. **`top_k`/`rrf_k` boundaries:** `top_k==0 → []`, `top_k<0 → ValueError`, `rrf_k<1 → ValueError`,
+   uniform across lexical/vector/retriever.
+9. **Slice 1 retrieves over the KB markdown corpus only**, not DuckDB rows — row-grounding waits for
+   the LLM (slice 2/3). No approval-gated file touched (all deps already in `pyproject.toml` + `uv.lock`).
+
+---
+
 ## 2026-06-18 — Phase 2 slice 3: Streamlit dashboard UI contracts
 
 **Decision:** The `src/flying_probe_copilot/ui/` Streamlit dashboard ships with these contracts. The two

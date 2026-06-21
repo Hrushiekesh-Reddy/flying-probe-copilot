@@ -4,6 +4,58 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-20 — Phase 3 slice 1 — branch: feature/phase3-slice1-rag-retrieval
+
+**Goal:** Begin Phase 3 (RAG co-pilot) with slice 1 — an OFFLINE hybrid-retrieval core
+(`src/flying_probe_copilot/rag/`: ChromaDB vector + rank_bm25 lexical + reciprocal rank
+fusion) over a seeded failure-mode knowledge base, plus the KB scaffold. Zero LLM calls,
+needs no Gemini key. Tier: Large — full 12-step governance (Document → Explore → Plan +
+Revision 1 → Test-Case Plan → adversarial red-team → Decision Gate → Execute TDD → Verify
+→ Triple Check → Documentation).
+**Outcome:** Done. **80 new tests, 454 passing / 1 xfailed / 97% coverage.** rag package
+99–100% per file. Pure additive — zero edits to existing source/tests; zero approval-gated
+files touched (all deps already declared + locked).
+
+### Done
+- **Source (6 files):** `rag/models.py` (`Chunk`, `RetrievedChunk` frozen), `rag/kb_loader.py`
+  (`load_kb` — fence-aware ATX heading chunking, 1200-char cap, deterministic POSIX-relpath
+  ids, skips README/`_*`, raises on bad dir), `rag/lexical_index.py` (`LexicalIndex` over
+  BM25Okapi + `_tokenize`; match by token-overlap not score sign), `rag/vector_index.py`
+  (`VectorIndex` over in-memory chroma `hnsw:space="cosine"`, injectable `Embedder` protocol,
+  lazy default `SentenceTransformerEmbedder`, all-zero guard), `rag/retriever.py`
+  (`HybridRetriever.retrieve` RRF k=60 + `build_retriever`), `rag/__init__.py` (7 public names).
+- **KB scaffold:** `docs/knowledge-base/` README + 00-index + 8 synthetic failure-mode docs
+  (opens, shorts, cold-solder-joint, tombstoning, insufficient-solder, component-misorientation,
+  out-of-tolerance-analog, missing-component). Guardrail-compliant: standards by section number
+  only; no IPC/J-STD/Keysight verbatim.
+- **Tests (7 files, 80):** `test_rag/conftest.py` (model-free FakeEmbedder = binary presence
+  vectors over a closed vocab + tmp-KB writer), `test_models` (6), `test_kb_loader` (18),
+  `test_lexical_index` (15), `test_vector_index` (17), `test_retriever` (21), `test_public_api` (3).
+- **Artifacts** under `docs/plans/2026-06-20-phase3-slice1-*.md`: brief, plan (+Revision 1),
+  test-plan, decision-gate, triple-check, manual-qa.
+
+### Decisions (owner-ratified at Decision Gate — full reasoning in DECISION_LOG 2026-06-20)
+- Slice Phase 3 into 3 (slice 1 = offline retrieval core this session); seed 6–8 synthetic KB
+  docs; default embedder all-MiniLM-L6-v2; RRF k=60 equal weight, tiebreak chunk_id ASC;
+  inject fake embedder for offline tests (real model env-gated `RAG_RUN_MODEL_TESTS`);
+  `RetrievedChunk` exposes ranks only (raw scores deferred); KB-corpus-only (no DuckDB-row
+  grounding this slice); commit, do not push.
+
+### Red-team caught 3 BLOCKERs (resolved in Plan Revision 1 before Execute)
+- B1: chroma defaults to L2 → set cosine space + binary fake vectors. B2: "both-list always
+  outranks one-list" is a false universal → SUCCESS-WHEN re-scoped to the small RET-01 corpus.
+  B3: BM25 yields ≤0 scores → match by token-overlap, not score sign.
+
+### Execution fixes (in-scope)
+- Chroma collection name → per-instance `kb_{uuid}` (EphemeralClient shares process state).
+- `# pragma: no cover` on the two default-ST-embedder lines (clean offline coverage, G12).
+
+### Next session
+- **Phase 3 slice 2:** Gemini LLM integration + citation-forcing structured-output prompt +
+  anti-hallucination refusal. **Needs the owner's Gemini API key** (`.env`, gitignored).
+
+---
+
 ## 2026-06-18 — Phase 2 slice 3 — branch: claude/zen-roentgen-2818ce
 
 **Goal:** Ship the Streamlit + Plotly UI (`src/flying_probe_copilot/ui/`) over the 4 existing pure
