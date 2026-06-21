@@ -4,6 +4,35 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 chip: SDK migrate google-generativeai → google-genai — branch: feature/sdk-migrate-google-genai
+
+**Goal:** Close the Phase 4 chip carried out of the 2026-06-21 Phase 3 exit-criterion session — migrate the end-of-support `google-generativeai` 0.8.6 package to the supported `google-genai` package, on the same model id (`gemini-3.5-flash`). Tier: Small-to-Medium (single touchpoint: one function body + 2 docstring lines + 1 pyproject line + lockfile refresh).
+**Outcome:** Dep swap landed, `_call_model` rewritten on the new client API, full offline suite still **519 passed / 1 skipped / 1 xfailed / 97%** (identical to pre-migration baseline), **live `RAG_RUN_LLM_EVAL=1` ≥8/10 eval re-confirmed PASSED on the new SDK** (`gemini-3.5-flash`, single invocation, 166.20s wall-clock — longer than the prior 37.13s only because this run paid the cold sentence-transformers + Chroma bootstrap cost; the model call itself is unchanged). BUG-013 follow-up note closed. Ready for `dev` PR.
+
+### Done
+- Confirmed new SDK shape on PyPI (`google-genai` 2.9.0, released 2026-06-19): `from google import genai; from google.genai import types; client = genai.Client(api_key=...); client.models.generate_content(model=..., contents=..., config=types.GenerateContentConfig(response_mime_type="application/json")).text`.
+- Owner sign-off captured before any approval-gated edit (`pyproject.toml` swap: `google-generativeai>=0.8` → `google-genai>=1.0`, floor pattern matches `duckdb>=1.1` / `chromadb>=0.6` style).
+- `uv sync` refreshed `uv.lock`: `google-generativeai` removed, `google-genai==2.9.0` resolved.
+- `src/flying_probe_copilot/rag/llm.py` — `_call_model` body swapped (7 lines, still `# pragma: no cover - live API`); module docstring `google.generativeai` → `google.genai`; `GeminiClient` class docstring `(google-generativeai 0.8.x)` → `(google-genai 1.x+)`. No public API change, no protocol change.
+- Offline LLM contract suite (LLM-01..05b) still green — those tests cover lazy construction + key resolution + Protocol conformance, none of which change.
+- Warnings audit on the offline run: 3 warnings = 1 opentelemetry `SelectableGroups` (transitive via chromadb, pre-existing) + 2 × `TestJetRecord` PytestCollectionWarning (BUG-010, deferred). **Zero `google.generativeai` FutureWarnings, zero `google.genai` warnings.** Clean.
+
+### Decisions (owner-ratified)
+- pyproject floor = `google-genai>=1.0` (broad floor + lockfile pin; matches the project's existing style).
+- No new offline test for `_call_model` — exercising it would need ~30 LOC of `sys.modules` monkeypatching to mock `from google import genai`. The 6-line body change is mechanical; the live env-gated ≥8/10 eval is the real acceptance test (same posture as the BUG-013 model-bump session).
+- Worktree branch renamed locally `claude/naughty-gates-63f1a9` → `feature/sdk-migrate-google-genai` before any commit.
+
+### Phase 3 / 4 status
+- Phase 3 exit criterion still MET (no model id change; `gemini-3.5-flash` unchanged).
+- Phase 4 SDK-migrate chip now closed in code; outstanding chip BUG-010 (TestJetRecord) + BUG-012 (Streamlit `use_container_width` floor bump) remain P3-deferred.
+
+### Next session should
+1. ~~Owner runs `RAG_RUN_LLM_EVAL=1` ≥8/10 acceptance test~~ — **DONE this session: PASSED on the new SDK.**
+2. Open `feature/sdk-migrate-google-genai → dev` PR.
+3. Continue Phase 4 polish (README + portfolio writeup + demo gif).
+
+---
+
 ## 2026-06-21 — Phase 3 exit-criterion run + model bump (BUG-013) — branch: claude/tender-pascal-30e50a
 
 **Goal:** Run the live ≥8/10 `RAG_RUN_LLM_EVAL=1` eval (Phase 3 exit criterion) against the rotated `GOOGLE_API_KEY`, then start Phase 4. Tier: Small (one-line model bump after a 404 surfaced).
