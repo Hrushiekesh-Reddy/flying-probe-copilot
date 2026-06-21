@@ -5,6 +5,57 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ---
 
+## Handoff: Claude Code parent (end of session) → next session — 2026-06-21 (slice 3)
+
+**From:** Claude Code parent (Opus 4.7, in-IDE)
+**To:**   next session (any agent / any IDE)
+**Branch:** `feature/phase4-slice3-ci-workflows` (renamed from worktree `claude/sweet-jones-7291db`; 4 commits ahead of `origin/dev`, NOT pushed)
+**Phase:** Phase 4 — Polish, slice 3 IN PR
+**Suite:** 659 passed / 5 skipped / 1 xfailed / 97% coverage (+93 ci tests over the 566 slice-2 baseline)
+
+### What I just did
+Shipped Phase 4 slice 3 — GitHub Actions CI workflows + ruff config. Full 12-step Medium loop. Owner-ratified all Decision Gate items at "Recommended" — including the load-bearing D17 = Option A (cleanup pass) which authorized a one-time slice-3 exception to the read-only `src/**` guardrail. 7 BLOCKERs caught by Step 5 red-team, 6 closed mechanically in Plan-Rev1, B-7 closed at Decision Gate. Live cleanup-pass iteration surfaced 1 issue red-team missed (ruff `--fix` stripped 11 load-bearing inline `import duckdb` from `_smoke_*` functions in `test_views_smoke.py` — restored with `# noqa: F811`).
+
+### What's ready for owner
+1. **CI workflows** — `.github/workflows/ci.yml` (lint + tests) + `.github/workflows/screenshots.yml` (path-filtered screenshot recapture). Both parsed live via `yaml.safe_load`. 93 unit tests pin the YAML shape, action versions, path filters, and no-secrets posture.
+2. **Ruff config** — `pyproject.toml` gets `ruff>=0.6` dev dep + `[tool.ruff]` + `[tool.ruff.lint]` + `[tool.ruff.lint.per-file-ignores]."tests/**/*.py" = ["E501", "F401"]` + `[tool.ruff.format]`. Codebase is now clean: `ruff check` + `ruff format --check` both exit 0.
+3. **Cleanup pass** — single commit `056459e` applied 189 auto-fixes + 58-file reformat across 26 src/ + 42 tests/ files (+1517 / -1126). Suite stayed 566 passing through the cleanup; 93 new ci-tests landed on top.
+4. **Manual-QA script** — `docs/plans/2026-06-21-phase4-slice3-manual-qa.md` is the owner's checklist for the eyeball pass + push + watch-first-CI-run.
+
+### What's pending owner action
+- **Push the branch + open PR `feature/phase4-slice3-ci-workflows → dev`.** Pushing is owner-initiated only (per `.claude/rules/agent-conduct.md` git policy). The manual-QA script has the exact `gh pr create` invocation.
+- **Watch the first CI run on the PR.** Expected: `ci / lint` + `ci / tests` go green in ~3-5 min cold. `screenshots / capture` correctly does NOT trigger on this PR (per D14 — no `src/ui/**` / `analytics/**` / KB / capture-script paths touched).
+- **Merge → start Phase 4 slice 4** (portfolio promotion: final guardrails audit per `docs/GUARDRAILS.md` §8 → repo flip to public per D3 deferral → `docs/DEMO.md` → blog post → LinkedIn post → resume bullet → branch-protection rules → CI status badge in README).
+
+### Don't surprise me — context the next session needs
+- **The cleanup commit is a load-bearing precondition** for slice 3. Reverting `056459e` would re-introduce 301 ruff lint errors + 58 unformatted files, and ci.yml's `lint` job would go red on every PR. D17 was the owner's explicit ratification of the one-time `src/**` exception; cleanup commit was approved at the E0 checkpoint before commit.
+- **Test `test_views_smoke.py` has 11 inline `import duckdb  # noqa: F811`** that ruff's auto-fix removed mid-cleanup. They're load-bearing for Streamlit's `AppTest.from_function(fn, ...)` — the function source is extracted and run in a fresh subprocess that doesn't inherit the test module's imports. Future ruff runs that remove them again will break 12 tests with `NameError: name 'duckdb' is not defined`. The `# noqa: F811` comments are the explicit suppression.
+- **`paths-ignore` semantics** (D12 + MD-4): GitHub Actions skips the workflow only when ALL changed paths in a PR match an ignore pattern. A PR touching both `docs/foo.md` and `src/foo.py` still runs CI. This is intended.
+- **`screenshots.yml` does NOT trigger on the slice-3 PR itself** (no UI/analytics/KB/script paths touched) — this is correct per D14. First live test is the next UI-touching PR after slice-3 merges.
+- **Cache key includes `cli.py` non-glob anchors** (B-5 closure). Future renames of `src/.../generator/cli.py` → `src/.../generator/main.py` (or similar) would silently collapse the cache key to `sample-duckdb-` constant. If that ever happens, update `screenshots.yml` line 33 to match.
+- **`setup-uv@v8`'s `enable-cache: true`** auto-hashes `uv.lock` for the venv cache. We don't need a separate `actions/cache` step for the uv venv. The `actions/cache@v4` step in screenshots.yml is exclusively for `data/db/sample.duckdb`.
+- **`scripts/build-portfolio-data.sh`** uses POSIX bash and works on ubuntu-latest as-is. `git ls-files --eol` shows `i/lf` (LF in index) even though the Windows working tree shows CRLF. ubuntu-latest's git default checks out LF. No `.gitattributes` needed (D13).
+
+### Open chips (not blockers; future slices)
+- Phase 4 slice 4: portfolio promotion (blog + LinkedIn + resume bullet + repo public flip after final guardrails audit + branch-protection + CI status badge in README + `docs/DEMO.md`)
+- Post-slice-4: tighten ruff rule set to `["E", "F", "W", "I", "B", "UP"]` (add bugbear + pyupgrade) after the codebase has stabilized on the minimal set
+- Post-slice-4: add `--cov-fail-under=95` to ci.yml's pytest step (coverage threshold gate)
+- Post-Phase-4: if owner adds type annotations to `src/`, introduce `mypy` as a dev dep + new CI job (D4 deferred this)
+- Long-term: if `screenshots.yml` cold-cache runs exceed 12 min, drop `uv.lock` from the cache key composition to allow stale-but-valid samples on dep bumps
+
+### What I did NOT do
+- Push the branch (owner-initiated only)
+- Edit anything under `.claude/**` (slice guardrail)
+- Edit anything under `scripts/**` (slice guardrail)
+- Touch `.gitignore` / `.env.example` / `migrations/` / `src/flying_probe_copilot/db/schema.py`
+- Edit `src/flying_probe_copilot/**` outside the cleanup pass (D17-authorized one-time exception)
+- Add `mypy` as a dev dep (D4 — explicitly out of scope)
+- Add a CI status badge to README (M-8 — chip for slice 4 after first green CI)
+- Enable `branch-protection` rules in GitHub Settings (Settings-page action, chip for slice 4)
+- Run the first CI run (owner pushes; first run is the live G5 verification)
+
+---
+
 ## Handoff: Claude Code parent (end of session) → next session — 2026-06-21
 
 **From:** Claude Code parent (Opus 4.7, in-IDE)
