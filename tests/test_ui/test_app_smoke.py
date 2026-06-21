@@ -11,20 +11,12 @@ Tests:
 
 from __future__ import annotations
 
-import os
 import pathlib
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 # Path to app.py — absolute so AppTest.from_file finds it regardless of cwd.
-APP_PATH = str(
-    pathlib.Path(__file__).parents[2]
-    / "src"
-    / "flying_probe_copilot"
-    / "ui"
-    / "app.py"
-)
+APP_PATH = str(pathlib.Path(__file__).parents[2] / "src" / "flying_probe_copilot" / "ui" / "app.py")
 
 
 class TestAppSmokeValid:
@@ -51,7 +43,9 @@ class TestAppSmokeEmptyDb:
     def test_empty_db_no_exception(self, tmp_path, monkeypatch):
         """App runs with an empty DB (no test_runs) — covers span=None branch."""
         import duckdb
+
         from flying_probe_copilot.db.schema import init_database
+
         empty_db = str(tmp_path / "empty.duckdb")
         con = duckdb.connect(empty_db)
         init_database(con)

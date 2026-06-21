@@ -42,8 +42,4 @@ def build_answer_prompt(question: str, chunks: list[Chunk]) -> str:
     else:
         evidence = "(no evidence retrieved)"
 
-    return (
-        f"{ANSWER_SYSTEM}\n"
-        f"=== EVIDENCE ===\n{evidence}\n\n"
-        f"=== QUESTION ===\n{question}\n"
-    )
+    return f"{ANSWER_SYSTEM}\n=== EVIDENCE ===\n{evidence}\n\n=== QUESTION ===\n{question}\n"

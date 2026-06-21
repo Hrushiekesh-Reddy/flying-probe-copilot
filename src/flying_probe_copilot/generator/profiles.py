@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from .models import BoardProfile
 
-
 # ---------------------------------------------------------------------------
 # Profile registry — keyed by canonical name.
 # ---------------------------------------------------------------------------
@@ -57,9 +56,7 @@ def get_profile(name: str) -> BoardProfile:
         return _PROFILES[name]
     except KeyError as exc:
         valid = ", ".join(available_profiles())
-        raise ValueError(
-            f"Unknown board profile: {name!r}. Valid profiles: {valid}."
-        ) from exc
+        raise ValueError(f"Unknown board profile: {name!r}. Valid profiles: {valid}.") from exc
 
 
 _SIZE_ORDER = ["small", "medium", "large"]

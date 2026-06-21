@@ -28,8 +28,8 @@ from datetime import datetime
 
 import duckdb
 
-from .models import AnomalyRow
 from ._window import _compute_window_bounds, _resolve_anchor
+from .models import AnomalyRow
 
 # ---------------------------------------------------------------------------
 # Group-by configuration table (mirrors slice-1 _GROUP_BY_CONFIG shape)
@@ -108,10 +108,7 @@ def z_score_anomalies(
     # Validate by before DB access (mirrors slice-1 enum guard).
     if by not in _GROUP_BY_CONFIG:
         allowed = ", ".join(f"{v!r}" for v in _ALLOWED_BY)
-        raise ValueError(
-            f"by={by!r} is not supported. "
-            f"Allowed values: {allowed}"
-        )
+        raise ValueError(f"by={by!r} is not supported. Allowed values: {allowed}")
 
     if threshold <= 0:
         raise ValueError(f"threshold must be > 0; received {threshold!r}")

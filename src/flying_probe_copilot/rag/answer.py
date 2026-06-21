@@ -16,9 +16,7 @@ from dataclasses import dataclass
 from .llm import LLMClient
 from .prompts import build_answer_prompt
 
-REFUSAL_TEXT = (
-    "I don't have enough grounded evidence in the knowledge base to answer that."
-)
+REFUSAL_TEXT = "I don't have enough grounded evidence in the knowledge base to answer that."
 
 DEFAULT_TOP_K = 10
 """Default retriever depth. Sized so short generic queries (e.g. "what causes

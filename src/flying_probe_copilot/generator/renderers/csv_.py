@@ -25,7 +25,6 @@ from ..models import (
     TestJetRecord,
 )
 
-
 _COLUMNS = [
     "serial",
     "batch_id",

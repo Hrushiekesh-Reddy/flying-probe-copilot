@@ -13,9 +13,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
-from urllib.request import urlopen
 
 import pytest
 
@@ -27,7 +25,7 @@ if not _gate_active:
         allow_module_level=True,
     )
 
-from scripts.capture_screenshots import pick_free_port, _wait_for_health  # noqa: E402
+from scripts.capture_screenshots import _wait_for_health, pick_free_port  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,14 +37,23 @@ def test_f18_sidebar_nav_testid_present(ui_db_path, tmp_path):
     port = pick_free_port()
     env = {**os.environ, "FPC_DB_PATH": ui_db_path}
     cmd = [
-        sys.executable, "-m", "streamlit", "run", "scripts/_capture_app.py",
-        "--server.port", str(port),
-        "--server.headless", "true",
-        "--browser.gatherUsageStats", "false",
-        "--logger.level", "error",
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        "scripts/_capture_app.py",
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false",
+        "--logger.level",
+        "error",
     ]
-    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            cwd=str(REPO_ROOT))
+    proc = subprocess.Popen(
+        cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(REPO_ROOT)
+    )
     try:
         _wait_for_health(port)
 

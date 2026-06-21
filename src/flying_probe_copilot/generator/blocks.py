@@ -37,7 +37,6 @@ from .models import (
     TestBlock,
 )
 
-
 # Baseline conditional secondary-failure rate. When a primary component fails,
 # every other component in the same family is offered a Bernoulli draw at
 # ``BASELINE_SECONDARY_RATE * correlation_multiplier(primary, candidate)`` —
@@ -132,9 +131,7 @@ def _passing_measured(rng: Random, limits: Limits3 | Limits2, sigma: float) -> f
     return value
 
 
-def _failing_measured(
-    rng: Random, limits: Limits3 | Limits2, sigma: float
-) -> float:
+def _failing_measured(rng: Random, limits: Limits3 | Limits2, sigma: float) -> float:
     """Draw a measured value just OUTSIDE ``[low, high]``.
 
     Picks the high or low side at random and offsets by 1-2 sigma.

@@ -110,10 +110,7 @@ def date_range_to_window(start: date, end: date) -> tuple[int, datetime]:
         If ``end < start``.
     """
     if end < start:
-        raise ValueError(
-            f"end ({end}) is before start ({start}); "
-            "end must be >= start"
-        )
+        raise ValueError(f"end ({end}) is before start ({start}); end must be >= start")
     window_days = max(1, (end - start).days + 1)
     as_of = datetime.combine(end, time(23, 59, 59))
     return window_days, as_of
@@ -121,9 +118,7 @@ def date_range_to_window(start: date, end: date) -> tuple[int, datetime]:
 
 def data_date_span(con: duckdb.DuckDBPyConnection) -> tuple[date, date] | None:
     """Return (min_date, max_date) of test_runs.start_ts, or None if empty."""
-    row = con.execute(
-        "SELECT MIN(start_ts)::DATE, MAX(start_ts)::DATE FROM test_runs"
-    ).fetchone()
+    row = con.execute("SELECT MIN(start_ts)::DATE, MAX(start_ts)::DATE FROM test_runs").fetchone()
     if row is None or row[0] is None:
         return None
     return (row[0], row[1])
@@ -149,9 +144,7 @@ _DIM_SQL: dict[str, str] = {
         "ORDER BY p.line_id"
     ),
     "operator": (
-        "SELECT DISTINCT COALESCE(tr.operator_id, '<unknown>') "
-        "FROM test_runs tr "
-        "ORDER BY 1"
+        "SELECT DISTINCT COALESCE(tr.operator_id, '<unknown>') FROM test_runs tr ORDER BY 1"
     ),
 }
 
@@ -171,9 +164,7 @@ def distinct_values(con: duckdb.DuckDBPyConnection, dimension: str) -> list[str]
     """
     if dimension not in _ALLOWED_DIMENSIONS:
         allowed = ", ".join(sorted(_ALLOWED_DIMENSIONS))
-        raise ValueError(
-            f"Unknown dimension {dimension!r}. Allowed: {allowed}"
-        )
+        raise ValueError(f"Unknown dimension {dimension!r}. Allowed: {allowed}")
     sql = _DIM_SQL[dimension]
     rows = con.execute(sql).fetchall()
     return [str(r[0]) for r in rows]
@@ -184,9 +175,7 @@ def distinct_boards(con: duckdb.DuckDBPyConnection) -> list[str]:
     return distinct_values(con, "board")
 
 
-def distinct_refdes(
-    con: duckdb.DuckDBPyConnection, board_profile_id: str
-) -> list[str]:
+def distinct_refdes(con: duckdb.DuckDBPyConnection, board_profile_id: str) -> list[str]:
     """Return sorted distinct refdes values for a board that have measurements.
 
     Only refdes with at least one non-null ``measured_value`` row in
@@ -214,9 +203,7 @@ _YIELD_COLS = ["group_key", "total", "passed", "yield_pct"]
 _PARETO_COLS = ["key", "count", "pct_of_total", "cumulative_pct"]
 _SPC_BASE_COLS = ["panel_serial", "start_ts", "value", "mean", "ucl", "lcl", "alarm_flags"]
 _SPC_COLS = _SPC_BASE_COLS + ["alarmed", "alarms"]
-_ANOMALY_BASE_COLS = [
-    "group_key", "value", "baseline_mean", "baseline_std", "z_score", "flagged"
-]
+_ANOMALY_BASE_COLS = ["group_key", "value", "baseline_mean", "baseline_std", "z_score", "flagged"]
 _ANOMALY_COLS = _ANOMALY_BASE_COLS + ["flag_label"]
 
 
@@ -225,8 +212,15 @@ def yield_rows_to_df(rows: list[YieldRow]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=_YIELD_COLS)
     return pd.DataFrame(
-        [{"group_key": r.group_key, "total": r.total, "passed": r.passed, "yield_pct": r.yield_pct}
-         for r in rows],
+        [
+            {
+                "group_key": r.group_key,
+                "total": r.total,
+                "passed": r.passed,
+                "yield_pct": r.yield_pct,
+            }
+            for r in rows
+        ],
         columns=_YIELD_COLS,
     )
 
@@ -236,9 +230,15 @@ def pareto_rows_to_df(rows: list[ParetoRow]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=_PARETO_COLS)
     return pd.DataFrame(
-        [{"key": r.key, "count": r.count, "pct_of_total": r.pct_of_total,
-          "cumulative_pct": r.cumulative_pct}
-         for r in rows],
+        [
+            {
+                "key": r.key,
+                "count": r.count,
+                "pct_of_total": r.pct_of_total,
+                "cumulative_pct": r.cumulative_pct,
+            }
+            for r in rows
+        ],
         columns=_PARETO_COLS,
     )
 
@@ -257,17 +257,19 @@ def spc_points_to_df(rows: list[SPCPoint]) -> pd.DataFrame:
         return pd.DataFrame(columns=_SPC_COLS)
     records = []
     for r in rows:
-        records.append({
-            "panel_serial": r.panel_serial,
-            "start_ts": r.start_ts,
-            "value": r.value,
-            "mean": r.mean,
-            "ucl": r.ucl,
-            "lcl": r.lcl,
-            "alarm_flags": r.alarm_flags,
-            "alarmed": len(r.alarm_flags) > 0,
-            "alarms": ", ".join(r.alarm_flags),
-        })
+        records.append(
+            {
+                "panel_serial": r.panel_serial,
+                "start_ts": r.start_ts,
+                "value": r.value,
+                "mean": r.mean,
+                "ucl": r.ucl,
+                "lcl": r.lcl,
+                "alarm_flags": r.alarm_flags,
+                "alarmed": len(r.alarm_flags) > 0,
+                "alarms": ", ".join(r.alarm_flags),
+            }
+        )
     return pd.DataFrame(records, columns=_SPC_COLS)
 
 
@@ -280,15 +282,17 @@ def anomaly_rows_to_df(rows: list[AnomalyRow]) -> pd.DataFrame:
         return pd.DataFrame(columns=_ANOMALY_COLS)
     records = []
     for r in rows:
-        records.append({
-            "group_key": r.group_key,
-            "value": r.value,
-            "baseline_mean": r.baseline_mean,
-            "baseline_std": r.baseline_std,
-            "z_score": r.z_score,
-            "flagged": r.flagged,
-            "flag_label": "⚠" if r.flagged else "",
-        })
+        records.append(
+            {
+                "group_key": r.group_key,
+                "value": r.value,
+                "baseline_mean": r.baseline_mean,
+                "baseline_std": r.baseline_std,
+                "z_score": r.z_score,
+                "flagged": r.flagged,
+                "flag_label": "⚠" if r.flagged else "",
+            }
+        )
     return pd.DataFrame(records, columns=_ANOMALY_COLS)
 
 
@@ -297,9 +301,7 @@ def anomaly_rows_to_df(rows: list[AnomalyRow]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def filter_df_by_key(
-    df: pd.DataFrame, key_col: str, selected: list[str] | None
-) -> pd.DataFrame:
+def filter_df_by_key(df: pd.DataFrame, key_col: str, selected: list[str] | None) -> pd.DataFrame:
     """Post-filter a DataFrame to rows where ``key_col`` is in ``selected``.
 
     Parameters
@@ -442,7 +444,5 @@ def cached_anomaly(
     threshold: float = 3.0,
 ) -> pd.DataFrame:
     """Cached wrapper around z_score_anomalies → DataFrame."""
-    rows = z_score_anomalies(
-        _con, window_days=window_days, by=by, threshold=threshold, as_of=as_of
-    )
+    rows = z_score_anomalies(_con, window_days=window_days, by=by, threshold=threshold, as_of=as_of)
     return anomaly_rows_to_df(rows)

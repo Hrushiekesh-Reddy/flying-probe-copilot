@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from flying_probe_copilot.analytics import AnomalyRow, z_score_anomalies
+from flying_probe_copilot.analytics import z_score_anomalies
 
 # ---------------------------------------------------------------------------
 # Helper: four-group dataset rates [0.1, 0.2, 0.3, 0.9]
@@ -37,7 +37,7 @@ def _make_4group_db(make_fn, *, window_days: int = 30):
     G4: 10 total, 9 failed  → rate 0.9
     """
     groups = [
-        {"key": f"BOARD-{i+1}", "total": 10, "failed": int(r * 10), "in_window": True}
+        {"key": f"BOARD-{i + 1}", "total": 10, "failed": int(r * 10), "in_window": True}
         for i, r in enumerate(_RATES_4)
     ]
     return make_fn(groups, by="board", window_days=window_days)
@@ -57,12 +57,11 @@ def test_anom01_leave_one_out_g4_baseline_is_peer_only(_make_anomaly_db):
     g4_row = next(r for r in result if r.group_key == "BOARD-4")
 
     peer_rates = [0.1, 0.2, 0.3]
-    expected_bm = statistics.fmean(peer_rates)        # ≈ 0.2 (leave-one-out)
+    expected_bm = statistics.fmean(peer_rates)  # ≈ 0.2 (leave-one-out)
     include_self_mean = statistics.fmean([0.1, 0.2, 0.3, 0.9])  # ≈ 0.375 (wrong)
 
     assert math.isclose(g4_row.baseline_mean, expected_bm, rel_tol=1e-9), (
-        f"G4 baseline_mean must be peer-only fmean={expected_bm}; "
-        f"got {g4_row.baseline_mean}"
+        f"G4 baseline_mean must be peer-only fmean={expected_bm}; got {g4_row.baseline_mean}"
     )
     # Explicitly prove it is NOT the include-self mean.
     assert not math.isclose(g4_row.baseline_mean, include_self_mean, rel_tol=1e-6), (
@@ -121,10 +120,10 @@ def test_anom03_positive_flag_bad_group_is_flagged(_make_anomaly_db):
     """ANOM-03: the one anomalous group is flagged; others are not."""
     # 5 groups: 4 with small rates, 1 with a large rate.
     groups = [
-        {"key": "G1", "total": 100, "failed": 4,  "in_window": True},  # rate=0.04
-        {"key": "G2", "total": 100, "failed": 5,  "in_window": True},  # rate=0.05
-        {"key": "G3", "total": 100, "failed": 6,  "in_window": True},  # rate=0.06
-        {"key": "G4", "total": 100, "failed": 5,  "in_window": True},  # rate=0.05
+        {"key": "G1", "total": 100, "failed": 4, "in_window": True},  # rate=0.04
+        {"key": "G2", "total": 100, "failed": 5, "in_window": True},  # rate=0.05
+        {"key": "G3", "total": 100, "failed": 6, "in_window": True},  # rate=0.06
+        {"key": "G4", "total": 100, "failed": 5, "in_window": True},  # rate=0.05
         {"key": "G5", "total": 100, "failed": 80, "in_window": True},  # rate=0.80 (bad)
     ]
     con = _make_anomaly_db(groups, by="board")
@@ -175,9 +174,9 @@ def test_anom04_negative_homogeneous_no_flags(_make_anomaly_db):
 def test_anom05_value_is_failure_rate_not_raw_count(_make_anomaly_db):
     """ANOM-05: value == failed/total (e.g. 3/8 = 0.375), not 3 or rounded."""
     groups = [
-        {"key": "G1", "total": 8,  "failed": 3,  "in_window": True},  # rate=0.375
-        {"key": "G2", "total": 10, "failed": 1,  "in_window": True},
-        {"key": "G3", "total": 10, "failed": 2,  "in_window": True},
+        {"key": "G1", "total": 8, "failed": 3, "in_window": True},  # rate=0.375
+        {"key": "G2", "total": 10, "failed": 1, "in_window": True},
+        {"key": "G3", "total": 10, "failed": 2, "in_window": True},
     ]
     con = _make_anomaly_db(groups, by="board")
     result = z_score_anomalies(con, by="board", threshold=3.0)
@@ -230,7 +229,7 @@ def test_anom07_two_sided_negative_z_is_flagged(_make_anomaly_db):
         {"key": "G2", "total": 100, "failed": 52, "in_window": True},  # rate=0.52
         {"key": "G3", "total": 100, "failed": 48, "in_window": True},  # rate=0.48
         {"key": "G4", "total": 100, "failed": 51, "in_window": True},  # rate=0.51
-        {"key": "G5", "total": 100, "failed": 0,  "in_window": True},  # rate=0.00 (far below)
+        {"key": "G5", "total": 100, "failed": 0, "in_window": True},  # rate=0.00 (far below)
     ]
     con = _make_anomaly_db(groups, by="board")
     result = z_score_anomalies(con, by="board", threshold=3.0)
@@ -263,8 +262,8 @@ def test_anom08_ordering_severity_first(_make_anomaly_db):
     # For the tie on |z|: two groups with equal |z| must sort by group_key ASC.
     groups = [
         {"key": "ALPHA", "total": 100, "failed": 50, "in_window": True},  # rate=0.50
-        {"key": "BETA",  "total": 100, "failed": 50, "in_window": True},  # rate=0.50 (tie)
-        {"key": "GAMMA", "total": 100, "failed": 1,  "in_window": True},  # rate=0.01
+        {"key": "BETA", "total": 100, "failed": 50, "in_window": True},  # rate=0.50 (tie)
+        {"key": "GAMMA", "total": 100, "failed": 1, "in_window": True},  # rate=0.01
         {"key": "DELTA", "total": 100, "failed": 99, "in_window": True},  # rate=0.99
     ]
     con = _make_anomaly_db(groups, by="board")
@@ -287,9 +286,7 @@ def test_anom08_ordering_severity_first(_make_anomaly_db):
     beta_idx = result.index(beta_row)
 
     if math.isclose(abs(alpha_row.z_score), abs(beta_row.z_score), rel_tol=1e-9):
-        assert alpha_idx < beta_idx, (
-            "for equal |z|, ALPHA (alphabetically first) must precede BETA"
-        )
+        assert alpha_idx < beta_idx, "for equal |z|, ALPHA (alphabetically first) must precede BETA"
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +341,7 @@ def test_anom10_group_with_zero_total_excluded(_make_anomaly_db):
         {"key": "G1", "total": 10, "failed": 1, "in_window": True},
         {"key": "G2", "total": 10, "failed": 2, "in_window": True},
         {"key": "G3", "total": 10, "failed": 3, "in_window": True},
-        {"key": "G4", "total": 5,  "failed": 2, "in_window": False},  # out-of-window
+        {"key": "G4", "total": 5, "failed": 2, "in_window": False},  # out-of-window
     ]
     con = _make_anomaly_db(groups, by="board")
     result = z_score_anomalies(con, by="board", threshold=3.0)
@@ -352,17 +349,14 @@ def test_anom10_group_with_zero_total_excluded(_make_anomaly_db):
 
     # G4 must not appear in result (total=0 in window).
     group_keys = {r.group_key for r in result}
-    assert "G4" not in group_keys, (
-        f"group with total=0 must be excluded; keys={group_keys}"
-    )
+    assert "G4" not in group_keys, f"group with total=0 must be excluded; keys={group_keys}"
     assert len(result) == 3, f"expected 3 rows (G1..G3); got {len(result)}"
 
     # G1's baseline must be based on G2 and G3 only (not G4).
     g1_row = next(r for r in result if r.group_key == "G1")
     expected_bm_g1 = statistics.fmean([0.2, 0.3])
     assert math.isclose(g1_row.baseline_mean, expected_bm_g1, rel_tol=1e-9), (
-        f"G1 baseline_mean must be fmean([0.2, 0.3])={expected_bm_g1}; "
-        f"got {g1_row.baseline_mean}"
+        f"G1 baseline_mean must be fmean([0.2, 0.3])={expected_bm_g1}; got {g1_row.baseline_mean}"
     )
 
 
@@ -373,10 +367,7 @@ def test_anom10_group_with_zero_total_excluded(_make_anomaly_db):
 
 def test_anom11_all_identical_rates_zero_std_zero_z(_make_anomaly_db):
     """ANOM-11: identical rates → baseline_std=0, z=0, flagged=False for all."""
-    groups = [
-        {"key": f"G{i}", "total": 10, "failed": 2, "in_window": True}
-        for i in range(4)
-    ]
+    groups = [{"key": f"G{i}", "total": 10, "failed": 2, "in_window": True} for i in range(4)]
     con = _make_anomaly_db(groups, by="board")
     result = z_score_anomalies(con, by="board", threshold=3.0)
     con.close()
@@ -386,12 +377,8 @@ def test_anom11_all_identical_rates_zero_std_zero_z(_make_anomaly_db):
         assert r.baseline_std == 0.0, (
             f"baseline_std must be 0.0 for identical peers; got {r.baseline_std}"
         )
-        assert r.z_score == 0.0, (
-            f"z_score must be 0.0 when baseline_std=0; got {r.z_score}"
-        )
-        assert r.flagged is False, (
-            f"no row must be flagged when std=0; got flagged={r.flagged}"
-        )
+        assert r.z_score == 0.0, f"z_score must be 0.0 when baseline_std=0; got {r.z_score}"
+        assert r.flagged is False, f"no row must be flagged when std=0; got flagged={r.flagged}"
 
 
 # ---------------------------------------------------------------------------
@@ -417,8 +404,8 @@ def test_anom12_single_group_returns_empty_list(_make_anomaly_db):
 def test_anom13_two_groups_one_peer_std_zero(_make_anomaly_db):
     """ANOM-13: two groups → each has 1 peer → std=0, z=0, flagged=False."""
     groups = [
-        {"key": "G1", "total": 10, "failed": 1,  "in_window": True},  # rate=0.1
-        {"key": "G2", "total": 10, "failed": 9,  "in_window": True},  # rate=0.9
+        {"key": "G1", "total": 10, "failed": 1, "in_window": True},  # rate=0.1
+        {"key": "G2", "total": 10, "failed": 9, "in_window": True},  # rate=0.9
     ]
     con = _make_anomaly_db(groups, by="board")
     result = z_score_anomalies(con, by="board", threshold=3.0)
@@ -429,12 +416,8 @@ def test_anom13_two_groups_one_peer_std_zero(_make_anomaly_db):
         assert r.baseline_std == 0.0, (
             f"baseline_std must be 0.0 with single peer; got {r.baseline_std}"
         )
-        assert r.z_score == 0.0, (
-            f"z_score must be 0.0 when std=0 (no divide); got {r.z_score}"
-        )
-        assert r.flagged is False, (
-            f"flagged must be False when std=0; got {r.flagged}"
-        )
+        assert r.z_score == 0.0, f"z_score must be 0.0 when std=0 (no divide); got {r.z_score}"
+        assert r.flagged is False, f"flagged must be False when std=0; got {r.flagged}"
 
 
 # ---------------------------------------------------------------------------
@@ -445,9 +428,9 @@ def test_anom13_two_groups_one_peer_std_zero(_make_anomaly_db):
 def test_anom14_all_fail_group_is_valid(_make_anomaly_db):
     """ANOM-14: rate=1.0 group is valid, z is finite, flagged by threshold."""
     groups = [
-        {"key": "G1", "total": 10, "failed": 1,  "in_window": True},  # rate=0.1
-        {"key": "G2", "total": 10, "failed": 2,  "in_window": True},  # rate=0.2
-        {"key": "G3", "total": 10, "failed": 3,  "in_window": True},  # rate=0.3
+        {"key": "G1", "total": 10, "failed": 1, "in_window": True},  # rate=0.1
+        {"key": "G2", "total": 10, "failed": 2, "in_window": True},  # rate=0.2
+        {"key": "G3", "total": 10, "failed": 3, "in_window": True},  # rate=0.3
         {"key": "G4", "total": 10, "failed": 10, "in_window": True},  # rate=1.0
     ]
     con = _make_anomaly_db(groups, by="board")
@@ -532,8 +515,7 @@ def test_anom18_invalid_by_raises_value_error(empty_db):
 def test_anom19_tz_aware_as_of_raises_value_error(empty_db):
     """ANOM-19: tz-aware as_of raises ValueError via _resolve_anchor."""
     with pytest.raises(ValueError, match=r"as_of must be naive UTC"):
-        z_score_anomalies(empty_db,
-                          as_of=datetime(2026, 5, 1, tzinfo=timezone.utc))
+        z_score_anomalies(empty_db, as_of=datetime(2026, 5, 1, tzinfo=timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -548,10 +530,10 @@ def test_anom20_window_excludes_out_of_window_runs(_make_anomaly_db):
     #     If out-of-window counted: 7/15 = 0.4667 (wrong).
     # G2, G3: normal in-window only.
     groups = [
-        {"key": "G1_in",  "total": 10, "failed": 2, "in_window": True},
-        {"key": "G1_out", "total": 5,  "failed": 5, "in_window": False},  # same key would be ideal
-        {"key": "G2",     "total": 10, "failed": 1, "in_window": True},
-        {"key": "G3",     "total": 10, "failed": 3, "in_window": True},
+        {"key": "G1_in", "total": 10, "failed": 2, "in_window": True},
+        {"key": "G1_out", "total": 5, "failed": 5, "in_window": False},  # same key would be ideal
+        {"key": "G2", "total": 10, "failed": 1, "in_window": True},
+        {"key": "G3", "total": 10, "failed": 3, "in_window": True},
     ]
     # G1_in and G1_out represent the same conceptual group — but in our DB
     # they have different board_profile_ids (separate groups). To test window
@@ -596,9 +578,7 @@ def test_anom21_z_score_is_zero_when_std_is_zero(_make_anomaly_db):
             f"z_score must be exactly 0.0 when std=0 (no division); "
             f"got {r.z_score} for group {r.group_key}"
         )
-        assert r.flagged is False, (
-            f"flagged must be False when std=0; got {r.flagged}"
-        )
+        assert r.flagged is False, f"flagged must be False when std=0; got {r.flagged}"
         # Prove baseline_mean != value to confirm this is a genuine zero-var guard.
         # Each group's baseline has only 1 peer (the other group's rate).
         assert not math.isclose(r.value, r.baseline_mean, rel_tol=1e-3), (

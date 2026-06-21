@@ -37,7 +37,6 @@ from ..models import (
     TestJetRecord,
 )
 
-
 # ---------------------------------------------------------------------------
 # Field formatters
 # ---------------------------------------------------------------------------
@@ -127,10 +126,7 @@ def _render_analog(rec: AnalogRecord) -> list[str]:
             f"|{_fmt_float(rec.limits.low)}}}"
         )
     elif isinstance(rec.limits, Limits2):
-        lim = (
-            f"{{@LIM2|{_fmt_float(rec.limits.high)}"
-            f"|{_fmt_float(rec.limits.low)}}}"
-        )
+        lim = f"{{@LIM2|{_fmt_float(rec.limits.high)}|{_fmt_float(rec.limits.low)}}}"
     else:  # pragma: no cover — model_validator prevents this
         raise TypeError(f"Unknown limits type: {type(rec.limits).__name__}")
     return [head, lim]
@@ -157,19 +153,11 @@ def _render_shorts(rec: ShortsRecord) -> str:
 
 
 def _render_tjet(rec: TestJetRecord) -> str:
-    return (
-        f"{{@TJET|{_fmt_two_digit_status(int(rec.status))}"
-        f"|{rec.pin_count}"
-        f"|{rec.designator}}}"
-    )
+    return f"{{@TJET|{_fmt_two_digit_status(int(rec.status))}|{rec.pin_count}|{rec.designator}}}"
 
 
 def _render_pf(rec: PinsFailedRecord) -> str:
-    pin_list = (
-        f"{{@PIN\\{len(rec.pins)}"
-        + ("|" + "|".join(rec.pins) if rec.pins else "")
-        + "}"
-    )
+    pin_list = f"{{@PIN\\{len(rec.pins)}" + ("|" + "|".join(rec.pins) if rec.pins else "") + "}"
     return f"{{@PF|{rec.designator}|{rec.status}|{rec.total_pins}{pin_list}}}"
 
 

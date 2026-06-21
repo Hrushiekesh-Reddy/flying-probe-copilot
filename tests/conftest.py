@@ -83,6 +83,7 @@ def ui_db_path(tmp_path_factory):
     """
     # Lazy imports per BLOCKER-2 rule (must not import flying_probe_copilot at module top)
     import duckdb
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.ui import data as ui_data
 
@@ -157,18 +158,30 @@ def _populate_ui_db(con) -> None:
     panel_id = 1
 
     small_plan = [
-        ("A", "LINE-A", "OP-1", 0), ("A", "LINE-A", "OP-2", 0),
-        ("A", "LINE-B", "OP-1", 0), ("A", "LINE-B", "OP-2", 0),
-        ("A", "LINE-A", "OP-1", 0), ("A", "LINE-B", "OP-2", 0),
-        ("A", "LINE-A", "OP-1", 0), ("A", "LINE-B", "OP-2", 0),
-        ("B", "LINE-A", "OP-1", 0), ("B", "LINE-A", "OP-2", 0),
-        ("B", "LINE-B", "OP-1", 0), ("B", "LINE-B", "OP-2", 0),
-        ("B", "LINE-A", "OP-1", 0), ("B", "LINE-B", "OP-2", 0),
-        ("B", "LINE-A", "OP-1", 0), ("B", "LINE-B", "OP-2", 0),
-        ("C", "LINE-A", "OP-1", 6), ("C", "LINE-A", "OP-2", 6),
-        ("C", "LINE-B", "OP-1", 6), ("C", "LINE-B", "OP-2", 6),
-        ("C", "LINE-A", "OP-1", 6), ("C", "LINE-B", "OP-2", 6),
-        ("C", "LINE-A", "OP-1", 0), ("C", "LINE-B", "OP-2", 0),
+        ("A", "LINE-A", "OP-1", 0),
+        ("A", "LINE-A", "OP-2", 0),
+        ("A", "LINE-B", "OP-1", 0),
+        ("A", "LINE-B", "OP-2", 0),
+        ("A", "LINE-A", "OP-1", 0),
+        ("A", "LINE-B", "OP-2", 0),
+        ("A", "LINE-A", "OP-1", 0),
+        ("A", "LINE-B", "OP-2", 0),
+        ("B", "LINE-A", "OP-1", 0),
+        ("B", "LINE-A", "OP-2", 0),
+        ("B", "LINE-B", "OP-1", 0),
+        ("B", "LINE-B", "OP-2", 0),
+        ("B", "LINE-A", "OP-1", 0),
+        ("B", "LINE-B", "OP-2", 0),
+        ("B", "LINE-A", "OP-1", 0),
+        ("B", "LINE-B", "OP-2", 0),
+        ("C", "LINE-A", "OP-1", 6),
+        ("C", "LINE-A", "OP-2", 6),
+        ("C", "LINE-B", "OP-1", 6),
+        ("C", "LINE-B", "OP-2", 6),
+        ("C", "LINE-A", "OP-1", 6),
+        ("C", "LINE-B", "OP-2", 6),
+        ("C", "LINE-A", "OP-1", 0),
+        ("C", "LINE-B", "OP-2", 0),
     ]
 
     for i, (shift, line, op, status) in enumerate(small_plan):
@@ -183,10 +196,14 @@ def _populate_ui_db(con) -> None:
         tr_id += 1
 
     medium_plan = [
-        ("A", "LINE-A", "OP-1", 0), ("A", "LINE-A", "OP-2", 0),
-        ("A", "LINE-A", "OP-1", 6), ("A", "LINE-A", "OP-2", 0),
-        ("B", "LINE-B", "OP-1", 0), ("B", "LINE-B", "OP-2", 0),
-        ("B", "LINE-B", "OP-1", 6), ("B", "LINE-B", "OP-2", 0),
+        ("A", "LINE-A", "OP-1", 0),
+        ("A", "LINE-A", "OP-2", 0),
+        ("A", "LINE-A", "OP-1", 6),
+        ("A", "LINE-A", "OP-2", 0),
+        ("B", "LINE-B", "OP-1", 0),
+        ("B", "LINE-B", "OP-2", 0),
+        ("B", "LINE-B", "OP-1", 6),
+        ("B", "LINE-B", "OP-2", 0),
     ]
     for i, (shift, line, op, status) in enumerate(medium_plan):
         serial = f"UI-M-{panel_id:04d}"
@@ -217,8 +234,26 @@ def _populate_ui_db(con) -> None:
         )
 
     spc_values = [
-        10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 10.3, 9.7, 10.0, 9.9,
-        10.1, 10.0, 9.8, 10.2, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1,
+        10.1,
+        9.9,
+        10.0,
+        10.2,
+        9.8,
+        10.1,
+        10.3,
+        9.7,
+        10.0,
+        9.9,
+        10.1,
+        10.0,
+        9.8,
+        10.2,
+        10.1,
+        9.9,
+        10.0,
+        10.2,
+        9.8,
+        10.1,
     ]
     for mid, (trid, val) in enumerate(zip(range(1, 21), spc_values), start=1):
         con.execute(

@@ -16,7 +16,6 @@ from typing import Callable, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 # ---------------------------------------------------------------------------
 # Status IntEnums — numeric codes per the spec's status vocabulary tables.
 # ---------------------------------------------------------------------------
@@ -197,9 +196,9 @@ class BoardTestRecord(BaseModel):
     start_ts: int
     duration_s: int
     multiple_test: bool = False
-    log_level: Literal[
-        "none", "manual", "board", "failures", "indictments", "analog", "all"
-    ] = "all"
+    log_level: Literal["none", "manual", "board", "failures", "indictments", "analog", "all"] = (
+        "all"
+    )
     log_set: int = 0
     learning: bool = False
     known_good: bool = False
@@ -356,9 +355,7 @@ class PinsFailedRecord(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-RecordUnion = Union[
-    AnalogRecord, DigitalRecord, ShortsRecord, TestJetRecord, PinsFailedRecord
-]
+RecordUnion = Union[AnalogRecord, DigitalRecord, ShortsRecord, TestJetRecord, PinsFailedRecord]
 
 
 class TestBlock(BaseModel):

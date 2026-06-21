@@ -18,7 +18,6 @@ import pytest
 
 from flying_probe_copilot.db.schema import init_database
 
-
 # ---------------------------------------------------------------------------
 # empty_db fixture
 # ---------------------------------------------------------------------------
@@ -84,21 +83,21 @@ def analytics_two_week_db():
 
     panels = [
         # W1 small (outside window)
-        ("SYN-W1-S-001", "small",  1, "LINE-A", "A", "2026-03-31 08:00:00"),
-        ("SYN-W1-S-002", "small",  2, "LINE-A", "A", "2026-04-01 08:00:00"),
-        ("SYN-W1-S-003", "small",  3, "LINE-A", "A", "2026-04-02 08:00:00"),
-        ("SYN-W1-S-004", "small",  4, "LINE-A", "A", "2026-04-03 08:00:00"),
-        ("SYN-W1-S-005", "small",  5, "LINE-A", "A", "2026-04-04 08:00:00"),
+        ("SYN-W1-S-001", "small", 1, "LINE-A", "A", "2026-03-31 08:00:00"),
+        ("SYN-W1-S-002", "small", 2, "LINE-A", "A", "2026-04-01 08:00:00"),
+        ("SYN-W1-S-003", "small", 3, "LINE-A", "A", "2026-04-02 08:00:00"),
+        ("SYN-W1-S-004", "small", 4, "LINE-A", "A", "2026-04-03 08:00:00"),
+        ("SYN-W1-S-005", "small", 5, "LINE-A", "A", "2026-04-04 08:00:00"),
         # W1 medium (outside window)
         ("SYN-W1-M-001", "medium", 1, "LINE-A", "A", "2026-04-01 09:00:00"),
         ("SYN-W1-M-002", "medium", 2, "LINE-A", "A", "2026-04-03 09:00:00"),
         ("SYN-W1-M-003", "medium", 3, "LINE-A", "A", "2026-04-05 09:00:00"),
         # W2 small (inside window)
-        ("SYN-W2-S-001", "small",  1, "LINE-A", "A", "2026-04-08 10:00:00"),
-        ("SYN-W2-S-002", "small",  2, "LINE-A", "A", "2026-04-09 10:00:00"),
-        ("SYN-W2-S-003", "small",  3, "LINE-A", "A", "2026-04-10 10:00:00"),
-        ("SYN-W2-S-004", "small",  4, "LINE-A", "A", "2026-04-12 10:00:00"),
-        ("SYN-W2-S-005", "small",  5, "LINE-A", "A", "2026-04-13 10:00:00"),
+        ("SYN-W2-S-001", "small", 1, "LINE-A", "A", "2026-04-08 10:00:00"),
+        ("SYN-W2-S-002", "small", 2, "LINE-A", "A", "2026-04-09 10:00:00"),
+        ("SYN-W2-S-003", "small", 3, "LINE-A", "A", "2026-04-10 10:00:00"),
+        ("SYN-W2-S-004", "small", 4, "LINE-A", "A", "2026-04-12 10:00:00"),
+        ("SYN-W2-S-005", "small", 5, "LINE-A", "A", "2026-04-13 10:00:00"),
         # W2 medium (inside window)
         ("SYN-W2-M-001", "medium", 1, "LINE-A", "A", "2026-04-11 10:00:00"),
         ("SYN-W2-M-002", "medium", 2, "LINE-A", "A", "2026-04-13 10:00:00"),
@@ -115,21 +114,21 @@ def analytics_two_week_db():
     # btest_status=0 → PASS, btest_status=6 → FAIL_ANALOG
     test_runs_data = [
         # W1 small — all pass
-        ("SYN-W1-S-001", "run_w1_small",  0, "2026-03-31 08:00:00", "2026-03-31 08:00:12"),
-        ("SYN-W1-S-002", "run_w1_small",  0, "2026-04-01 08:00:00", "2026-04-01 08:00:12"),
-        ("SYN-W1-S-003", "run_w1_small",  0, "2026-04-02 08:00:00", "2026-04-02 08:00:12"),
-        ("SYN-W1-S-004", "run_w1_small",  0, "2026-04-03 08:00:00", "2026-04-03 08:00:12"),
-        ("SYN-W1-S-005", "run_w1_small",  0, "2026-04-04 08:00:00", "2026-04-04 08:00:12"),
+        ("SYN-W1-S-001", "run_w1_small", 0, "2026-03-31 08:00:00", "2026-03-31 08:00:12"),
+        ("SYN-W1-S-002", "run_w1_small", 0, "2026-04-01 08:00:00", "2026-04-01 08:00:12"),
+        ("SYN-W1-S-003", "run_w1_small", 0, "2026-04-02 08:00:00", "2026-04-02 08:00:12"),
+        ("SYN-W1-S-004", "run_w1_small", 0, "2026-04-03 08:00:00", "2026-04-03 08:00:12"),
+        ("SYN-W1-S-005", "run_w1_small", 0, "2026-04-04 08:00:00", "2026-04-04 08:00:12"),
         # W1 medium — all pass
         ("SYN-W1-M-001", "run_w1_medium", 0, "2026-04-01 09:00:00", "2026-04-01 09:00:12"),
         ("SYN-W1-M-002", "run_w1_medium", 0, "2026-04-03 09:00:00", "2026-04-03 09:00:12"),
         ("SYN-W1-M-003", "run_w1_medium", 0, "2026-04-05 09:00:00", "2026-04-05 09:00:12"),
         # W2 small — 4 pass, 1 fail → yield 80%
-        ("SYN-W2-S-001", "run_w2_small",  0, "2026-04-08 10:00:00", "2026-04-08 10:00:12"),
-        ("SYN-W2-S-002", "run_w2_small",  0, "2026-04-09 10:00:00", "2026-04-09 10:00:12"),
-        ("SYN-W2-S-003", "run_w2_small",  0, "2026-04-10 10:00:00", "2026-04-10 10:00:12"),
-        ("SYN-W2-S-004", "run_w2_small",  6, "2026-04-12 10:00:00", "2026-04-12 10:00:12"),  # fail
-        ("SYN-W2-S-005", "run_w2_small",  0, "2026-04-13 10:00:00", "2026-04-13 10:00:12"),
+        ("SYN-W2-S-001", "run_w2_small", 0, "2026-04-08 10:00:00", "2026-04-08 10:00:12"),
+        ("SYN-W2-S-002", "run_w2_small", 0, "2026-04-09 10:00:00", "2026-04-09 10:00:12"),
+        ("SYN-W2-S-003", "run_w2_small", 0, "2026-04-10 10:00:00", "2026-04-10 10:00:12"),
+        ("SYN-W2-S-004", "run_w2_small", 6, "2026-04-12 10:00:00", "2026-04-12 10:00:12"),  # fail
+        ("SYN-W2-S-005", "run_w2_small", 0, "2026-04-13 10:00:00", "2026-04-13 10:00:12"),
         # W2 medium — 2 pass, 1 fail → yield 66.7%
         ("SYN-W2-M-001", "run_w2_medium", 0, "2026-04-11 10:00:00", "2026-04-11 10:00:12"),
         ("SYN-W2-M-002", "run_w2_medium", 6, "2026-04-13 10:00:00", "2026-04-13 10:00:12"),  # fail
@@ -145,12 +144,12 @@ def analytics_two_week_db():
         )
 
     ground_truth = {
-        "small_w2_total":   5,
-        "small_w2_passed":  4,
-        "medium_w2_total":  3,
+        "small_w2_total": 5,
+        "small_w2_passed": 4,
+        "medium_w2_total": 3,
         "medium_w2_passed": 2,
-        "small_w1_count":   5,
-        "medium_w1_count":  3,
+        "small_w1_count": 5,
+        "medium_w1_count": 3,
         # Anchor timestamp for custom-as_of tests
         "anchor": datetime(2026, 4, 14, 10, 0, 0),
         "week1_as_of": datetime(2026, 4, 7, 0, 0, 0),
@@ -241,8 +240,7 @@ def _build_pareto_db(failures_spec: list[dict]) -> duckdb.DuckDBPyConnection:
             "(failure_id, measurement_id, test_run_id, panel_serial, board_profile_id, "
             " record_type, status, failure_category, target_refdes) "
             "VALUES (?, ?, ?, ?, 'small', ?, 1, ?, ?)",
-            [fid, fid, tr_id, serial,
-             spec["record_type"], spec["failure_category"], refdes],
+            [fid, fid, tr_id, serial, spec["record_type"], spec["failure_category"], refdes],
         )
 
     return con
@@ -309,25 +307,34 @@ def _build_spc_db(
     con = duckdb.connect(":memory:")
     init_database(con)
 
-    con.execute("""
+    con.execute(
+        """
         INSERT OR IGNORE INTO boards
             (board_profile_id, name, component_count, net_count, typical_test_count)
         VALUES (?, ?, 50, 80, 120)
-    """, [board_profile_id, board_profile_id])
+    """,
+        [board_profile_id, board_profile_id],
+    )
 
-    con.execute("""
+    con.execute(
+        """
         INSERT INTO runs
             (run_id, board_profile_id, seed, fault_rate, fault_profile,
              panel_count, failing_boards)
         VALUES ('run_spc', ?, 42, 0.05, 'random', 1, 0)
-    """, [board_profile_id])
+    """,
+        [board_profile_id],
+    )
 
     # Insert a synthetic tests row (required for measurements FK).
-    con.execute("""
+    con.execute(
+        """
         INSERT INTO tests
             (test_id, board_profile_id, block_designator, record_type, target_refdes)
         VALUES (1, ?, 'BLOCK-001', 'A-RES', NULL)
-    """, [board_profile_id])
+    """,
+        [board_profile_id],
+    )
 
     # Collect unique refdes values to assign component_ids.
     seen_refdes: dict[str, int] = {}
@@ -344,11 +351,14 @@ def _build_spc_db(
 
     # Insert components for every distinct refdes.
     for rd, cid in seen_refdes.items():
-        con.execute("""
+        con.execute(
+            """
             INSERT OR IGNORE INTO components
                 (component_id, board_profile_id, refdes, component_family)
             VALUES (?, ?, ?, 'resistor')
-        """, [cid, board_profile_id, rd])
+        """,
+            [cid, board_profile_id, rd],
+        )
 
     # Group rows by start_ts to assign panel_serial / test_run_id.
     # Rows with the same start_ts go into the same panel/test_run.
@@ -479,18 +489,24 @@ def _build_anomaly_db(
 
         # Each group gets its own board_profile_id (needed for panels FK).
         board_id = f"board_{gidx}"
-        con.execute("""
+        con.execute(
+            """
             INSERT OR IGNORE INTO boards
                 (board_profile_id, name, component_count, net_count, typical_test_count)
             VALUES (?, ?, 50, 80, 120)
-        """, [board_id, board_id])
+        """,
+            [board_id, board_id],
+        )
 
-        con.execute("""
+        con.execute(
+            """
             INSERT INTO runs
                 (run_id, board_profile_id, seed, fault_rate, fault_profile,
                  panel_count, failing_boards)
             VALUES (?, ?, 42, 0.05, 'random', ?, ?)
-        """, [f"run_{gidx}", board_id, total, failed])
+        """,
+            [f"run_{gidx}", board_id, total, failed],
+        )
 
         # Determine the shift/line_id/board_profile_id to use for panels.
         if by == "board":
@@ -511,11 +527,14 @@ def _build_anomaly_db(
             panel_line = "LINE-A"
 
         # Ensure the panel's board_profile_id exists in boards.
-        con.execute("""
+        con.execute(
+            """
             INSERT OR IGNORE INTO boards
                 (board_profile_id, name, component_count, net_count, typical_test_count)
             VALUES (?, ?, 50, 80, 120)
-        """, [panel_board_id, panel_board_id])
+        """,
+            [panel_board_id, panel_board_id],
+        )
 
         for i in range(total):
             serial = f"ANM-{panel_counter:06d}"
@@ -524,14 +543,20 @@ def _build_anomaly_db(
 
             # Offset each run by a few seconds so start_ts is unique per row.
             from datetime import timedelta as td
+
             row_ts = run_ts + td(seconds=i)
 
             con.execute(
                 "INSERT INTO panels "
                 "(panel_serial, board_profile_id, panel_position, line_id, shift, scheduled_ts) "
                 "VALUES (?, ?, 1, ?, ?, ?)",
-                [serial, panel_board_id, panel_line, panel_shift,
-                 row_ts.strftime("%Y-%m-%d %H:%M:%S")],
+                [
+                    serial,
+                    panel_board_id,
+                    panel_line,
+                    panel_shift,
+                    row_ts.strftime("%Y-%m-%d %H:%M:%S"),
+                ],
             )
 
             # operator_id: use the key for operator grouping, 'OP-001' otherwise.

@@ -11,7 +11,7 @@ tests/test_parser/test_yield_query.py per R1-F (no cross-package import).
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import duckdb
 import pytest
@@ -70,9 +70,7 @@ def test_yield_by_board_matches_canonical_notebook_query(analytics_two_week_db):
         assert fn_row.group_key == board_id, (
             f"group_key mismatch: {fn_row.group_key!r} != {board_id!r}"
         )
-        assert fn_row.total == total, (
-            f"total mismatch for {board_id}: {fn_row.total} != {total}"
-        )
+        assert fn_row.total == total, f"total mismatch for {board_id}: {fn_row.total} != {total}"
         assert fn_row.passed == passed, (
             f"passed mismatch for {board_id}: {fn_row.passed} != {passed}"
         )
@@ -101,9 +99,7 @@ def test_yield_with_empty_db_returns_empty_list_for_every_group_by(empty_db):
     """Y-03: All four group_by values return [] on an empty DB."""
     for gb in ("board", "shift", "operator", "line"):
         result = yield_over_time(empty_db, group_by=gb)
-        assert result == [], (
-            f"Expected [] for group_by={gb!r} on empty DB, got {result!r}"
-        )
+        assert result == [], f"Expected [] for group_by={gb!r} on empty DB, got {result!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -210,8 +206,7 @@ def test_yield_by_operator_returns_grouped_rows(analytics_two_week_db):
     assert len(rows) > 0, "Fixture should return at least one operator group"
     for row in rows:
         assert row.group_key.startswith("OP-") or row.group_key == "<unknown>", (
-            f"operator group_key must look like OP-* or <unknown>, "
-            f"got {row.group_key!r}"
+            f"operator group_key must look like OP-* or <unknown>, got {row.group_key!r}"
         )
 
 
@@ -222,9 +217,9 @@ def test_yield_by_operator_returns_grouped_rows(analytics_two_week_db):
 
 @pytest.mark.xfail(
     reason="BUG-007 closed 2026-06-17 — test_runs.operator_id is now VARCHAR NOT NULL. "
-           "The COALESCE(operator_id, '<unknown>') path in yield_metrics.py is defensive "
-           "code; reachable only via a raw INSERT that bypasses the schema, not via the "
-           "normal write path the analytics layer ships against."
+    "The COALESCE(operator_id, '<unknown>') path in yield_metrics.py is defensive "
+    "code; reachable only via a raw INSERT that bypasses the schema, not via the "
+    "normal write path the analytics layer ships against."
 )
 def test_yield_null_operator_id_bucketed_as_unknown(analytics_two_week_db):
     """Y-12: NULL operator_id → group_key == '<unknown>' (L14)."""
@@ -232,12 +227,8 @@ def test_yield_null_operator_id_bucketed_as_unknown(analytics_two_week_db):
 
     rows = yield_over_time(con, group_by="operator")
     # Fixture has all operator_id NULL → should produce exactly one group
-    assert len(rows) == 1, (
-        f"Expected 1 group for all-NULL operators, got {len(rows)}"
-    )
-    assert rows[0].group_key == "<unknown>", (
-        f"Expected '<unknown>', got {rows[0].group_key!r}"
-    )
+    assert len(rows) == 1, f"Expected 1 group for all-NULL operators, got {len(rows)}"
+    assert rows[0].group_key == "<unknown>", f"Expected '<unknown>', got {rows[0].group_key!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -263,8 +254,8 @@ def test_yield_tiebreak_orders_by_group_key_asc():
     """)
     # 2 panels per board, both pass → identical yield 100%
     panels_data = [
-        ("TIE-S-001", "small",  1, "LINE-A", "A", "2026-05-01 10:00:00"),
-        ("TIE-S-002", "small",  2, "LINE-A", "A", "2026-05-02 10:00:00"),
+        ("TIE-S-001", "small", 1, "LINE-A", "A", "2026-05-01 10:00:00"),
+        ("TIE-S-002", "small", 2, "LINE-A", "A", "2026-05-02 10:00:00"),
         ("TIE-M-001", "medium", 1, "LINE-A", "A", "2026-05-01 10:00:00"),
         ("TIE-M-002", "medium", 2, "LINE-A", "A", "2026-05-02 10:00:00"),
     ]
@@ -344,9 +335,7 @@ def test_yield_row_at_lower_window_bound_included():
     rows = yield_over_time(con, window_days=7, group_by="board", as_of=as_of)
     con.close()
 
-    assert len(rows) == 1, (
-        f"Expected row at lower bound to be included, got {len(rows)} rows"
-    )
+    assert len(rows) == 1, f"Expected row at lower bound to be included, got {len(rows)} rows"
     assert rows[0].total == 1, f"Expected total=1, got {rows[0].total}"
 
 
@@ -390,9 +379,7 @@ def test_yield_row_at_upper_window_bound_included():
     rows = yield_over_time(con, window_days=7, group_by="board", as_of=as_of)
     con.close()
 
-    assert len(rows) == 1, (
-        f"Expected row at upper bound to be included, got {len(rows)} rows"
-    )
+    assert len(rows) == 1, f"Expected row at upper bound to be included, got {len(rows)} rows"
     assert rows[0].total == 1, f"Expected total=1, got {rows[0].total}"
 
 

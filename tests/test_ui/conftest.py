@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Offline guard: no real LLM key is visible to any UI test (chat page included)
 # ---------------------------------------------------------------------------
