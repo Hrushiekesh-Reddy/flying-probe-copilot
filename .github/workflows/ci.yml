@@ -1,0 +1,40 @@
+name: ci
+"on":
+  pull_request:
+    branches: [dev, main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "notebooks/**"
+      - ".claude/**"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          version: ">=0.7"
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --all-groups
+      - run: uv run ruff check . --output-format=github
+      - run: uv run ruff format --check .
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          version: ">=0.7"
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --all-groups
+      - run: uv run pytest -q --cov=src/flying_probe_copilot --cov-report=term
