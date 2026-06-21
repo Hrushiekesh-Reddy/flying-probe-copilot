@@ -20,7 +20,7 @@ def test_llm01_construct_does_not_touch_genai(monkeypatch):
     monkeypatch.setattr(llm, "_call_model", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("live path must not run at construct")), raising=False)
     GeminiClient()
-    GeminiClient(model_name="gemini-2.0-flash", api_key="explicit")
+    GeminiClient(model_name="gemini-3.5-flash", api_key="explicit")
 
 
 def test_llm03_satisfies_llmclient_protocol():
