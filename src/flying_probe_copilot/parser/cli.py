@@ -44,10 +44,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--encoding",
         default="auto",
         choices=["auto", "utf-8", "cp1252"],
-        help=(
-            "Log file encoding. 'auto' tries utf-8 then falls back to cp1252 "
-            "(default: auto)."
-        ),
+        help=("Log file encoding. 'auto' tries utf-8 then falls back to cp1252 (default: auto)."),
     )
     return p
 
@@ -91,9 +88,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Pre-flight: check if run_id already ingested (#WARNING-13)
     run_id = run_dir.name
-    existing = con.execute(
-        "SELECT 1 FROM runs WHERE run_id = ?", [run_id]
-    ).fetchone()
+    existing = con.execute("SELECT 1 FROM runs WHERE run_id = ?", [run_id]).fetchone()
     if existing:
         print(
             f"ERROR: run_id {run_id!r} already ingested; "

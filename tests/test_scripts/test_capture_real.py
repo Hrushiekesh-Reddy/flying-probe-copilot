@@ -10,7 +10,6 @@ Run manually:
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -81,14 +80,13 @@ def test_cap93_missing_db_exits_nonzero_before_popen(tmp_path):
 
 def test_cap94_default_port_uses_pick_free_port(ui_db_path, tmp_path, monkeypatch):
     """CAP-94: main() without --port calls pick_free_port exactly once."""
-    import unittest.mock as mock
     from scripts import capture_screenshots as cap_mod
 
     tmp_out = tmp_path / "out"
     chosen_port = pick_free_port()
     call_count = {"n": 0}
 
-    original = cap_mod.pick_free_port
+    original = cap_mod.pick_free_port  # noqa: F841
 
     def fake_pick():
         call_count["n"] += 1
@@ -96,6 +94,4 @@ def test_cap94_default_port_uses_pick_free_port(ui_db_path, tmp_path, monkeypatc
 
     monkeypatch.setattr(cap_mod, "pick_free_port", fake_pick)
     main(["all", "--db", ui_db_path, "--out", str(tmp_out)])
-    assert call_count["n"] == 1, (
-        f"pick_free_port called {call_count['n']} times (expected 1)"
-    )
+    assert call_count["n"] == 1, f"pick_free_port called {call_count['n']} times (expected 1)"

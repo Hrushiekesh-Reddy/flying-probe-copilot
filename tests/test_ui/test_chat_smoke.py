@@ -97,6 +97,7 @@ def test_chat06_two_turns_accumulate_history(monkeypatch):
 
 def test_chat08_backend_error_is_handled_gracefully(monkeypatch):
     """CHAT-08: a backend exception renders st.error, appends no turn, no crash."""
+
     def _boom(question):
         raise RuntimeError("gemini down")
 

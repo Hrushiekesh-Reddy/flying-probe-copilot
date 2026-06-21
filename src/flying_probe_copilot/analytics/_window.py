@@ -33,8 +33,7 @@ def _resolve_anchor(
     if as_of is not None:
         if as_of.tzinfo is not None:
             raise ValueError(
-                "as_of must be naive UTC (tzinfo=None); "
-                f"received tzinfo={as_of.tzinfo!r}"
+                f"as_of must be naive UTC (tzinfo=None); received tzinfo={as_of.tzinfo!r}"
             )
         return as_of
 
@@ -58,8 +57,6 @@ def _compute_window_bounds(
         If ``window_days < 1`` (Decision #4 / R1-L).
     """
     if window_days < 1:  # pragma: no cover — callers validate before calling
-        raise ValueError(
-            f"window_days must be >= 1; received {window_days!r}"
-        )
+        raise ValueError(f"window_days must be >= 1; received {window_days!r}")
     lower = anchor - timedelta(days=window_days)
     return lower, anchor

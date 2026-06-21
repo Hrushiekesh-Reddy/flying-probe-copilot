@@ -24,8 +24,8 @@ from datetime import datetime
 
 import duckdb
 
-from .models import SPCPoint
 from ._window import _compute_window_bounds, _resolve_anchor
+from .models import SPCPoint
 
 # ---------------------------------------------------------------------------
 # Allowed rule names
@@ -209,7 +209,8 @@ def individuals_chart(
         if "rule_2" in rules_set and i >= 2 and side != 0 and sigma_hat > 0:
             window_3 = [i - 2, i - 1, i]
             count_beyond_2s = sum(
-                1 for j in window_3
+                1
+                for j in window_3
                 if sides[j] == side and abs(values[j] - center) > 2.0 * sigma_hat
             )
             if count_beyond_2s >= 2:
@@ -221,7 +222,8 @@ def individuals_chart(
         if "rule_3" in rules_set and i >= 4 and side != 0 and sigma_hat > 0:
             window_5 = [i - 4, i - 3, i - 2, i - 1, i]
             count_beyond_1s = sum(
-                1 for j in window_5
+                1
+                for j in window_5
                 if sides[j] == side and abs(values[j] - center) > 1.0 * sigma_hat
             )
             if count_beyond_1s >= 4:

@@ -7,8 +7,8 @@ def test_api01_core_names_importable_and_usable():
     """API-01: the five core public names import and are callable/types."""
     from flying_probe_copilot.rag import (  # noqa: F401
         Chunk,
-        RetrievedChunk,
         HybridRetriever,
+        RetrievedChunk,
         build_retriever,
         load_kb,
     )

@@ -17,8 +17,8 @@ from datetime import datetime
 
 import duckdb
 
-from .models import ParetoRow
 from ._window import _compute_window_bounds, _resolve_anchor
+from .models import ParetoRow
 
 # ---------------------------------------------------------------------------
 # By-value configuration
@@ -80,9 +80,7 @@ def failure_pareto(
     """
     if by not in _BY_CONFIG:
         allowed = ", ".join(f"{v!r}" for v in _ALLOWED_BY)
-        raise ValueError(
-            f"by={by!r} is not supported. Allowed values: {allowed}"
-        )
+        raise ValueError(f"by={by!r} is not supported. Allowed values: {allowed}")
 
     if top_n < 1:
         raise ValueError(f"top_n must be >= 1; received {top_n!r}")

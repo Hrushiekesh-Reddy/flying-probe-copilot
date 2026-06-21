@@ -158,7 +158,7 @@ anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q
 - [x] Case-study writeup at `docs/case-study.md` (~2,100 words) — portfolio-site copy/adapt remains owner task (Phase 4 slice 1, 2026-06-21)
 - [ ] Blog post: "Building an AI co-pilot for PCBA test analytics"
 - [ ] `docs/DEMO.md` walkthrough script
-- [ ] GitHub Actions workflow: lint + tests on PR
+- [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)
 - [ ] Repo flipped to public after guardrails checklist passes
 - [ ] LinkedIn post with screenshots
 - [ ] Resume bullet drafted (see SKILLS.md for template)

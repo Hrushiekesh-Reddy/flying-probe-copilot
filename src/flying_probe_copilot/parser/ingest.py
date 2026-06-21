@@ -23,9 +23,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Sequence
 
 import duckdb
 
@@ -38,12 +36,10 @@ from flying_probe_copilot.generator.models import (
     PinsFailedRecord,
     ShortsRecord,
     ShortsStatus,
-    TestBlock,
     TestJetRecord,
     TwoDigitStatus,
 )
-from flying_probe_copilot.parser.log_parser import ParseReport, parse_log_file
-
+from flying_probe_copilot.parser.log_parser import parse_log_file
 
 # ---------------------------------------------------------------------------
 # IngestReport
@@ -123,9 +119,7 @@ def _ensure_board_dim(con: duckdb.DuckDBPyConnection, board_profile_id: str) -> 
 
 
 def _ensure_operator(con: duckdb.DuckDBPyConnection, operator_id: str) -> None:
-    con.execute(
-        "INSERT OR IGNORE INTO operators (operator_id) VALUES (?)", [operator_id]
-    )
+    con.execute("INSERT OR IGNORE INTO operators (operator_id) VALUES (?)", [operator_id])
 
 
 def _get_or_create_component(
@@ -288,7 +282,7 @@ def _ingest_batch_log(
         _ensure_operator(con, operator_id)
 
         # Convert timestamps
-        from flying_probe_copilot.parser.log_parser import _parse_yymmddhhmmss, ParseError
+        from flying_probe_copilot.parser.log_parser import ParseError, _parse_yymmddhhmmss
 
         try:
             start_dt = _parse_yymmddhhmmss(btest.start_ts)
@@ -410,10 +404,23 @@ def _ingest_batch_log(
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
-                    m_id, tr_id, test_id, component_id, record_type,
-                    status_int, measured_value, limit_high, limit_low, limit_nominal,
-                    substatus, failing_vector, failing_pin_count, shorts_count,
-                    opens_count, phantoms_count, pin_count,
+                    m_id,
+                    tr_id,
+                    test_id,
+                    component_id,
+                    record_type,
+                    status_int,
+                    measured_value,
+                    limit_high,
+                    limit_low,
+                    limit_nominal,
+                    substatus,
+                    failing_vector,
+                    failing_pin_count,
+                    shorts_count,
+                    opens_count,
+                    phantoms_count,
+                    pin_count,
                 ],
             )
             measurements_inserted += 1
@@ -432,8 +439,14 @@ def _ingest_batch_log(
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
-                        f_id, m_id, tr_id, panel.serial,
-                        board_profile_id, record_type, status_int, fail_cat,
+                        f_id,
+                        m_id,
+                        tr_id,
+                        panel.serial,
+                        board_profile_id,
+                        record_type,
+                        status_int,
+                        fail_cat,
                         target_refdes,
                     ],
                 )
@@ -524,9 +537,7 @@ def ingest_run_directory(
             report.parse_errors += len(parse_report.errors)
             report.files_processed += 1
 
-            p, tr, m, f = _ingest_batch_log(
-                con, batch_log, run_id, board_profile_id, counters
-            )
+            p, tr, m, f = _ingest_batch_log(con, batch_log, run_id, board_profile_id, counters)
             report.panels_inserted += p
             report.test_runs_inserted += tr
             report.measurements_inserted += m

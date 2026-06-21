@@ -100,7 +100,9 @@ def test_eval02_citation_must_be_retrieved():
 
 def test_eval03_off_domain_refuses_without_llm():
     """EVAL-03: an off-domain question (no hits) refuses without calling the LLM."""
-    out = answer("what is the best pizza topping?", retriever=StubRetriever([]), client=RaisingLLMClient())
+    out = answer(
+        "what is the best pizza topping?", retriever=StubRetriever([]), client=RaisingLLMClient()
+    )
     assert out.refused is True
     assert out.answer_text == REFUSAL_TEXT
     assert out.citations == ()

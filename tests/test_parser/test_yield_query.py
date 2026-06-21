@@ -20,7 +20,6 @@ from flying_probe_copilot.generator.cli import _build_batch_log
 from flying_probe_copilot.generator.models import BatchLog, BTESTStatus
 from flying_probe_copilot.generator.renderers.log import render_log
 
-
 # ---------------------------------------------------------------------------
 # Module-level SQL constant (#MINOR-17)
 # ---------------------------------------------------------------------------
@@ -282,7 +281,5 @@ def test_yield_query_includes_panel_exactly_at_seven_day_boundary(tmp_path):
     rows = con.execute(_YIELD_BY_BOARD_LAST_WEEK_SQL).fetchall()
     con.close()
     # The single panel is at MAX(start_ts) = anchor, which is >= anchor - 7 days
-    assert len(rows) == 1, (
-        f"Expected 1 row (panel at boundary must be included), got {len(rows)}"
-    )
+    assert len(rows) == 1, f"Expected 1 row (panel at boundary must be included), got {len(rows)}"
     assert rows[0][1] == 1, f"Expected total=1, got {rows[0][1]}"

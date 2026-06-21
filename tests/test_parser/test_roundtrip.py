@@ -7,7 +7,7 @@ what ends up in the DuckDB database after a full parse+ingest cycle.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
@@ -17,14 +17,8 @@ from flying_probe_copilot.generator.cli import _build_batch_log
 from flying_probe_copilot.generator.models import (
     BatchLog,
     BTESTStatus,
-    AnalogRecord,
-    DigitalRecord,
-    ShortsRecord,
-    TestJetRecord,
-    PinsFailedRecord,
 )
 from flying_probe_copilot.generator.renderers.log import render_log
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -89,12 +83,9 @@ def medium_5_log():
 # ---------------------------------------------------------------------------
 
 
-def test_generator_to_parser_to_db_preserves_panel_count(
-    small_10_log, medium_5_log, tmp_path
-):
+def test_generator_to_parser_to_db_preserves_panel_count(small_10_log, medium_5_log, tmp_path):
     """panels table must have 10 + 5 = 15 rows after ingesting both profiles."""
     from flying_probe_copilot.parser.cli import main
-    from flying_probe_copilot.db.schema import init_database
 
     db_path = tmp_path / "rt_panels.duckdb"
     small_dir = _make_run_dir(tmp_path, small_10_log, "small", "run_rt_small", seed=42)
@@ -154,12 +145,11 @@ def test_roundtrip_preserves_measurements_count_within_one_percent_tolerance(
     )
 
 
-def test_roundtrip_preserves_btest_status_distribution(
-    small_10_log, medium_5_log, tmp_path
-):
+def test_roundtrip_preserves_btest_status_distribution(small_10_log, medium_5_log, tmp_path):
     """btest_status distribution in DB must match in-memory distribution."""
-    from flying_probe_copilot.parser.cli import main
     from collections import Counter
+
+    from flying_probe_copilot.parser.cli import main
 
     # Build expected distribution from in-memory logs
     in_memory_dist: Counter = Counter()
@@ -189,9 +179,7 @@ def test_roundtrip_preserves_btest_status_distribution(
     )
 
 
-def test_roundtrip_first_panel_start_ts_matches_in_memory_panel_timestamp(
-    small_10_log, tmp_path
-):
+def test_roundtrip_first_panel_start_ts_matches_in_memory_panel_timestamp(small_10_log, tmp_path):
     """start_ts in test_runs must equal the generator's panel.timestamp (#BLOCKER-4)."""
     from flying_probe_copilot.parser.cli import main
 
@@ -201,7 +189,7 @@ def test_roundtrip_first_panel_start_ts_matches_in_memory_panel_timestamp(
 
     # Get the first panel's serial and expected timestamp from the generator
     first_board = small_10_log.boards[0]
-    expected_ts = first_board.panel.timestamp  # datetime
+    expected_ts = first_board.panel.timestamp  # datetime  # noqa: F841
     expected_start_ts_int = first_board.btest.start_ts  # YYMMDDHHMMSS int
 
     # Parse the YYMMDDHHMMSS int back to a datetime using the same helper
@@ -223,6 +211,4 @@ def test_roundtrip_first_panel_start_ts_matches_in_memory_panel_timestamp(
     if hasattr(db_dt, "replace"):
         db_dt = db_dt.replace(tzinfo=None)
 
-    assert db_dt == expected_dt, (
-        f"start_ts mismatch: DB={db_dt!r}, expected={expected_dt!r}"
-    )
+    assert db_dt == expected_dt, f"start_ts mismatch: DB={db_dt!r}, expected={expected_dt!r}"

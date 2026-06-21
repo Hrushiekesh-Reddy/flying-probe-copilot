@@ -38,7 +38,9 @@ def _json(**kw) -> str:
 def test_ans01_grounded_answer_with_valid_citation():
     """ANS-01: sufficient + valid citation + answer -> grounded Answer."""
     r = StubRetriever([_hit("a.md#0")])
-    c = FakeLLMClient(_json(answer="Opens are missing connections.", citations=["a.md#0"], sufficient=True))
+    c = FakeLLMClient(
+        _json(answer="Opens are missing connections.", citations=["a.md#0"], sufficient=True)
+    )
     out = answer("why open?", retriever=r, client=c)
     assert out.refused is False
     assert out.answer_text == "Opens are missing connections."
@@ -131,14 +133,18 @@ def test_ans11_empty_citations_refuses():
 @pytest.mark.parametrize(
     "raw",
     [
-        "I cannot comply",          # ANS-12 non-JSON
-        "",                          # ANS-13 empty
-        "[1, 2, 3]",                # ANS-14 valid JSON wrong shape
+        "I cannot comply",  # ANS-12 non-JSON
+        "",  # ANS-13 empty
+        "[1, 2, 3]",  # ANS-14 valid JSON wrong shape
         json.dumps({"citations": ["a.md#0"], "sufficient": True}),  # ANS-15 missing answer
-        json.dumps({"answer": "x", "citations": ["a.md#0"]}),       # ANS-17 missing sufficient
+        json.dumps({"answer": "x", "citations": ["a.md#0"]}),  # ANS-17 missing sufficient
         json.dumps({"answer": "x", "citations": "a.md#0", "sufficient": True}),  # ANS-18 not a list
-        json.dumps({"answer": "", "citations": ["a.md#0"], "sufficient": True}), # ANS-22 empty answer
-        json.dumps({"answer": "x", "citations": ["a.md#0"], "sufficient": "yes"}),  # ANS-21 non-bool
+        json.dumps(
+            {"answer": "", "citations": ["a.md#0"], "sufficient": True}
+        ),  # ANS-22 empty answer
+        json.dumps(
+            {"answer": "x", "citations": ["a.md#0"], "sufficient": "yes"}
+        ),  # ANS-21 non-bool
     ],
 )
 def test_ans12_malformed_or_ungrounded_json_refuses(raw):
@@ -172,7 +178,12 @@ def test_ans20_duplicate_citations_deduped():
 def test_ans23_top_k_forwarded_as_keyword():
     """ANS-23: top_k is forwarded to the retriever."""
     r = StubRetriever([_hit("a.md#0")])
-    answer("q", retriever=r, client=FakeLLMClient(_json(answer="x", citations=["a.md#0"], sufficient=True)), top_k=3)
+    answer(
+        "q",
+        retriever=r,
+        client=FakeLLMClient(_json(answer="x", citations=["a.md#0"], sufficient=True)),
+        top_k=3,
+    )
     assert r.calls == [3]
 
 
@@ -184,7 +195,11 @@ def test_ans24_default_top_k_matches_module_constant():
     that silently divorces the signature default from the constant still fails.
     """
     r = StubRetriever([_hit("a.md#0")])
-    answer("q", retriever=r, client=FakeLLMClient(_json(answer="x", citations=["a.md#0"], sufficient=True)))
+    answer(
+        "q",
+        retriever=r,
+        client=FakeLLMClient(_json(answer="x", citations=["a.md#0"], sufficient=True)),
+    )
     assert DEFAULT_TOP_K == 10
     assert r.calls == [DEFAULT_TOP_K]
 
@@ -217,7 +232,13 @@ def test_ans27_end_to_end_with_real_retriever(write_kb, fake_embedder):
 
 def test_ans28_answer_is_frozen():
     """ANS-28: Answer is immutable."""
-    a = Answer(question="q", answer_text="x", citations=("a.md#0",), refused=False, retrieved_ids=("a.md#0",))
+    a = Answer(
+        question="q",
+        answer_text="x",
+        citations=("a.md#0",),
+        refused=False,
+        retrieved_ids=("a.md#0",),
+    )
     with pytest.raises(dataclasses.FrozenInstanceError):
         a.refused = True  # type: ignore[misc]
 
@@ -230,7 +251,19 @@ def test_ans29_answer_field_set():
 
 def test_ans30_answer_equality_and_hashable():
     """ANS-30: equal-valued Answers compare == and are hashable (tuple fields)."""
-    a1 = Answer(question="q", answer_text="x", citations=("a.md#0",), refused=False, retrieved_ids=("a.md#0",))
-    a2 = Answer(question="q", answer_text="x", citations=("a.md#0",), refused=False, retrieved_ids=("a.md#0",))
+    a1 = Answer(
+        question="q",
+        answer_text="x",
+        citations=("a.md#0",),
+        refused=False,
+        retrieved_ids=("a.md#0",),
+    )
+    a2 = Answer(
+        question="q",
+        answer_text="x",
+        citations=("a.md#0",),
+        refused=False,
+        retrieved_ids=("a.md#0",),
+    )
     assert a1 == a2
     assert len({a1, a2}) == 1

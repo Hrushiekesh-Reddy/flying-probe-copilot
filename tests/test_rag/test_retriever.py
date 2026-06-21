@@ -23,8 +23,8 @@ def test_ret01_both_list_chunk_outranks_one_list(write_kb, fake_embedder):
     """RET-01: a chunk in BOTH lists outranks one in only the lexical list."""
     kb = write_kb(
         {
-            "a.md": "# A\n\nsolder bridge short\n",   # in-vocab -> both lists
-            "b.md": "# B\n\ngadget widget tool\n",     # 'gadget' out-of-vocab -> lexical only
+            "a.md": "# A\n\nsolder bridge short\n",  # in-vocab -> both lists
+            "b.md": "# B\n\ngadget widget tool\n",  # 'gadget' out-of-vocab -> lexical only
         }
     )
     r = build_retriever(kb, embedder=fake_embedder)
@@ -87,9 +87,7 @@ def test_ret06_rrf_k_is_configurable(write_kb, fake_embedder):
 
 def test_ret07_partial_retriever_records_none_rank(write_kb, fake_embedder):
     """RET-07: a lexical-only chunk carries vector_rank None; a both-list chunk neither."""
-    kb = write_kb(
-        {"a.md": "# A\n\nsolder bridge\n", "b.md": "# B\n\ngadget tool\n"}
-    )
+    kb = write_kb({"a.md": "# A\n\nsolder bridge\n", "b.md": "# B\n\ngadget tool\n"})
     r = build_retriever(kb, embedder=fake_embedder)
     out = {rc.chunk.chunk_id: rc for rc in r.retrieve("solder gadget", top_k=5)}
     assert out["b.md#0"].vector_rank is None
@@ -174,8 +172,8 @@ def test_ret17_output_sorted_score_desc_then_id(write_kb, fake_embedder):
     """RET-17: output is sorted by score DESC then chunk_id ASC."""
     kb = write_kb(
         {
-            "a.md": "# A\n\nsolder bridge\n",   # both lists -> high
-            "z.md": "# Z\n\ngadget tool\n",     # lexical only -> low
+            "a.md": "# A\n\nsolder bridge\n",  # both lists -> high
+            "z.md": "# Z\n\ngadget tool\n",  # lexical only -> low
         }
     )
     r = build_retriever(kb, embedder=fake_embedder)

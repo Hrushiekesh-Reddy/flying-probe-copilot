@@ -4,6 +4,75 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 slice 3 — GitHub Actions CI workflows + ruff config — branch: feature/phase4-slice3-ci-workflows
+
+**Goal:** Phase 4 slice 3: ship the unchecked Phase 4 deliverable "GitHub Actions workflow: lint + tests on PR" + a path-filtered screenshot-recapture workflow on UI/analytics PRs (closes the slice-2 follow-up named in CLAUDE.md "Next" pointer). Owner pre-ratified D1-D4 at brief time: cache build artifact for sample DB; CI artifacts only (no auto-commit); hold public flip until slice 4; ruff only (no mypy). Tier: Medium (full 12-step loop).
+**Outcome:** Shipped. Two NEW workflow files + ruff dev-dep + 4-block ruff config + 93-test `tests/test_ci/` package over a one-time `ruff --fix` + `ruff format` cleanup pass (D17 ratified as slice-3 exception to read-only `src/**`). **Suite: 659 passing / 5 skipped / 1 xfailed / 97% coverage** (baseline 566/5/1 → +93 ci tests). Zero `.claude/**` edits. Zero `scripts/**` edits. Three commits on branch ready for `feature/phase4-slice3-ci-workflows → dev` PR.
+
+### Done — CI infrastructure (executor sub-agent)
+- `.github/workflows/ci.yml` (NEW, 41 lines): two parallel jobs (`lint`, `tests`) on `pull_request` to `dev`/`main`. `lint` runs `ruff check . --output-format=github` + `ruff format --check .` (timeout 5 min). `tests` runs `uv run pytest -q --cov=src/flying_probe_copilot --cov-report=term` (timeout 15 min). Both use `actions/checkout@v4` + `astral-sh/setup-uv@v8` (with `version: ">=0.7"`, `python-version: "3.11"`, `enable-cache: true`) + `uv sync --frozen --all-groups`. Top-level `concurrency.group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`. `permissions: contents: read`. `paths-ignore: ["docs/**", "**/*.md", "notebooks/**", ".claude/**"]` per MD-4. `"on":` quoted per B-1 (PyYAML treats bare `on:` as bool `True`).
+- `.github/workflows/screenshots.yml` (NEW, 47 lines): single `capture` job on PRs touching `src/flying_probe_copilot/ui/**`, `src/flying_probe_copilot/analytics/**`, `docs/knowledge-base/**`, `scripts/capture_screenshots.py`, `scripts/_capture_app.py`. Steps: checkout → setup-uv → `uv sync --frozen --all-groups` → `actions/cache@v4` keyed on `hashFiles('src/.../generator/cli.py', 'src/.../generator/**', 'src/.../parser/cli.py', 'src/.../parser/**', 'scripts/build-portfolio-data.sh', 'uv.lock')` per B-5 non-glob anchors + `restore-keys: sample-duckdb-` per W-1 → conditional `bash scripts/build-portfolio-data.sh` (if `steps.cache-db.outputs.cache-hit != 'true'`) → `uv run playwright install --with-deps chromium` → `uv run python scripts/capture_screenshots.py all --db data/db/sample.duckdb --out docs/img-ci/` → `actions/upload-artifact@v4` `name: recaptured-dashboard-screenshots`, `path: docs/img-ci/`, `retention-days: 14` per D2. No `GOOGLE_API_KEY` reference anywhere (the shim covers Co-Pilot capture).
+
+### Done — approval-gated `pyproject.toml` edit (owner-ratified at Decision Gate)
+- `[dependency-groups].dev`: added `ruff>=0.6` (alphabetized last by ASCII: playwright, pytest-cov, pytest, ruff — `-` 0x2D < no-char, so `pytest-cov` sorts before `pytest`).
+- `[tool.ruff]`: `line-length=100`, `target-version="py311"`, `extend-exclude=["data","docs","notebooks",".claude","scripts"]` (D16: `"scripts"` added per B-4 to honor the read-only `scripts/` guardrail at the lint layer).
+- `[tool.ruff.lint]`: `select=["E","F","W","I"]` (D5 minimal set).
+- `[tool.ruff.lint.per-file-ignores]`: `"tests/**/*.py" = ["E501", "F401"]` (D6 + W-8 explicit glob).
+- `[tool.ruff.format]`: empty block (defaults).
+- `uv.lock`: regenerated; ruff 0.15.18 + transitive deps added.
+
+### Done — cleanup pass (one-time exception per D17 = A)
+- Lint preflight via `uvx ruff` surfaced 301 errors (`I001` 100, `E501` 95, `F401` 67, `F811` 24, `E401` 8, `F841` 4, `E712` 2, `E741` 1) + 58 unformatted files. Owner ratified Option A (cleanup pass) over Option B (defer CI lint), C (narrow rule set), D (split slice).
+- Commit `056459e`: `ruff check --fix --select E,F,W,I --line-length 100 --target-version py311 src tests` applied 189 auto-fixes (I001 + F401 + F811 + E401). `ruff format --line-length 100 --target-version py311 src tests` reformatted 58 files (mostly multi-line strings collapsing into single lines at 100 char width).
+- D17.1 hybrid policy for the remaining 7 non-auto-fixable + 1 import-restoration:
+  - 11 inline `import duckdb  # noqa: F811` adds in `tests/test_ui/test_views_smoke.py` `_smoke_*` functions — load-bearing for `AppTest.from_function` subprocess execution (the function source is extracted and run in a fresh interpreter, so module-level imports don't propagate). Without these, 12 view-smoke tests fail with `NameError: name 'duckdb' is not defined`.
+  - 4 F841 (unused-variable, intent-marker locals in `test_spc.py`, `test_cli.py`, `test_roundtrip.py`, `test_capture_real.py`): per-line `# noqa: F841` with comment.
+  - 2 E712 (true-false-comparison on pandas `.loc` in `test_data.py`): per-line `# noqa: E712 — pandas idiom`.
+  - 1 E741 (ambiguous-name `l` in tuple unpack in `test_ingest.py`:856-857): refactored `l` → `line_val`, `s` → `shift_val` (the tuple unpack target).
+  - 13 E501 (line-too-long, all in tests/): absorbed by `[tool.ruff.lint.per-file-ignores]."tests/**/*.py" = ["E501", "F401"]` once `pyproject.toml` config landed at E5.
+- Diff: 68 files changed (+1517 / -1126). 26 src/ files (mostly format) + 42 tests/ files (format + the 11+7 suppressions). Suite stays at 566 passing.
+
+### Done — tests/test_ci/ package (executor sub-agent)
+- `tests/test_ci/__init__.py` (NEW): empty marker.
+- `tests/test_ci/conftest.py` (NEW): 4 session-scope fixtures per test-plan §A.1: `_workflow_dir` (Path anchored to repo root via `parents[2]`), `_load_yaml(name)` (memoized + `copy.deepcopy` per call per W-6 to guard against test mutation leakage), `_load_yaml_text(name)` (raw text for substring searches like "GOOGLE_API_KEY does NOT appear"), `_pyproject` (tomllib-loaded `pyproject.toml`).
+- `tests/test_ci/test_workflow_yaml.py` (NEW): 83 `def test_*` functions + 9 `@pytest.mark.parametrize` decorators = 93 collected tests. Sections: A.3 sanity (1) + B `ci.yml` (25) + C `screenshots.yml` (30) + D `pyproject.toml` ruff config (17) + E cross-workflow (10, dropped E-08 per W-3). Defense-in-depth on secrets (no `GOOGLE_API_KEY`, no `ANTHROPIC_API_KEY`, no bare `secrets.` substring) covered by 6 tests across the file. Action-version pins enforced (`actions/checkout@v4`, `actions/cache@v4`, `actions/upload-artifact@v4`, `astral-sh/setup-uv@v8`). Float-coercion trap caught (`isinstance(python_version, str)` AND `==` "3.11").
+
+### Done — bookkeeping (parent at Step 10)
+- `docs/ROADMAP.md`: Phase 4 deliverable line `- [ ] GitHub Actions workflow: lint + tests on PR` → `- [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)`.
+- `CLAUDE.md`: Status block flipped Phase 4 slice 2 IN PR → slice 3 IN PR (full Plan Rev1 + cleanup pass + 93-test test-ci + ruff config narrative); this session-log line appended.
+- `docs/logs/DECISION_LOG.md`: slice-3 entry covering D1-D4 (brief), D5-D15 (Plan), D16 (B-4 closure), D17/D17.1 (cleanup-pass + hybrid suppress), MD-4 + BR + BUNDLE smaller calls + 7 BLOCKER + 12 WARN + 8 MISSING-DECISION closures + rejected alternatives.
+- `docs/plans/2026-06-21-phase4-slice3-{brief,plan,plan-rev1,test-plan,redteam,decision-gate,exec-report,verify-execution}.md`: 8 artifacts committed.
+- Branch renamed `claude/sweet-jones-7291db` → `feature/phase4-slice3-ci-workflows` at Step 10 (matches slice 1+2 naming pattern per BR ratification).
+
+### Step 5 red-team caught 7 BLOCKERs + 12 WARNs + 8 MISSING-DECISIONs (all closed in Plan-Rev1 before Execute)
+- **B-1** PyYAML reads bare `on:` as Python `True` (YAML 1.1 boolean) — live-verified `yaml.safe_load("on:\n  pull_request:")` returns `{True: ...}`. Closure: quote `"on":` in both workflow YAML files. GitHub Actions accepts quoted form.
+- **B-2** PyYAML coerces unquoted `python-version: 3.11` to float (printed as `3.11` but isn't exactly representable in IEEE-754). Closure: `python-version: "3.11"` explicit quoting + tests E-09/C-11/B-10 assert `isinstance(v, str)`.
+- **B-3** `astral-sh/setup-uv@v3` is three majors stale (current is v8.2.0 per WebFetch 2026-06-03). Closure: bumped to `@v8`. Action's `enable-cache` + `python-version` inputs work since v6+, eliminating need for separate `actions/setup-python` step (W-3 closure).
+- **B-4** `[tool.ruff].extend-exclude` omitted `"scripts"` while brief §3 marked `scripts/` read-only — ruff would fire on `scripts/capture_screenshots.py` + `scripts/_capture_app.py` without a legal edit channel. Closure: added `"scripts"` per new D16.
+- **B-5** `hashFiles('src/.../generator/**', ...)` returns empty string on zero glob match → cache key collapses to `sample-duckdb-` constant → silent stale cache forever. Closure: added `cli.py` non-glob anchor files (guaranteed to exist) to each glob root.
+- **B-6** `uv sync --frozen --all-groups` requires uv ≥ 0.5.4 (flag added late 2024); `setup-uv@v3` predates this. Closure: bumped to `@v8` (B-3) + explicit `version: ">=0.7"` belt-and-suspenders.
+- **B-7** `ruff format --check .` policy on existing code — preflight surfaced 301 lint errors + 58 unformatted files. Owner-blocking; closed at Decision Gate via D17 = A (cleanup pass as one-time exception).
+
+### Live-discovered issue in-session (out of red-team scope)
+- Cleanup `ruff --fix` stripped 11 inline `import duckdb` statements from `_smoke_*` functions in `test_views_smoke.py` as F811 (redefined-while-unused) — but those inline imports are load-bearing for Streamlit's `AppTest.from_function`, which extracts the function source and runs it in a fresh subprocess that doesn't inherit the test module's imports. 12 tests failed with `NameError: name 'duckdb' is not defined`. Fixed by restoring all 11 inline `import duckdb  # noqa: F811` lines. Suite restored to 566 baseline.
+
+### Bugs surfaced
+None new this slice. The cleanup pass touched 26 src/ files but only mechanically — no semantic edits, no behavior regressions (suite stays 566/5/1 across before-cleanup-after).
+
+### Phase 4 status
+- **Slice 1**: shipped (PR #32 merged).
+- **Slice 2**: shipped (PR #34 merged).
+- **Slice 3 IN PR.** CI workflows + ruff config on branch ready for `feature/phase4-slice3-ci-workflows → dev` PR.
+- **Slice 4 queued**: portfolio promotion (final guardrails audit + repo public flip per D3 deferral + `docs/DEMO.md` + blog post + LinkedIn post + resume bullet + branch-protection rules requiring CI green on PRs to `main` + CI status badge in README).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice3-ci-workflows → dev` PR. First CI run on the slice-3 PR validates `ci.yml` end-to-end (G5). `screenshots.yml` correctly will NOT run on this PR (no UI/analytics/KB/script paths touched — per D14).
+2. After merge to `dev`: a follow-up UI-touching PR will be the first live test of `screenshots.yml`.
+3. Then start Phase 4 slice 4 (portfolio promotion).
+
+---
+
+
 ## 2026-06-21 — Phase 4 slice 2 — headless screenshot capture + demo gif — branch: feature/phase4-slice2-screenshots
 
 **Goal:** Phase 4 slice 2: ship `scripts/capture_screenshots.py` (Playwright + Pillow) as the auto-recapture infrastructure that closes the "Capture screenshots from CI, not by hand" follow-up named in slice 1's case-study retrospective. Six dashboard JPGs + `docs/img/demo.gif` regenerate from one command against the gitignored `data/db/sample.duckdb`, no live Gemini key needed. Tier: Medium (full 12-step loop).

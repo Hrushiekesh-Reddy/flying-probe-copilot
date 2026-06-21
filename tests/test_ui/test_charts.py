@@ -27,28 +27,30 @@ from flying_probe_copilot.ui.charts import (
     build_yield_bar,
 )
 from flying_probe_copilot.ui.data import (
-    _YIELD_COLS,
+    _ANOMALY_COLS,
     _PARETO_COLS,
     _SPC_COLS,
-    _ANOMALY_COLS,
+    _YIELD_COLS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _empty_yield_df():
     return pd.DataFrame(columns=_YIELD_COLS)
 
 
 def _yield_df():
-    return pd.DataFrame({
-        "group_key": ["high_yield", "mid_yield", "low_yield"],
-        "total":     [10, 10, 10],
-        "passed":    [9, 8, 5],
-        "yield_pct": [90.0, 80.0, 50.0],
-    })
+    return pd.DataFrame(
+        {
+            "group_key": ["high_yield", "mid_yield", "low_yield"],
+            "total": [10, 10, 10],
+            "passed": [9, 8, 5],
+            "yield_pct": [90.0, 80.0, 50.0],
+        }
+    )
 
 
 def _empty_pareto_df():
@@ -56,12 +58,14 @@ def _empty_pareto_df():
 
 
 def _pareto_df():
-    return pd.DataFrame({
-        "key":            ["A-RES", "D-SHO", "D-OPN"],
-        "count":          [10, 6, 4],
-        "pct_of_total":   [50.0, 30.0, 20.0],
-        "cumulative_pct": [50.0, 80.0, 100.0],
-    })
+    return pd.DataFrame(
+        {
+            "key": ["A-RES", "D-SHO", "D-OPN"],
+            "count": [10, 6, 4],
+            "pct_of_total": [50.0, 30.0, 20.0],
+            "cumulative_pct": [50.0, 80.0, 100.0],
+        }
+    )
 
 
 def _empty_spc_df():
@@ -72,17 +76,19 @@ def _spc_df():
     rows = []
     for i in range(20):
         alarmed = i == 15  # one alarm point
-        rows.append({
-            "panel_serial": f"P-{i:04d}",
-            "start_ts":     datetime(2026, 4, i + 1, 10, 0, 0),
-            "value":        10.0 + (0.5 if alarmed else 0.0),
-            "mean":         10.0,
-            "ucl":          10.4,
-            "lcl":          9.6,
-            "alarm_flags":  ("rule_1",) if alarmed else (),
-            "alarmed":      alarmed,
-            "alarms":       "rule_1" if alarmed else "",
-        })
+        rows.append(
+            {
+                "panel_serial": f"P-{i:04d}",
+                "start_ts": datetime(2026, 4, i + 1, 10, 0, 0),
+                "value": 10.0 + (0.5 if alarmed else 0.0),
+                "mean": 10.0,
+                "ucl": 10.4,
+                "lcl": 9.6,
+                "alarm_flags": ("rule_1",) if alarmed else (),
+                "alarmed": alarmed,
+                "alarms": "rule_1" if alarmed else "",
+            }
+        )
     return pd.DataFrame(rows, columns=_SPC_COLS)
 
 
@@ -91,15 +97,17 @@ def _empty_anomaly_df():
 
 
 def _anomaly_df():
-    return pd.DataFrame({
-        "group_key":      ["C", "A", "B"],
-        "value":          [0.75, 0.0, 0.05],
-        "baseline_mean":  [0.05, 0.05, 0.05],
-        "baseline_std":   [0.02, 0.02, 0.02],
-        "z_score":        [13.0, -2.5, 0.0],
-        "flagged":        [True, False, False],
-        "flag_label":     ["⚠", "", ""],
-    })
+    return pd.DataFrame(
+        {
+            "group_key": ["C", "A", "B"],
+            "value": [0.75, 0.0, 0.05],
+            "baseline_mean": [0.05, 0.05, 0.05],
+            "baseline_std": [0.02, 0.02, 0.02],
+            "z_score": [13.0, -2.5, 0.0],
+            "flagged": [True, False, False],
+            "flag_label": ["⚠", "", ""],
+        }
+    )
 
 
 # ===========================================================================
@@ -159,9 +167,7 @@ class TestBuildYieldBar:
         assert isinstance(fig, go.Figure)
         annotations = fig.layout.annotations
         texts = [a.text for a in annotations]
-        assert any("No data" in t for t in texts), (
-            f"expected 'No data' annotation, got {texts}"
-        )
+        assert any("No data" in t for t in texts), f"expected 'No data' annotation, got {texts}"
 
 
 # ===========================================================================

@@ -19,13 +19,11 @@ from __future__ import annotations
 import os
 from datetime import date, timedelta
 
-import duckdb
 import streamlit as st
 
 from flying_probe_copilot.ui import data as _data
 from flying_probe_copilot.ui import views as _views
-from flying_probe_copilot.ui.data import Filters, date_range_to_window, data_date_span
-
+from flying_probe_copilot.ui.data import Filters, data_date_span, date_range_to_window
 
 # ---------------------------------------------------------------------------
 # Main entry point

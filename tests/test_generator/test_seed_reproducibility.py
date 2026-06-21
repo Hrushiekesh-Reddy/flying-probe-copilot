@@ -19,12 +19,8 @@ def _invoke(argv):
 def _two_runs(tmp_factory, seed: int):
     a = tmp_factory.mktemp("a")
     b = tmp_factory.mktemp("b")
-    rc_a = _invoke(
-        ["--board-profile=small", "--count=5", f"--out={a}", f"--seed={seed}"]
-    )
-    rc_b = _invoke(
-        ["--board-profile=small", "--count=5", f"--out={b}", f"--seed={seed}"]
-    )
+    rc_a = _invoke(["--board-profile=small", "--count=5", f"--out={a}", f"--seed={seed}"])
+    rc_b = _invoke(["--board-profile=small", "--count=5", f"--out={b}", f"--seed={seed}"])
     assert rc_a == 0 and rc_b == 0
     return next(a.iterdir()), next(b.iterdir())
 

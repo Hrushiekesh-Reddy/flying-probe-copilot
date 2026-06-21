@@ -41,7 +41,7 @@ def test_vec02_order_follows_overlap(fake_embedder):
     idx.add(
         [
             _chunk("a.md#0", "solder bridge short"),  # overlap 2 with 'solder bridge'
-            _chunk("b.md#0", "solder open"),           # overlap 1
+            _chunk("b.md#0", "solder open"),  # overlap 1
         ]
     )
     results = idx.search("solder bridge", top_k=5)

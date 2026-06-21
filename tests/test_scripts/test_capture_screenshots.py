@@ -9,11 +9,8 @@ Env-gated end-to-end tests live in test_capture_real.py (CAPTURE_RUN_PLAYWRIGHT=
 from __future__ import annotations
 
 import ast
-import importlib
-import os
 import re
 import socket
-import sys
 import tomllib
 from io import BytesIO
 from pathlib import Path
@@ -40,6 +37,7 @@ def test_cap01_playwright_importable():
 def test_cap02_playwright_version_floor():
     """CAP-02: installed playwright version >= 1.49."""
     import importlib.metadata
+
     from packaging.version import Version
 
     v = Version(importlib.metadata.version("playwright"))
@@ -100,8 +98,8 @@ def test_cap11_citation_points_at_existing_kb_file():
 
 def test_cap12_citation_chunk_index_within_chunk_count():
     """CAP-12: CANNED_CITATION_ID #<int> is within the actual chunk count for that file."""
-    from scripts.capture_screenshots import build_canned_answer
     from flying_probe_copilot.rag.kb_loader import load_kb
+    from scripts.capture_screenshots import build_canned_answer
 
     result = build_canned_answer("q")
     cid = result.citations[0]
@@ -251,10 +249,7 @@ def test_cap36_gif_size_budget_with_synthetic_frames(tmp_path):
     """CAP-36: 6 1280x800 synthetic frames with optimize=True produce < 500 KB."""
     from scripts.capture_screenshots import assemble_gif
 
-    frames = [
-        Image.new("RGB", (1280, 800), color=(i * 40, 0, 255 - i * 40))
-        for i in range(6)
-    ]
+    frames = [Image.new("RGB", (1280, 800), color=(i * 40, 0, 255 - i * 40)) for i in range(6)]
     out = tmp_path / "budget.gif"
     assemble_gif(frames, out, frame_duration_ms=2000)
     assert out.stat().st_size < 500_000, (
@@ -410,6 +405,7 @@ def test_cap52_no_privileged_ports():
 def test_cap53_socket_error_propagates():
     """CAP-53: underlying OSError propagates from pick_free_port."""
     import unittest.mock as mock
+
     from scripts.capture_screenshots import pick_free_port
 
     with mock.patch("socket.socket") as mock_socket:
@@ -436,7 +432,7 @@ def test_cap53_socket_error_propagates():
 
 def test_cap60_all_present_and_nonempty_returns_none(tmp_path):
     """CAP-60: all 6 non-empty JPGs present returns None silently."""
-    from scripts.capture_screenshots import check_outputs_complete, PAGE_CAPTURE_SPECS
+    from scripts.capture_screenshots import PAGE_CAPTURE_SPECS, check_outputs_complete
 
     for _, stem in PAGE_CAPTURE_SPECS:
         p = tmp_path / f"screenshot-{stem}.jpg"
@@ -448,7 +444,7 @@ def test_cap60_all_present_and_nonempty_returns_none(tmp_path):
 
 def test_cap61_missing_file_raises_file_not_found(tmp_path):
     """CAP-61: missing 1 of 6 JPGs raises FileNotFoundError naming the file."""
-    from scripts.capture_screenshots import check_outputs_complete, PAGE_CAPTURE_SPECS
+    from scripts.capture_screenshots import PAGE_CAPTURE_SPECS, check_outputs_complete
 
     # Create 5 of 6
     all_stems = list(PAGE_CAPTURE_SPECS)
@@ -464,7 +460,7 @@ def test_cap61_missing_file_raises_file_not_found(tmp_path):
 
 def test_cap62_zero_byte_file_raises_value_error(tmp_path):
     """CAP-62: a zero-byte JPG raises ValueError mentioning 'empty'."""
-    from scripts.capture_screenshots import check_outputs_complete, PAGE_CAPTURE_SPECS
+    from scripts.capture_screenshots import PAGE_CAPTURE_SPECS, check_outputs_complete
 
     for _, stem in PAGE_CAPTURE_SPECS:
         p = tmp_path / f"screenshot-{stem}.jpg"
@@ -476,7 +472,7 @@ def test_cap62_zero_byte_file_raises_value_error(tmp_path):
 
 def test_cap63_wrong_extension_raises(tmp_path):
     """CAP-63: .png instead of .jpg raises FileNotFoundError for the .jpg path."""
-    from scripts.capture_screenshots import check_outputs_complete, PAGE_CAPTURE_SPECS
+    from scripts.capture_screenshots import PAGE_CAPTURE_SPECS, check_outputs_complete
 
     # Create 5 correct .jpg files + 1 .png impostor
     all_stems = list(PAGE_CAPTURE_SPECS)
@@ -491,7 +487,7 @@ def test_cap63_wrong_extension_raises(tmp_path):
 
 def test_cap64_missing_dir_raises_with_clear_message(tmp_path):
     """CAP-64: nonexistent out_dir raises FileNotFoundError mentioning the directory."""
-    from scripts.capture_screenshots import check_outputs_complete, PAGE_CAPTURE_SPECS
+    from scripts.capture_screenshots import PAGE_CAPTURE_SPECS, check_outputs_complete
 
     nonexistent = tmp_path / "no-such-dir"
     with pytest.raises(FileNotFoundError) as exc_info:
@@ -564,10 +560,11 @@ def test_cap74_missing_db_exits_nonzero(tmp_path):
 def test_cap80_chromium_missing_exits_with_recipe(tmp_path, monkeypatch):
     """CAP-80: missing Chromium binary exits non-zero and prints 'playwright install chromium'."""
     import unittest.mock as mock
-    from playwright.sync_api import Error as PlaywrightError
 
     # Create a minimal valid DuckDB so pre-flight passes
     import duckdb
+    from playwright.sync_api import Error as PlaywrightError
+
     db_path = tmp_path / "test.duckdb"
     duckdb.connect(str(db_path)).close()
     out_dir = tmp_path / "out"
@@ -591,6 +588,7 @@ def test_cap80_chromium_missing_exits_with_recipe(tmp_path, monkeypatch):
             with mock.patch("scripts.capture_screenshots._wait_for_health"):
                 with pytest.raises(SystemExit) as exc_info:
                     from scripts.capture_screenshots import capture_screenshots
+
                     capture_screenshots(db_path, out_dir)
     assert exc_info.value.code != 0
 
@@ -603,6 +601,4 @@ def test_cap81_pyproject_declares_playwright_dep():
 
     dev_deps = data.get("dependency-groups", {}).get("dev", [])
     matches = [d for d in dev_deps if re.match(r"playwright(\[.*\])?>=1\.49", d)]
-    assert matches, (
-        f"playwright>=1.49 not found in [dependency-groups].dev: {dev_deps}"
-    )
+    assert matches, f"playwright>=1.49 not found in [dependency-groups].dev: {dev_deps}"

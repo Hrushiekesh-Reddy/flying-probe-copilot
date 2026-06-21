@@ -29,15 +29,14 @@ noted in ParseReport.notes.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
 from flying_probe_copilot.generator.models import (
+    LIM2_TYPES,
     AnalogRecord,
-    AnalogType,
     AnalogStatus,
     AnalogType,
     BatchLog,
@@ -50,8 +49,6 @@ from flying_probe_copilot.generator.models import (
     DigitalStatus,
     Limits2,
     Limits3,
-    LIM2_TYPES,
-    LIM3_TYPES,
     PanelInstance,
     PinsFailedRecord,
     ShortsRecord,
@@ -60,7 +57,6 @@ from flying_probe_copilot.generator.models import (
     TestJetRecord,
     TwoDigitStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # ParseError + ParseReport
@@ -380,9 +376,7 @@ def _read_file(path: Path, encoding_hint: str = "auto") -> tuple[str, str]:
     )
 
 
-def parse_log_file(
-    path: Path, encoding: str = "auto"
-) -> tuple[BatchLog, ParseReport]:
+def parse_log_file(path: Path, encoding: str = "auto") -> tuple[BatchLog, ParseReport]:
     """Parse a single .log file into ``(BatchLog, ParseReport)``.
 
     The parser is tolerant: per-record errors are caught and appended to
@@ -445,14 +439,14 @@ def parse_log_file(
                 if current_btest is not None and not btest_skip:
                     # Flush any pending analog
                     if pending_analog is not None and pending_block is not None:
-                        current_blocks.append(
-                            TestBlock(block=pending_block, record=pending_analog)
-                        )
+                        current_blocks.append(TestBlock(block=pending_block, record=pending_analog))
                         pending_analog = None
                         pending_block = None
                     boards.append(
                         _make_board_log(
-                            current_btest, current_btest_start_dt, current_btest_end_dt,
+                            current_btest,
+                            current_btest_start_dt,
+                            current_btest_end_dt,
                             current_blocks,
                         )
                     )
@@ -471,8 +465,8 @@ def parse_log_file(
                 pending_block = None
 
                 try:
-                    current_btest, current_btest_start_dt, current_btest_end_dt = (
-                        _parse_btest(fields)
+                    current_btest, current_btest_start_dt, current_btest_end_dt = _parse_btest(
+                        fields
                     )
                 except ParseError as ts_exc:
                     ts_exc.line_no = line_no
@@ -485,9 +479,7 @@ def parse_log_file(
                     continue
                 # Flush any pending analog record (it should have got its LIM already)
                 if pending_analog is not None and pending_block is not None:
-                    current_blocks.append(
-                        TestBlock(block=pending_block, record=pending_analog)
-                    )
+                    current_blocks.append(TestBlock(block=pending_block, record=pending_analog))
                     pending_analog = None
                     pending_block = None
                 pending_block = _parse_block(fields)
@@ -504,9 +496,7 @@ def parse_log_file(
                 if pending_analog is not None:
                     pending_analog = _attach_lim2(pending_analog, fields)
                     if pending_block is not None:
-                        current_blocks.append(
-                            TestBlock(block=pending_block, record=pending_analog)
-                        )
+                        current_blocks.append(TestBlock(block=pending_block, record=pending_analog))
                     pending_analog = None
                     pending_block = None
 
@@ -516,9 +506,7 @@ def parse_log_file(
                 if pending_analog is not None:
                     pending_analog = _attach_lim3(pending_analog, fields)
                     if pending_block is not None:
-                        current_blocks.append(
-                            TestBlock(block=pending_block, record=pending_analog)
-                        )
+                        current_blocks.append(TestBlock(block=pending_block, record=pending_analog))
                     pending_analog = None
                     pending_block = None
 
@@ -579,12 +567,12 @@ def parse_log_file(
     # Flush the last board
     if current_btest is not None and not btest_skip:
         if pending_analog is not None and pending_block is not None:
-            current_blocks.append(
-                TestBlock(block=pending_block, record=pending_analog)
-            )
+            current_blocks.append(TestBlock(block=pending_block, record=pending_analog))
         boards.append(
             _make_board_log(
-                current_btest, current_btest_start_dt, current_btest_end_dt,
+                current_btest,
+                current_btest_start_dt,
+                current_btest_end_dt,
                 current_blocks,
             )
         )
