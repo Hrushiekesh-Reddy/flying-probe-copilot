@@ -5,6 +5,58 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-21 — RAG `DEFAULT_TOP_K = 10` and eval-set growth 10 → 15
+
+**Decision:** Bump `answer()` default `top_k` from 5 to 10 (extracted to `DEFAULT_TOP_K` module
+constant in `src/flying_probe_copilot/rag/answer.py`), expand `EVAL_QUESTIONS` from 10 to 15
+(append 5 terse short-form questions; live threshold scales 8/10 → ≥12/15 at the same 80% pass
+rate). Owner-ratified at the in-session Decision Gate after empirical probe.
+
+**Context / Why:**
+- Portfolio capture 2026-06-21 surfaced that typing the terse "what causes tombstoning?" in the
+  Co-Pilot chat returned a refusal. Empirical probe (real `all-MiniLM-L6-v2` + BM25 + RRF over
+  `docs/knowledge-base/`): the relevant `failure-modes/tombstoning.md#3` ("Likely causes") chunk
+  is at **rank 9** for that query. The chunk's body uses generic vocabulary ("uneven heating",
+  "pad design", "excess paste") with no topic-word anchor; several other docs' own "Likely causes"
+  sections out-rank it because they contain "causes" plus their own topic words.
+- The original brief proposed `top_k=8` as the cheapest fix; the probe showed 8 is insufficient.
+  Probed 7 additional terse queries — tombstoning is the outlier (most targets land within rank 4;
+  worst-case-non-tombstoning is "reason for missing components?" at rank 7).
+- The existing eval dataset was descriptive-shape only ("Why would a chip component stand up on
+  one end during reflow?"), so the live eval gate never exercised the terse short-form failure mode.
+
+**What was rejected:**
+- `top_k=8` alone — empirically insufficient (target at rank 9).
+- `top_k=8 + heading-aware boost` (Option 2 in the brief) — adds branching keyword logic ("cause" /
+  "why" / "reason" → upweight chunks with heading "Likely causes" / "Root cause") for marginal gain
+  on an 8-doc KB. Saved for the parking lot.
+- Cross-encoder rerank (Option 3 in the brief) — needs an approval-gated `pyproject.toml` dep add
+  (`sentence-transformers[cross-encoder]` or similar) and is overkill at the current corpus size.
+  Revisit only if the KB grows past ~50 docs and a heading boost stops being enough.
+- Re-chunking the KB to prepend doc title to every chunk's indexed text — fixes the root cause but
+  is an architectural change to `kb_loader` with downstream effects on citation display. Too much
+  risk for the current scope.
+- Replacing some descriptive eval questions with terse ones to keep the count at 10 — would lose
+  scenario coverage. Additive expansion preserves both shapes.
+
+**How to apply:**
+- `top_k` is now a soft contract: `answer()` defaults to `DEFAULT_TOP_K` (10), but explicit callers
+  may pass any non-negative int. Tests that depended on the number 5 (`ANS-24`) now import
+  `DEFAULT_TOP_K` and assert against the constant — self-updating on future bumps with a
+  bidirectional value pin.
+- New env-gated test file `tests/test_rag/test_retrieval_real.py` (`RAG_RUN_MODEL_TESTS=1`) pins
+  the canonical regression at the retrieval layer: target chunk in `top_k=DEFAULT_TOP_K` hits.
+  Catches retrieval regressions without burning an API call.
+- Eval-set growth pattern is additive: any future failure-mode discovered through portfolio /
+  manual QA gets a new entry, the live threshold scales as `ceil(0.8 * N)`.
+
+**Revisit when:** the KB grows past ~30 docs (re-evaluate whether `top_k=10` is still enough — at
+that corpus size a heading-aware boost or doc-title prepend in the loader probably wins); OR a future
+KB doc has a "Likely causes" section that lands deeper than rank 10 for its terse query (the
+env-gated retrieval test will surface this).
+
+---
+
 ## 2026-06-20 — Phase 3 slice 3: chat UI + evaluation contracts
 
 **Decision:** The Co-Pilot chat page + 10-question evaluation ship with these contracts

@@ -4,6 +4,44 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 polish: RAG retrieval default for short queries — branch: feature/rag-retrieval-short-queries
+
+**Goal:** Fix the retrieval miss surfaced during portfolio-screenshot capture: typing the terse "what causes tombstoning?" into the Co-Pilot chat returned a refusal because `failure-modes/tombstoning.md#3` ("Likely causes") fell out of the `top_k=5` cut. The eval-dataset questions all worked (descriptive phrasings give both BM25 and the vector index strong signal), so the live eval gate had not caught the failure shape. Tier: Medium (full TDD loop). Branch: `feature/rag-retrieval-short-queries`.
+**Outcome:** `answer()` default `top_k` bumped **5 → 10** (extracted to `DEFAULT_TOP_K` module constant) + eval dataset expanded 10 → 15 (added 5 terse short-form regression questions; live-eval threshold scaled 8/10 → ≥12/15 at the same 80% pass rate). Full offline suite **524 passed / 3 skipped / 1 xfailed / 97%** (519→524 = +5 from the new EVAL-01 parametrized cases; +2 of the 3 skips are the new env-gated `RAG_RUN_MODEL_TESTS` retrieval contract). Env-gated real-embedder retrieval tests: 2 passed in 14.14s. **Live `RAG_RUN_LLM_EVAL=1` ≥12/15 eval PASSED in 75.06s on `gemini-3.5-flash`.** Phase 3 exit criterion now stronger (15 q over both descriptive + terse shapes, 80% pass rate); ready for `dev` PR.
+
+### Done — Empirical baseline
+- Probed the real `HybridRetriever` (sentence-transformers `all-MiniLM-L6-v2` + BM25 + RRF) over `docs/knowledge-base/` against the failing query "what causes tombstoning?". **Target chunk `failure-modes/tombstoning.md#3` is at rank 9.** This contradicted the brief's assumption that `top_k=8` would catch it. Cause: the #3 chunk body uses generic vocabulary ("uneven heating", "pad design", "excess paste") with no rare topic-word anchor; several other docs' own "Likely causes" sections out-rank tombstoning's because they contain "causes" plus their own topic words. Probed 7 additional terse queries to confirm tombstoning is the outlier (most targets land within rank 4; "reason for missing components?" was the second-worst at rank 7).
+- Owner re-ratified at Decision Gate: bump `DEFAULT_TOP_K` to **10** (not 8), no heading-aware or doc-aware boost, no re-chunking.
+
+### Done — Code
+- `src/flying_probe_copilot/rag/answer.py`: extracted `DEFAULT_TOP_K = 10` module constant with a one-paragraph docstring citing the empirical rationale; `answer()` signature now `top_k: int = DEFAULT_TOP_K`. Single source-of-truth so tests can import and self-update on future bumps.
+- `tests/test_rag/test_answer.py`: ANS-24 renamed `_default_top_k_is_5` → `_default_top_k_matches_module_constant`; imports `DEFAULT_TOP_K`, asserts both the constant's value (`== 10`) and that it flows through the signature (`r.calls == [DEFAULT_TOP_K]`). Bidirectional check — a regression that silently divorces the signature default from the constant still fails.
+- `tests/test_rag/eval_dataset.py`: appended 5 empirically-verified terse questions (all target-doc-resolved at rank ≤4 under `top_k=10`): `"what causes tombstoning?"`, `"what are shorts?"`, `"what are opens?"`, `"what is a cold solder joint?"`, `"what is insufficient solder?"`. Docstring updated to note the two question shapes and cite the 2026-06-21 portfolio capture.
+- `tests/test_rag/test_eval.py`: DATA-01 `_exactly_ten_questions` → `_exactly_fifteen_questions` (`assert len == 15`); live test `_at_least_8_of_10` → `_at_least_12_of_15` (`assert correct >= 12, f"only {correct}/15 ..."`); module docstring updated.
+- `tests/test_rag/test_retrieval_real.py` **(new file)**: 2 env-gated tests (`RAG_RUN_MODEL_TESTS=1`) using the real `all-MiniLM-L6-v2` embedder. RETR-LIVE-01 pins the canonical regression (`tombstoning.md#3` in `top_k=DEFAULT_TOP_K` hits for the failing query); RETR-LIVE-02 covers all 5 new terse questions at the doc level. Module-scoped fixture amortizes one model load across the file. Catches retrieval regressions without burning an API call (the live eval still does, but only via the owner's gated run).
+- `docs/eval/phase3-eval-questions.md`: rewritten for 15 questions / ≥12 threshold; added the new test file to the "How it is measured" section.
+
+### Done — Verification
+- Offline suite (no env): `uv run pytest -q` → **524 passed / 3 skipped / 1 xfailed / 1 warning / 97%** in 93.42s. Coverage `rag/answer.py` 100%; all rag/* modules 99-100%.
+- Env-gated retrieval: `RAG_RUN_MODEL_TESTS=1 uv run pytest tests/test_rag/test_retrieval_real.py -v` → **2 passed in 14.14s** (single warm model load).
+- RED→GREEN proof (out-of-band script): under the old `top_k=5` the new RETR-LIVE-01 assertion fails (chunk not retrieved); under the new `top_k=10` it passes. TDD discipline satisfied.
+- Live eval: `RAG_RUN_LLM_EVAL=1 uv run pytest tests/test_rag/test_eval.py::test_eval_live_at_least_12_of_15 -v` → **1 passed in 75.06s** (15 Q × ~5s + bootstrap; ≥12/15 cited the expected source doc).
+
+### Decisions (owner-ratified)
+- `DEFAULT_TOP_K = 10` (not 8) — empirical: target chunk at rank 9 means `top_k=8` would still miss. 10 catches all 8 probed terse queries with a one-rank safety margin. ~2× baseline prompt context; `gemini-3.5-flash` cost is negligible.
+- Eval grows 10 → 15 (additive, no replacements). Live threshold scales 8/10 → ≥12/15 at the same 80% pass rate. Retains all original descriptive scenarios.
+- No heading-aware boost / no cross-encoder rerank / no re-chunking. Cheapest fix that empirically works; the more architectural options stay in the parking lot unless the KB outgrows the simple top_k bump.
+- New env-gated test file with `RAG_RUN_MODEL_TESTS=1` pattern (mirrors the existing `RAG_RUN_LLM_EVAL` pattern). Keeps the offline suite fast; opt-in for developers and the owner's verification runs.
+
+### Phase 4 status
+- RAG retrieval polish complete; Phase 3 exit criterion strengthened (15 q / ≥12 / both shapes). Outstanding Phase 4 work: README polish (already in flight on `feature/phase4-slice1-readme`), portfolio writeup, demo gif.
+
+### Next session should
+1. Open `feature/rag-retrieval-short-queries → dev` PR.
+2. Continue Phase 4 polish: README screenshots can now use the terse query and demonstrate a non-refused answer.
+
+---
+
 ## 2026-06-21 — Phase 4 P3 cleanups: BUG-010 + BUG-012 — branch: feature/p3-cleanups-bug-010-012
 
 **Goal:** Close the last two P3-deferred Phase 4 chips in one branch: BUG-010 (`TestJetRecord` PytestCollectionWarning on every test run) and BUG-012 (Streamlit `use_container_width` deprecation in `ui/views.py`). Tier: Small.
