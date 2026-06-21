@@ -14,6 +14,19 @@ Severity:
 
 <!-- Add new bugs below this line -->
 
+## [BUG-014] Terse "what causes X?" Co-Pilot queries refuse — relevant chunk falls out of `top_k=5` cut (P1) — RESOLVED 2026-06-21
+
+**Discovered:** 2026-06-21
+**Phase:** Phase 4 polish (portfolio-screenshot capture for the README slice).
+**File:line:** `src/flying_probe_copilot/rag/answer.py:67` (`answer()` default `top_k=5`).
+**Symptom:** Typing the terse "what causes tombstoning?" into the Co-Pilot chat returned a refusal: `sufficient: false`, the model honestly said "the provided documents do not explain the underlying causes; they only describe it as a chip component lifting upright…". The same answer pipeline answers descriptive scenario questions correctly (live eval was 10/10 the day before on `gemini-3.5-flash`).
+**Severity estimate:** P1 (Co-Pilot's user-facing refusal on a clearly in-scope question — a UX defect at portfolio-demo time; workaround is to phrase the question descriptively).
+**Root Cause:** Two-part. (1) `failure-modes/tombstoning.md` has 6 sections; the "Likely causes" chunk lands at ordinal 3, with a body that uses generic vocabulary ("uneven heating", "pad design", "excess paste") and no rare topic-word anchor. (2) BM25 sees "causes" in every doc's "Likely causes" heading (so it's not a rare-token signal), and the vector index sees similar semantic distance from "tombstoning" as a query term across all "Likely causes" sections. Result: at empirical probe, `failure-modes/tombstoning.md#3` ranks **9th** for "what causes tombstoning?" while other docs' "Likely causes" sections (cold-solder-joint, shorts, insufficient-solder, opens) all rank ahead because they happen to contain "causes" plus their own topic words. The old `top_k=5` default truncated before reaching rank 9, so the only chunk that could ground the answer never made it into the prompt — `answer()` correctly refused. Eval-dataset blind spot: all 10 original questions were descriptive scenarios (BM25 + vector both have strong signal); terse short-form questions were never tested, so the live eval gate had not caught this shape.
+**Fix:** Two-part. (1) Bump `answer()` default `top_k` 5 → 10 (extracted to `DEFAULT_TOP_K` module constant in `rag/answer.py`); empirically catches all 8 probed terse queries including the rank-9 outlier. (2) Append 5 terse short-form questions to `EVAL_QUESTIONS` (10 → 15); live-eval threshold scaled 8/10 → ≥12/15 at the same 80% pass rate. New env-gated test `tests/test_rag/test_retrieval_real.py` (`RAG_RUN_MODEL_TESTS=1`) pins the rank-9 chunk in `top_k=DEFAULT_TOP_K` hits — catches the regression at the retrieval layer without burning an API call. See DECISION_LOG 2026-06-21 for why other options (heading-aware boost / cross-encoder rerank / re-chunking) were deferred.
+**Verification:** RED→GREEN proven out-of-band (old `top_k=5` → chunk not retrieved; new `top_k=10` → chunk retrieved). Offline suite **524 passed / 3 skipped / 1 xfailed / 97%**. Env-gated retrieval tests 2/2 passed in 14.14s. Live `RAG_RUN_LLM_EVAL=1` ≥12/15 eval **PASSED in 75.06s** on `gemini-3.5-flash`. **RESOLVED 2026-06-21** on branch `feature/rag-retrieval-short-queries`.
+**Time to resolve:** ~75 min (full Medium-tier TDD loop: empirical probe + 7-query confirmation, second Decision Gate after probe contradicted the brief, code + 3 tests + 2 doc files, offline + env-gated + live verify, doc updates).
+**Follow-up:** None blocking. If the KB grows past ~30 docs OR a future "Likely causes" section lands deeper than rank 10 for its terse query, revisit heading-aware boost / doc-title prepend in `kb_loader` / cross-encoder rerank.
+
 ## [BUG-013] Default Gemini model `gemini-2.0-flash` retired by Google → live eval 404s (P0) — RESOLVED 2026-06-21
 
 **Discovered:** 2026-06-21

@@ -20,6 +20,12 @@ REFUSAL_TEXT = (
     "I don't have enough grounded evidence in the knowledge base to answer that."
 )
 
+DEFAULT_TOP_K = 10
+"""Default retriever depth. Sized so short generic queries (e.g. "what causes
+tombstoning?") catch the per-section "Likely causes" chunk, which empirically
+lands around rank 9 against the failure-mode KB because its body uses generic
+vocabulary with no topic-word anchor (see DECISION_LOG 2026-06-21)."""
+
 
 @dataclass(frozen=True)
 class Answer:
@@ -64,7 +70,7 @@ def _parse(raw: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def answer(question, *, retriever, client: LLMClient, top_k: int = 5) -> Answer:
+def answer(question, *, retriever, client: LLMClient, top_k: int = DEFAULT_TOP_K) -> Answer:
     """Answer ``question`` grounded in retrieved KB evidence, or refuse.
 
     Parameters

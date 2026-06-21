@@ -12,7 +12,7 @@ import json
 import pytest
 
 from flying_probe_copilot.rag import Answer, Chunk, RetrievedChunk, answer, build_retriever
-from flying_probe_copilot.rag.answer import REFUSAL_TEXT
+from flying_probe_copilot.rag.answer import DEFAULT_TOP_K, REFUSAL_TEXT
 from tests.test_rag.conftest import FakeLLMClient, RaisingLLMClient, StubRetriever
 
 
@@ -176,11 +176,17 @@ def test_ans23_top_k_forwarded_as_keyword():
     assert r.calls == [3]
 
 
-def test_ans24_default_top_k_is_5():
-    """ANS-24: default top_k is 5."""
+def test_ans24_default_top_k_matches_module_constant():
+    """ANS-24: default top_k matches the DEFAULT_TOP_K module constant.
+
+    Asserts both the constant's value and that it flows through ``answer()``
+    untouched; the test self-updates if the constant is bumped, but a regression
+    that silently divorces the signature default from the constant still fails.
+    """
     r = StubRetriever([_hit("a.md#0")])
     answer("q", retriever=r, client=FakeLLMClient(_json(answer="x", citations=["a.md#0"], sufficient=True)))
-    assert r.calls == [5]
+    assert DEFAULT_TOP_K == 10
+    assert r.calls == [DEFAULT_TOP_K]
 
 
 def test_ans26_client_called_once_with_prompt_containing_question():
