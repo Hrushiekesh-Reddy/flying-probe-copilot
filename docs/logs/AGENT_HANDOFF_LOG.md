@@ -5,6 +5,51 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ---
 
+## Handoff: Claude Code parent (end of session) → next session — 2026-06-21
+
+**From:** Claude Code parent (Opus 4.7, in-IDE)
+**To:**   next session (any agent / any IDE)
+**Branch:** feature/phase4-slice2-screenshots (committed `b7ca25c`, NOT pushed)
+**Phase:** Phase 4 — Polish, slice 2 IN PR
+**Suite:** 566 passed / 5 skipped / 1 xfailed / 97% coverage on `src/` denominator
+
+### What I just did
+Shipped Phase 4 slice 2 — headless screenshot capture + demo gif. Full 12-step Medium loop. Owner-ratified all Decision Gate items at "Recommended on all". 5 BLOCKERs caught by Step 5 red-team, all closed in Plan-Rev1 before Execute. Live-capture iteration surfaced 2 more issues (expander selector + Overview settle), both fixed in-session.
+
+### What's ready for owner
+1. **Visual artifacts** — 6 fresh dashboard JPGs + new `docs/img/demo.gif` (748 KB GIF89a, 12-s loop). Co-Pilot screenshot pins the BUG-014 narrative (canned tombstoning answer + opened Citations expander showing `failure-modes/tombstoning.md#3`).
+2. **Capture script** — `scripts/capture_screenshots.py all --db data/db/sample.duckdb --out docs/img` regenerates everything in ~30 s. No live Gemini key required (stub via `scripts/_capture_app.py` shim).
+3. **Tests** — 42 new unit/shim tests green, 5 new env-gated correctly skipped, baseline 524-test suite still green.
+4. **Docs** — README embeds the gif above the hero strip; case-study §retrospective footnote-resolves the "Slice 1.5 candidate" line; ROADMAP Phase-4 README+gif row ticked; CLAUDE.md status flipped to slice 2 IN PR; SESSION_LOG + DECISION_LOG entries written.
+5. **Manual-QA script** — `docs/plans/2026-06-21-phase4-slice2-manual-qa.md` is the owner's 5-minute checklist for the eyeball pass before/after PR push.
+
+### What's pending owner action
+- **Push the branch + open PR `feature/phase4-slice2-screenshots → dev`.** Pushing is owner-initiated only (per `.claude/rules/agent-conduct.md` git policy).
+- **Eyeball the rendered README on GitHub** after pushing — confirm `demo.gif` animates inline + the hero strip still looks right. Should take ~2 minutes.
+- **Merge → start Phase 4 slice 3** (GitHub Actions workflow: `lint + tests on PR` + screenshot-recapture-on-PR; then guardrails audit for repo public flip).
+
+### Don't surprise me — context the next session needs
+- `data/db/sample.duckdb` is gitignored. The next session that wants to run the capture script must build it first: `bash scripts/build-portfolio-data.sh` (~3 min). The capture script aborts cleanly with that recipe if the DB is missing.
+- `playwright install chromium` is a one-time machine setup, not committed. The capture script gives a friendly diagnostic if Chromium is missing.
+- The capture script uses `sys.executable -m streamlit run`, NOT `uv run streamlit run` — this is deliberate (W-3 from the red-team: avoids the `uv` middleman so `proc.terminate()` reaches the actual Streamlit server on Windows).
+- Three test files are env-gated (`CAPTURE_RUN_PLAYWRIGHT=1`): `test_capture_real.py`, `test_streamlit_sidebar_dom_shape.py`. Don't expect them in the default `uv run pytest` count.
+- The Co-Pilot capture works only because the shim monkeypatches `chat.answer_question` BEFORE Streamlit imports the chat module. If the shim breaks (e.g., a future refactor of `flying_probe_copilot.ui.chat`), the assert at `scripts/_capture_app.py` fails loud rather than silently calling the live Gemini path.
+
+### Open chips (not blockers; future slices)
+- Phase 4 slice 3: GH Actions for lint + tests + screenshot-recapture-on-PR
+- Phase 4 slice 4: blog post + LinkedIn post + resume bullet + repo public flip
+- Long-term: if README load on GitHub becomes slow, swap Pillow gif assembler → imageio + palette quantization for smaller output
+
+### What I did NOT do
+- Push the branch (owner-initiated only)
+- Edit anything under `src/flying_probe_copilot/**` (slice guardrail)
+- Edit anything under `.claude/**`
+- Touch `.gitignore` / `.env.example` / `migrations/`
+- Add a GitHub Actions workflow (slice 3 scope)
+- Vendor Chromium binaries
+
+---
+
 ## Template
 
 ```
