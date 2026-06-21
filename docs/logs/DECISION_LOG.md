@@ -5,6 +5,29 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-21 — Phase 4 slice 2: headless screenshot capture + demo gif
+
+**Decision:** Ship `scripts/capture_screenshots.py` + `scripts/_capture_app.py` (Playwright + Pillow) as the slice's auto-recapture infrastructure. 18 owner-ratified decisions at the Decision Gate (D1–D12 + MD-1..6) cover scope (script + demo gif, no GitHub Actions this slice), tool choice (Playwright >= 1.49 added as dev-group dep; Pillow already locked via streamlit transitive), Co-Pilot stub strategy (monkeypatch `chat.answer_question` at shim load time, no production-code touch), gif format (12-s loop at 2 s/frame, Pillow defaults, < 5 MB target), and 5 BLOCKER closures from Step 5 red-team. Owner-approved gated edits: `pyproject.toml` (×2: playwright dep + `[tool.pytest.ini_options].pythonpath`), `README.md` (gif embed above hero strip), declared parallel `tests/test_ui/test_chat_smoke.py:24` `#0`→`#3` to match the new `CANNED_CITATION_ID = "failure-modes/tombstoning.md#3"` (the BUG-014 narrative chunk, not the title).
+
+**Context / Why:**
+- Slice 1's case-study §retrospective explicitly named "Capture screenshots from CI, not by hand" as the next improvement; hand-snipping six pages per dashboard change doesn't scale. Slice 2 closes that loop with a one-command script that monkeypatches the Co-Pilot backend (no live Gemini key required) and drives all 6 dashboard pages via headless Chromium.
+- The Co-Pilot screenshot is the load-bearing narrative artifact (BUG-014 case study + Phase 3 RAG exit criterion). Stubbing `answer_question` to return a canned `Answer` over `failure-modes/tombstoning.md#3` keeps the screenshot reproducible (no model-output drift) AND citation-truthful (the chunk it cites is the chunk BUG-014 fixed for terse queries).
+- Step 5 red-team found 5 BLOCKERs that Plan-Rev1 closed before Execute: B-1 (`#0` was the title chunk, not "Likely causes" → `#3`); B-2 (`st.expander` defaults to collapsed → Playwright must click the toggle before screenshot); B-3 (pytest cannot import `scripts/` without `pythonpath = [".", "src"]`); B-4 (shim monkeypatch survival under Streamlit rerun → defensive `assert _chat.answer_question is build_canned_answer` + AppTest smoke); B-5 (sidebar nav `name="Overview"` won't match Streamlit's emoji-prefixed `"📊 Overview"` → regex match scoped to `[data-testid='stSidebarNav']`).
+
+**Rejected:**
+- (D5b) imageio[ffmpeg] for gif assembly — would add a second new approval-gated dep for a marginal byte-size win. Pillow's 748 KB gif is well within GitHub's 10 MB limit.
+- (D6b) Auto-run `bash scripts/build-portfolio-data.sh` from the capture script on missing DB — couples capture to a 3-min batch generation the owner may not want. Friendly abort message + Step 0 pre-flight is cleaner UX.
+- (MD-2a) Strike the case-study's "Slice 1.5 candidate" line — would remove honest retrospective candor. Footnote-resolve preserves the narrative and adds the receipt.
+- GH Actions wiring — explicitly deferred to slice 3 (separate Phase 4 deliverable that needs lint + test policy thinking).
+- Editing `src/flying_probe_copilot/ui/chat.py:50` to default the citations expander to `expanded=True` — out-of-scope per slice-2 guardrail (`src/**` untouched). Playwright click is the legal path.
+
+**Revisit when:**
+- If GitHub README load becomes visibly slow due to the 748 KB gif, swap Pillow → imageio palette quantization (future chip).
+- If a future Streamlit release renames `data-testid='stSidebarNav'`, F18 (`test_streamlit_sidebar_dom_shape.py`) is the canary that surfaces the break before the capture script silently fails.
+- When GH Actions for `lint + tests on PR` lands in slice 3, wire `scripts/capture_screenshots.py all` into a dashboard-touching-PR workflow so screenshots auto-recapture.
+
+---
+
 ## 2026-06-21 — RAG `DEFAULT_TOP_K = 10` and eval-set growth 10 → 15
 
 **Decision:** Bump `answer()` default `top_k` from 5 to 10 (extracted to `DEFAULT_TOP_K` module

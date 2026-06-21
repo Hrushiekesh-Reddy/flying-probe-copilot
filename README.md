@@ -13,6 +13,8 @@
 
 ## Dashboard at a glance
 
+![Demo walkthrough](docs/img/demo.gif)
+
 | | | |
 |---|---|---|
 | ![Overview](docs/img/screenshot-overview.jpg) | ![Yield](docs/img/screenshot-yield.jpg) | ![Pareto](docs/img/screenshot-pareto.jpg) |
