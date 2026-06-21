@@ -4,6 +4,56 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 slice 1 — README polish + portfolio writeup — branch: feature/phase4-slice1-readme
+
+**Goal:** Phase 4 slice 1: replace the Phase-0 README with a portfolio-grade rewrite (hero strip, Mermaid diagram, status table, About-the-author footer) and author `docs/case-study.md` (~2,000 words) anchored on three engineering stories and the verified metrics suite. Tier: Medium (reduced loop, no code, no tests).
+**Outcome:** Shipped. New README + 6-screenshot strip in `docs/img/` + ~2,100-word case-study + ROADMAP ticks + CLAUDE.md status flip. Suite stayed 519 / 1 xfailed / 97% (zero code touched). Ready for `feature/phase4-slice1-readme → dev` PR.
+
+### Done
+- **README.md**: full rewrite. Shields-row (Phase 3 shipped / 519 tests / 97% / 10/10 eval / MIT), 2×3 hero strip of 6 dashboard screenshots, Mermaid architecture diagram (quoted-label syntax), 60-second elevator, 7-step Quickstart with the parser stamped-run-dir gotcha called out, tech stack table, project-structure tree, doc-map table, status-and-roadmap table, Contributing/License, About-the-author footer with LinkedIn + portfolio URLs.
+- **docs/case-study.md** (new, ~2,100 words, 7 sections): problem framing → scope decisions → architecture walk → three engineering stories (BUG-004 shift-snap overnight, BUG-013 model retirement diagnosis, BUG-011 flaky test under parallel load) → RAG design choices → verified results table → honest retrospective.
+- **docs/img/** (new dir): 6 PNG screenshots — `screenshot-{overview,yield,pareto,spc,anomalies,copilot}.png` captured by owner against live `streamlit run` on :8501 with the rotated `GOOGLE_API_KEY`.
+- **docs/ROADMAP.md**: ticked the README + case-study Phase 4 deliverables (per Decision Gate item 7, agent-conduct line 64).
+- **docs/plans/2026-06-21-phase4-slice1-{brief,plan,decision-gate}.md** committed as artifacts.
+- **CLAUDE.md**: Status block flipped Phase 3 → Phase 4 slice 1 IN PR; this session-log line appended.
+- **Metrics verified live before writing**: 78 commits / 29 PRs (not the "97/28" the placeholder Plan flagged); 519 / 97% / 10/10 / 37.13s confirmed in source.
+
+### Decisions (owner-ratified at Decision Gate)
+1. Screenshot capture method = **A — owner manual**. I generated sample data + launched Streamlit; owner snipped 6 pages.
+2. Employer framing = **A — generic** ("Manufacturing Engineer, ~4 years PCBA"). Per `docs/GUARDRAILS.md §8.4`.
+3. LinkedIn + portfolio URLs = **A — add both now**. Owner provided URLs at Execute time.
+4. ROADMAP tick = **A — tick now** (1-2 lines, scope-bounded).
+
+### Parent pre-decided (with notice)
+- Mermaid only, no SVG export (default; binary-churn cost vs marginal benefit).
+- 2×3 markdown-table hero strip layout (GitHub-friendly).
+- Case-study CTA in both README §3 and §9 (discovery from both elevator and doc-map).
+- `gemini-3.5-flash` assumed green for Co-Pilot screenshot (BUG-013 closed same-day).
+
+### Step 5 red-team caught 3 BLOCKERs + 5 WARNINGs + 3 MINORs (all resolved in Plan Revision 1 before Execute)
+- **B-1**: Mermaid HTML-entity-encoded parens (`answer&#40;&#41;`) render literally on GitHub → swapped to quoted-label syntax `["answer()..."]` throughout the skeleton.
+- **B-2**: Generator `--out=DIR` writes to `DIR/run_<stamp>/`, not `DIR` — Plan's parser `--input` would have failed the `manifest.json` check. Fixed by capturing `RUN_DIR=$(ls -dt data/synthetic/run_* | head -1)` in step 1b.
+- **B-3**: Made gitignore expectation explicit — only `docs/img/*.png` committed; sample DB + run dir stay local.
+- **W-1**: `answer()` grounds on KB only, not DuckDB rows. Narrative guardrail added to Plan; case-study §3 + §5 both say "KB-grounded" explicitly.
+- **W-2**: `CLAUDE.md` Status block rewritten wholesale, not patched.
+- **W-3**: 78 / 29 verified, not placeholder 97 / 28.
+- **W-4**: Reduced loop step-skip (4, 11) made explicit in Plan.
+- **W-5**: `grep -niE "IPC-A-610|J-STD-001|Keysight|i3070|HP3070"` audit added to verification checklist; case-study cites those by name only, never quotes verbatim.
+- 3 missing decisions surfaced + ratified (LinkedIn link, employer framing, ROADMAP tick).
+
+### Bugs surfaced
+None new this slice. Existing chips still open: SDK migration (`task_decc4276`), BUG-010 (TestJetRecord PytestCollectionWarning), BUG-012 (use_container_width deprecation).
+
+### Phase 4 status
+- **Slice 1 IN PR.** README + case-study + screenshot strip + ROADMAP ticks shipped on branch.
+- **Slice 2 queued**: demo gif / headless screenshot automation.
+- **Slice 3 queued**: test/coverage hardening (BUG-010, BUG-012, SDK migration follow-up).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice1-readme → dev` PR (rendered README + hero strip + case-study on GitHub).
+2. Merge → start Phase 4 slice 2 (demo gif + Playwright headless capture for future slice updates).
+---
+
 ## 2026-06-21 — Phase 4 polish: RAG retrieval default for short queries — branch: feature/rag-retrieval-short-queries
 
 **Goal:** Fix the retrieval miss surfaced during portfolio-screenshot capture: typing the terse "what causes tombstoning?" into the Co-Pilot chat returned a refusal because `failure-modes/tombstoning.md#3` ("Likely causes") fell out of the `top_k=5` cut. The eval-dataset questions all worked (descriptive phrasings give both BM25 and the vector index strong signal), so the live eval gate had not caught the failure shape. Tier: Medium (full TDD loop). Branch: `feature/rag-retrieval-short-queries`.
