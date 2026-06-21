@@ -44,6 +44,64 @@ log the state here. The incoming agent reads this FIRST before SESSION_LOG or an
 
 ## Log
 
+### Handoff: Phase 3 slice 2 → Phase 3 slice 3 — 2026-06-20
+
+**From:** Claude Code parent (Phase 3 slice 2 — Large-tier full 12-step loop on `feature/phase3-slice2-llm`)
+**To:** Next session (Phase 3 slice 3 — chat UI + live 10-Q eval)
+**Branch:** `feature/phase3-slice2-llm` (off `dev`, post-#25-merge) — committed at Step 10. Push/PR per owner.
+**Session goal:** Gemini answer layer over slice-1 retrieval — grounded, citation-forced, strict refusal.
+**Outcome:** Done. 42 new tests, **496 passing / 1 xfailed / 97%** (new modules 100%). Offline + secret-safe.
+
+### Completed this session
+- **Source (4 files):** `rag/llm.py` (LLMClient Protocol + lazy GeminiClient), `rag/prompts.py`
+  (`build_answer_prompt`), `rag/answer.py` (`Answer` + `answer()` strict grounding), `rag/__init__.py`
+  (11 public names).
+- **Tests (4 new + 1 edited slice-1 test):** conftest autouse env-strip + FakeLLMClient/RaisingLLMClient/
+  StubRetriever; test_llm, test_prompts, test_answer, test_public_api (declared __all__ edit).
+- **Docs:** SESSION_LOG, DECISION_LOG (8 contracts), ROADMAP (3 boxes + 2 status), CLAUDE.md, this handoff.
+  Artifacts: `docs/plans/2026-06-20-phase3-slice2-*` (brief, plan +Revision 1, test-plan, decision-gate,
+  triple-check, manual-qa).
+- **Owner Decision Gate (8 ratified — "use your recommendations"):** see DECISION_LOG 2026-06-20 slice 2.
+
+### In progress — needs pickup
+- **Push + open PR** `feature/phase3-slice2-llm` → `dev` — committed locally, awaiting owner go-ahead.
+- **Manual QA** (live) — owner runs `docs/plans/2026-06-20-phase3-slice2-manual-qa.md` with a real key.
+
+### Blocked — needs owner input
+- **ROTATE the Google API key** — a real key in gitignored `.env` surfaced in a subagent's analysis this
+  session. Not committed, but rotate at aistudio.google.com/apikey and update `.env`.
+- Slice 3's live 10-Q eval needs the (rotated) key.
+
+### Test suite status
+- [x] All passing — 496 passed, 1 xfailed, 0 failed (parent + independent verifier). 97% coverage.
+  New modules `llm.py`/`prompts.py`/`answer.py` 100%. Suite makes zero network/API calls.
+
+### Docs updated
+- [x] SESSION_LOG.md  [x] DECISION_LOG.md  [x] BUG_LOG.md (no new bugs)  [x] ROADMAP  [x] CLAUDE.md
+  [x] AGENT_HANDOFF_LOG (this entry)
+
+### Next session should (ordered)
+1. Owner go-ahead → push `feature/phase3-slice2-llm`, open PR → `dev`, address any Bugbot review.
+2. Owner rotates the API key + runs the slice-2 live manual QA.
+3. **Phase 3 slice 3** — wire a chat page into `src/flying_probe_copilot/ui/` calling `answer()`
+   (build the retriever once via `st.cache_resource`; show answer + clickable citations → the cited
+   chunks; show the refusal text when refused). Then the **live 10-question ≥8/10 representative-Q&A
+   eval** against the real Gemini model (the Phase 3 exit criterion) — likely an env-gated test +
+   manual run, since it needs the key + network.
+
+### Hand-off notes
+- **answer() contract:** `answer(question, *, retriever, client, top_k=5) -> Answer`. `Answer` =
+  (question, answer_text, citations, refused, retrieved_ids). For the UI, build a `GeminiClient()` and a
+  `build_retriever("docs/knowledge-base")` (real ST embedder — downloads all-MiniLM-L6-v2 once). The
+  retriever's default embedder needs network on first use; cache it.
+- **Offline-test pattern continues:** any slice-3 test must inject FakeLLMClient (never the real client);
+  the autouse env-strip in `tests/test_rag/conftest.py` only covers `tests/test_rag/` — add an equivalent
+  if UI tests touch the LLM.
+- **Strict refusal is by design** — if live answers refuse too often in QA, that's a prompt/KB-coverage
+  tuning task (expand the KB / loosen the prompt), NOT a reason to weaken the grounding rule.
+
+---
+
 ### Handoff: Phase 3 slice 1 → Phase 3 slice 2 — 2026-06-20
 
 **From:** Claude Code parent (Phase 3 slice 1 — Large-tier full 12-step loop on `feature/phase3-slice1-rag-retrieval`)

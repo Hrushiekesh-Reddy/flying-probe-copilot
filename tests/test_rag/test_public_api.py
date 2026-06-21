@@ -29,10 +29,15 @@ def test_api02_index_classes_importable():
 
 
 def test_api03_all_lists_exactly_the_public_names():
-    """API-03: __all__ matches the documented public contract exactly."""
+    """API-03: __all__ matches the documented public contract exactly.
+
+    Updated for slice 2 (2026-06-20): the 7 slice-1 names plus the 4 LLM-layer
+    names (answer, Answer, GeminiClient, LLMClient).
+    """
     from flying_probe_copilot.rag import __all__ as public_all
 
     assert set(public_all) == {
+        # slice 1 — retrieval
         "build_retriever",
         "HybridRetriever",
         "Chunk",
@@ -40,4 +45,23 @@ def test_api03_all_lists_exactly_the_public_names():
         "load_kb",
         "VectorIndex",
         "LexicalIndex",
+        # slice 2 — LLM answer layer
+        "answer",
+        "Answer",
+        "GeminiClient",
+        "LLMClient",
     }
+
+
+def test_api04_slice2_names_importable():
+    """API-04: the 4 slice-2 LLM-layer names import and are callable/types."""
+    from flying_probe_copilot.rag import (  # noqa: F401
+        Answer,
+        GeminiClient,
+        LLMClient,
+        answer,
+    )
+
+    assert callable(answer)
+    assert isinstance(Answer, type)
+    assert isinstance(GeminiClient, type)
