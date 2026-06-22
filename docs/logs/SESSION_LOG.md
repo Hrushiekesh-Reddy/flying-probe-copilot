@@ -4,6 +4,32 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-22 — Phase 4 slice 4 — DEMO.md + architecture-diagram validation + public-flip guardrails audit — branch: feature/phase4-slice4-demo-arch-guardrails
+
+**Goal:** Close three remaining in-repo Phase 4 deliverables on a fresh feature branch off `dev`: (1) `docs/DEMO.md` walkthrough script, (2) README architecture diagram (Mermaid), (3) the public-flip guardrails check (GUARDRAILS §8). Tier: Small–Medium (docs + audit, no product-code changes).
+**Outcome:** Shipped. New `docs/DEMO.md` (scripted <5-min walkthrough: generate → parse → 6-page dashboard tour → grounded Co-Pilot Q&A + refusal → test/eval → maintainer gif-recapture note). New `docs/public-flip-checklist.md` recording **all 6 GUARDRAILS §8 checks PASS** with the exact re-runnable commands. README Mermaid diagram (already present from slice 1) **validated** via the Mermaid render tool (`valid: true`, flowchart). New `tests/test_docs/` package (8 structural tests, all green) guards the diagram + DEMO + checklist shape. Zero `src/flying_probe_copilot/**` edits, zero approval-gated edits.
+
+### Done
+- **Public-flip guardrails audit (GUARDRAILS §8) — all PASS:**
+  1. No `data/real/` content in history (`git log --all -- data/real/* …` → empty).
+  2. No API keys in history (`git log --all -S'AIza'` / `-S'sk-ant-'` → only a grep *pattern* in `docs/plans/2026-06-21-phase4-slice2-plan.md`, no live key; `.env` never tracked).
+  3. No copyrighted standards text (all IPC-A-610 / J-STD-001 mentions are "by section number only" citations).
+  4. No employer/customer names (scan hits are only the guardrail docs referencing the rule words themselves).
+  5. Personal GitHub identity only — every commit is `kanjulahrushiekeshreddy@gmail.com`; two author *names* (`Hrushiekesh Reddy Kanjula` / `kanjulahrushiekeshreddy-create`) map to the one personal email (no work account). Cosmetic-only.
+  6. README + case-study both explicitly state synthetic-data design.
+- `docs/DEMO.md` references the real `[project.scripts]` entry points (`uv run generator`, `uv run parser`) + actual app path (`src/flying_probe_copilot/ui/app.py`) and walks all six dashboard pages.
+- `docs/public-flip-checklist.md` documents results + re-run commands + non-blocking notes + the owner-only remaining actions (visibility flip, branch protection, blog/LinkedIn/resume).
+- README architecture diagram validated (`valid: true`); ROADMAP Phase 4 ticks updated (DEMO.md, README-diagram, guardrails-checklist).
+- `tests/test_docs/test_slice4_docs.py` (8 tests): mermaid-fence + full-pipeline-node guard, DEMO CLI-entrypoint + six-page + synthetic-only guards, checklist 6×PASS / no-❌ guard.
+
+### Notes
+- "Slice 4" was not pre-scoped in the plans; owner selected scope = DEMO.md + README diagram + public-flip guardrails check at session start.
+- README architecture diagram + demo gif were already shipped (slices 1–2); slice 4 only **validated** the diagram rather than rewriting it.
+- Repo visibility flip, branch-protection rules, blog post, LinkedIn post, resume bullet, and portfolio-site case-study cross-post remain owner actions (tracked in `docs/public-flip-checklist.md`).
+- Separately this session: confirmed PR #35 was correctly merged to `dev` (no `main` reset needed) and opened PR #36 (`dev → main` phase promotion) at owner request.
+
+---
+
 ## 2026-06-21 — Phase 4 slice 3 — GitHub Actions CI workflows + ruff config — branch: feature/phase4-slice3-ci-workflows
 
 **Goal:** Phase 4 slice 3: ship the unchecked Phase 4 deliverable "GitHub Actions workflow: lint + tests on PR" + a path-filtered screenshot-recapture workflow on UI/analytics PRs (closes the slice-2 follow-up named in CLAUDE.md "Next" pointer). Owner pre-ratified D1-D4 at brief time: cache build artifact for sample DB; CI artifacts only (no auto-commit); hold public flip until slice 4; ruff only (no mypy). Tier: Medium (full 12-step loop).
