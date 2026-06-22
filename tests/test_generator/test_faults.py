@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-
 START = datetime(2026, 4, 1, 0, 0, 0)
 END = START + timedelta(weeks=4)
 
@@ -65,9 +64,7 @@ def test_fault_profile_drift_increases_monotonically():
             quartiles[q] += 1
     rate_q1 = quartiles[0] / counts[0]
     rate_q4 = quartiles[3] / counts[3]
-    assert rate_q4 > rate_q1, (
-        f"drift profile q4 ({rate_q4:.3f}) must exceed q1 ({rate_q1:.3f})"
-    )
+    assert rate_q4 > rate_q1, f"drift profile q4 ({rate_q4:.3f}) must exceed q1 ({rate_q1:.3f})"
 
 
 def test_fault_profile_cluster_concentrates_in_narrow_windows():

@@ -22,7 +22,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # Core lexical building blocks
 # ---------------------------------------------------------------------------
@@ -48,12 +47,7 @@ _LIST_PREFIX = r"\\\d+"
 
 
 # @BATCH — 13 or 14 fields (extra trailing |field optional).
-_BATCH = re.compile(
-    r"^\{@BATCH"
-    + (rf"\|{_FIELD}") * 13
-    + rf"(?:\|{_FIELD})?"
-    + r"\}$"
-)
+_BATCH = re.compile(r"^\{@BATCH" + (rf"\|{_FIELD}") * 13 + rf"(?:\|{_FIELD})?" + r"\}$")
 
 # @BTEST — 13 or 14 fields. Field count comes from the spec table.
 # Schema: board_id | status | start_ts | duration_s | multiple_test | log_level
@@ -61,22 +55,22 @@ _BATCH = re.compile(
 #         | board_number | operator_id | shift | line_id [| parent_panel_id]
 _BTEST = re.compile(
     r"^\{@BTEST"
-    rf"\|{_FIELD}"                                         # board_id
+    rf"\|{_FIELD}"  # board_id
     r"\|(?:0|1|2|3|4|6|7|8|9|10|11|12|13|14|15|16|17|80|81|82|9\d)"  # status
-    rf"\|{_TIMESTAMP}"                                     # start_ts
-    rf"\|\d+"                                              # duration_s
-    rf"\|{_FIELD}"                                         # multiple_test
+    rf"\|{_TIMESTAMP}"  # start_ts
+    rf"\|\d+"  # duration_s
+    rf"\|{_FIELD}"  # multiple_test
     r"\|(?:none|manual|board|failures|indictments|analog|all)"  # log_level
-    rf"\|{_FIELD}"                                         # log_set
-    rf"\|{_FIELD}"                                         # learning
-    rf"\|{_FIELD}"                                         # known_good
-    rf"\|{_TIMESTAMP}"                                     # end_ts
-    rf"\|{_FIELD}"                                         # status_qualifier
-    rf"\|\d+"                                              # board_number
-    rf"\|{_FIELD}"                                         # operator_id
-    r"\|[ABC]"                                             # shift
-    rf"\|{_FIELD}"                                         # line_id
-    rf"(?:\|{_FIELD})?"                                    # optional parent_panel_id
+    rf"\|{_FIELD}"  # log_set
+    rf"\|{_FIELD}"  # learning
+    rf"\|{_FIELD}"  # known_good
+    rf"\|{_TIMESTAMP}"  # end_ts
+    rf"\|{_FIELD}"  # status_qualifier
+    rf"\|\d+"  # board_number
+    rf"\|{_FIELD}"  # operator_id
+    r"\|[ABC]"  # shift
+    rf"\|{_FIELD}"  # line_id
+    rf"(?:\|{_FIELD})?"  # optional parent_panel_id
     r"\}$"
 )
 
@@ -99,14 +93,10 @@ _LIM2 = re.compile(rf"^\{{@LIM2\|{_SCI_FLOAT}\|{_SCI_FLOAT}\}}$")
 _LIM3 = re.compile(rf"^\{{@LIM3\|{_SCI_FLOAT}\|{_SCI_FLOAT}\|{_SCI_FLOAT}\}}$")
 
 # @D-T — status | substatus | failing_vector | failing_pin_count | designator.
-_DIGITAL = re.compile(
-    rf"^\{{@D-T\|(?:0|1|5|7|8)\|\d+\|\d+\|\d+\|{_FIELD}\}}$"
-)
+_DIGITAL = re.compile(rf"^\{{@D-T\|(?:0|1|5|7|8)\|\d+\|\d+\|\d+\|{_FIELD}\}}$")
 
 # @TS — top-level shorts record (subrecords excluded — they nest separately).
-_SHORTS = re.compile(
-    rf"^\{{@TS\|(?:0|1|20)\|\d+\|\d+\|\d+\|{_FIELD}\}}$"
-)
+_SHORTS = re.compile(rf"^\{{@TS\|(?:0|1|20)\|\d+\|\d+\|\d+\|{_FIELD}\}}$")
 
 # @TJET — two-digit status | pin_count | designator.
 _TJET = re.compile(rf"^\{{@TJET\|(?:00|01|07)\|\d+\|{_FIELD}\}}$")
@@ -246,8 +236,7 @@ class Grammar:
                         GrammarError(
                             line_number=idx,
                             message=(
-                                f"@LIM2 follows @A-{last_analog_type}; "
-                                f"that record requires @LIM3"
+                                f"@LIM2 follows @A-{last_analog_type}; that record requires @LIM3"
                             ),
                             text=line,
                         )
@@ -259,8 +248,7 @@ class Grammar:
                         GrammarError(
                             line_number=idx,
                             message=(
-                                f"@LIM3 follows @A-{last_analog_type}; "
-                                f"that record requires @LIM2"
+                                f"@LIM3 follows @A-{last_analog_type}; that record requires @LIM2"
                             ),
                             text=line,
                         )

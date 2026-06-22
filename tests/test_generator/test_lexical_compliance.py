@@ -18,14 +18,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-
 START = datetime(2026, 4, 1, 0, 0, 0)
 END = START + timedelta(weeks=4)
 
 
-def _build_batch_log_via_cli_path(
-    profile_name: str, count: int, *, fault_profile: str, seed: int
-):
+def _build_batch_log_via_cli_path(profile_name: str, count: int, *, fault_profile: str, seed: int):
     """Compose a ``BatchLog`` using the exact path ``cli._build_batch_log`` uses.
 
     Mirrors ``src/flying_probe_copilot/generator/cli.py::_build_batch_log``
@@ -73,9 +70,7 @@ def _build_batch_log_via_cli_path(
         blocks = generate_blocks(profile, outcome, panel_seed)
         derived = derive_btest_status(blocks)
         start_ts = int(panel.timestamp.strftime("%y%m%d%H%M%S"))
-        end_ts = int(
-            (panel.timestamp + timedelta(seconds=12)).strftime("%y%m%d%H%M%S")
-        )
+        end_ts = int((panel.timestamp + timedelta(seconds=12)).strftime("%y%m%d%H%M%S"))
         btest = BoardTestRecord(
             board_id=panel.serial,
             status=derived,
@@ -131,9 +126,7 @@ def test_small_profile_cli_path_output_passes_grammar(tmp_path):
     from flying_probe_copilot.generator.grammar import Grammar
     from flying_probe_copilot.generator.renderers.log import render_log
 
-    batch_log = _build_batch_log_via_cli_path(
-        "small", count=3, fault_profile="random", seed=42
-    )
+    batch_log = _build_batch_log_via_cli_path("small", count=3, fault_profile="random", seed=42)
     _assert_blocks_scale_with_profile(batch_log, "small")
     out = tmp_path / "small.log"
     render_log(batch_log, out)
@@ -146,9 +139,7 @@ def test_medium_profile_cli_path_output_passes_grammar(tmp_path):
     from flying_probe_copilot.generator.grammar import Grammar
     from flying_probe_copilot.generator.renderers.log import render_log
 
-    batch_log = _build_batch_log_via_cli_path(
-        "medium", count=2, fault_profile="random", seed=7
-    )
+    batch_log = _build_batch_log_via_cli_path("medium", count=2, fault_profile="random", seed=7)
     _assert_blocks_scale_with_profile(batch_log, "medium")
     out = tmp_path / "medium.log"
     render_log(batch_log, out)
@@ -161,9 +152,7 @@ def test_large_profile_cli_path_output_passes_grammar(tmp_path):
     from flying_probe_copilot.generator.grammar import Grammar
     from flying_probe_copilot.generator.renderers.log import render_log
 
-    batch_log = _build_batch_log_via_cli_path(
-        "large", count=1, fault_profile="random", seed=99
-    )
+    batch_log = _build_batch_log_via_cli_path("large", count=1, fault_profile="random", seed=99)
     _assert_blocks_scale_with_profile(batch_log, "large")
     out = tmp_path / "large.log"
     render_log(batch_log, out)
@@ -176,9 +165,7 @@ def test_drift_profile_cli_path_output_passes_grammar(tmp_path):
     from flying_probe_copilot.generator.grammar import Grammar
     from flying_probe_copilot.generator.renderers.log import render_log
 
-    batch_log = _build_batch_log_via_cli_path(
-        "small", count=20, fault_profile="drift", seed=99
-    )
+    batch_log = _build_batch_log_via_cli_path("small", count=20, fault_profile="drift", seed=99)
     _assert_blocks_scale_with_profile(batch_log, "small")
     out = tmp_path / "drift.log"
     render_log(batch_log, out)

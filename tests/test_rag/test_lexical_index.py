@@ -104,9 +104,7 @@ def test_lex11_single_chunk_match_returns_it():
 
 def test_lex12_duplicate_text_both_returned():
     """LEX-12: duplicate-text chunks (distinct ids) both appear with equal score."""
-    idx = LexicalIndex(
-        [_chunk("a.md#0", "solder bridge"), _chunk("b.md#0", "solder bridge")]
-    )
+    idx = LexicalIndex([_chunk("a.md#0", "solder bridge"), _chunk("b.md#0", "solder bridge")])
     results = idx.search("solder", top_k=5)
     assert len(results) == 2
     assert results[0][1] == pytest.approx(results[1][1])

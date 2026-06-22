@@ -1,0 +1,47 @@
+name: screenshots
+"on":
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - "src/flying_probe_copilot/ui/**"
+      - "src/flying_probe_copilot/analytics/**"
+      - "docs/knowledge-base/**"
+      - "scripts/capture_screenshots.py"
+      - "scripts/_capture_app.py"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          version: ">=0.7"
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --all-groups
+      - name: Restore sample DuckDB
+        id: cache-db
+        uses: actions/cache@v4
+        with:
+          path: data/db/sample.duckdb
+          key: sample-duckdb-${{ hashFiles('src/flying_probe_copilot/generator/cli.py', 'src/flying_probe_copilot/generator/**', 'src/flying_probe_copilot/parser/cli.py', 'src/flying_probe_copilot/parser/**', 'scripts/build-portfolio-data.sh', 'uv.lock') }}
+          restore-keys: |
+            sample-duckdb-
+      - name: Build sample DB (cache miss)
+        if: steps.cache-db.outputs.cache-hit != 'true'
+        run: bash scripts/build-portfolio-data.sh
+      - run: uv run playwright install --with-deps chromium
+      - name: Capture screenshots + gif
+        run: uv run python scripts/capture_screenshots.py all --db data/db/sample.duckdb --out docs/img-ci/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: recaptured-dashboard-screenshots
+          path: docs/img-ci/
+          retention-days: 14

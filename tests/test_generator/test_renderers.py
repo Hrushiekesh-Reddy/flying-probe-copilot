@@ -13,7 +13,6 @@ from datetime import datetime
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helper: build a tiny but valid BatchLog using only public model APIs.
 # ---------------------------------------------------------------------------
@@ -281,9 +280,7 @@ class TestLogRenderer:
         render_log(BatchLog(batch=batch, boards=[board_log]), out)
         text = out.read_text(encoding="cp1252")
         # The @BTEST line should have ...|4|... in the status slot.
-        btest_line = next(
-            ln for ln in text.splitlines() if ln.startswith("{@BTEST")
-        )
+        btest_line = next(ln for ln in text.splitlines() if ln.startswith("{@BTEST"))
         # Fields: @BTEST | board_id | status | ...
         fields = btest_line[1:-1].split("|")  # strip { } then split
         assert fields[2] == "4", f"expected status field '4', got {fields[2]!r}"
@@ -303,8 +300,7 @@ class TestLogRenderer:
         btest_line = next(ln for ln in text.splitlines() if ln.startswith("{@BTEST"))
         split = btest_line[1:-1].split("|")
         assert split[13] == "OP-001", (
-            f"Expected operator_id 'OP-001' at split[13], got {split[13]!r}. "
-            f"Full split: {split}"
+            f"Expected operator_id 'OP-001' at split[13], got {split[13]!r}. Full split: {split}"
         )
 
 

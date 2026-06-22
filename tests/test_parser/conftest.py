@@ -10,27 +10,17 @@ Import rules (Revision 1 #BLOCKER-1):
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from flying_probe_copilot.generator.blocks import generate_blocks
 from flying_probe_copilot.generator.cli import _build_batch_log
-from flying_probe_copilot.generator.faults import generate_panel_faults
 from flying_probe_copilot.generator.models import (
     BatchLog,
-    BatchRecord,
-    BoardLog,
-    BoardTestRecord,
     BTESTStatus,
-    derive_btest_status,
 )
-from flying_probe_copilot.generator.profiles import get_profile
 from flying_probe_copilot.generator.renderers.log import render_log
-from flying_probe_copilot.generator.schedule import generate_panel_schedule
-
 
 # ---------------------------------------------------------------------------
 # Minimal argparse-like namespace for _build_batch_log
@@ -150,9 +140,7 @@ def _write_run_dir(
         single = BatchLog(batch=batch_log.batch, boards=[board])
         render_log(single, logs_dir / f"{board.panel.serial}.log", encoding=encoding)
 
-    failing = sum(
-        1 for b in batch_log.boards if b.btest.status != BTESTStatus.PASS
-    )
+    failing = sum(1 for b in batch_log.boards if b.btest.status != BTESTStatus.PASS)
     manifest = {
         "panel_count": count,
         "fault_rate": fault_rate,

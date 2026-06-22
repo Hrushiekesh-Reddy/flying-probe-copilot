@@ -34,8 +34,7 @@ SentenceTransformer = None
 class Embedder(Protocol):
     """Anything that turns texts into fixed-length float vectors."""
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        ...
+    def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
 def _load_sentence_transformer(model_name: str):  # pragma: no cover - needs download

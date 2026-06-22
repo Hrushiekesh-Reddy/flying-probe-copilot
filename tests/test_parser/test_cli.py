@@ -10,8 +10,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from flying_probe_copilot.generator.models import BatchLog, BTESTStatus
 from flying_probe_copilot.generator.renderers.log import render_log
 
@@ -54,8 +52,9 @@ def test_cli_main_returns_zero_for_valid_run_dir(small_batch_log, tmp_path):
 
 def test_cli_main_populates_db_with_panels(small_batch_log, tmp_path):
     """After cli.main(), DuckDB must contain the expected number of panels."""
-    from flying_probe_copilot.parser.cli import main
     import duckdb
+
+    from flying_probe_copilot.parser.cli import main
 
     run_dir = _write_run(tmp_path, small_batch_log, "small")
     db_path = tmp_path / "test_panels.duckdb"
@@ -139,8 +138,9 @@ def test_cli_returns_one_on_ingest_exception(tmp_path):
 
 def test_cli_encoding_auto_handles_cp1252(small_batch_log, tmp_path):
     """--encoding=auto must successfully parse a cp1252-encoded log."""
-    from flying_probe_copilot.parser.cli import main
     import duckdb
+
+    from flying_probe_copilot.parser.cli import main
 
     # Write a run dir with cp1252 encoding
     run_dir = tmp_path / "run_cp1252_cli"
@@ -207,14 +207,13 @@ def test_cli_encoding_utf8_fails_on_cp1252_log(small_batch_log, tmp_path):
     )
 
     db_path = tmp_path / "test_utf8_strict.duckdb"
-    ret = main(["--input", str(run_dir), "--db", str(db_path), "--encoding", "utf-8"])
+    ret = main(["--input", str(run_dir), "--db", str(db_path), "--encoding", "utf-8"])  # noqa: F841
     # CLI catches the parse error and returns exit 0 with parse_errors > 0,
     # OR returns 1 if every file failed. Either way, parse_errors must be > 0.
     import duckdb
+
     con = duckdb.connect(str(db_path))
-    rows = con.execute(
-        "SELECT COUNT(*) FROM panels"
-    ).fetchone()
+    rows = con.execute("SELECT COUNT(*) FROM panels").fetchone()
     panel_count = rows[0] if rows else 0
     con.close()
     # Under the bug, --encoding was ignored and auto-detect succeeded — all panels ingested.
@@ -225,9 +224,7 @@ def test_cli_encoding_utf8_fails_on_cp1252_log(small_batch_log, tmp_path):
     )
 
 
-def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
-    small_batch_log, tmp_path, monkeypatch
-):
+def test_runs_row_not_persisted_when_ingest_raises_mid_loop(small_batch_log, tmp_path, monkeypatch):
     """BUG-006: if _ingest_batch_log raises mid-loop, the runs row must NOT be
     persisted — otherwise the CLI re-ingest guard (exit code 2) would block any retry
     after the cause is fixed.
@@ -237,6 +234,7 @@ def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
     (with the patch lifted) succeeds with exit code 0.
     """
     import duckdb
+
     from flying_probe_copilot.parser import ingest as ingest_mod
     from flying_probe_copilot.parser.cli import main
 
@@ -253,9 +251,7 @@ def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
     assert ret == 1, f"Mid-loop exception must yield exit 1, got {ret}"
 
     con = duckdb.connect(str(db_path))
-    runs = con.execute(
-        "SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]
-    ).fetchone()[0]
+    runs = con.execute("SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]).fetchone()[0]
     con.close()
     assert runs == 0, (
         f"BUG-006: failed ingest left {runs} stranded runs row(s) — re-ingest would be blocked"
@@ -267,9 +263,7 @@ def test_runs_row_not_persisted_when_ingest_raises_mid_loop(
     assert ret2 == 0, f"Retry after failure must succeed (exit 0), got {ret2}"
 
     con = duckdb.connect(str(db_path))
-    runs2 = con.execute(
-        "SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]
-    ).fetchone()[0]
+    runs2 = con.execute("SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_dir.name]).fetchone()[0]
     con.close()
     assert runs2 == 1, f"Successful retry must persist exactly one runs row, got {runs2}"
 
@@ -283,6 +277,7 @@ def test_partial_multi_file_failure_rolls_back_earlier_panels(
     PRIMARY KEY conflicts on panels.panel_serial instead of completing cleanly.
     """
     import duckdb
+
     from flying_probe_copilot.parser import ingest as ingest_mod
     from flying_probe_copilot.parser.cli import main
 

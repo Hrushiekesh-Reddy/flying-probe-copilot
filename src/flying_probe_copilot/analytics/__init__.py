@@ -16,11 +16,11 @@ Public API::
 
 from __future__ import annotations
 
+from .anomaly import z_score_anomalies
 from .models import AnomalyRow, ParetoRow, SPCPoint, YieldRow
 from .pareto import failure_pareto
-from .yield_metrics import yield_over_time
 from .spc import individuals_chart
-from .anomaly import z_score_anomalies
+from .yield_metrics import yield_over_time
 
 __all__ = [
     "yield_over_time",

@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from collections import Counter
 
-import pytest
-
 from flying_probe_copilot.generator.blocks import generate_blocks
 from flying_probe_copilot.generator.faults import PanelOutcome
 from flying_probe_copilot.generator.models import (
@@ -25,7 +23,6 @@ from flying_probe_copilot.generator.models import (
 )
 from flying_probe_copilot.generator.profiles import get_profile
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -38,9 +35,7 @@ def _passing_outcome() -> PanelOutcome:
 def _outcome_for(mode: str) -> PanelOutcome:
     from flying_probe_copilot.generator.faults import btest_status_for_mode
 
-    return PanelOutcome(
-        failed=True, mode=mode, btest_status=btest_status_for_mode(mode)
-    )
+    return PanelOutcome(failed=True, mode=mode, btest_status=btest_status_for_mode(mode))
 
 
 # Component-type prefix -> the expected concrete record type / AnalogType.
@@ -135,9 +130,7 @@ def test_block_refdes_diversity():
     for prefix, count in profile.component_mix.items():
         expected = {f"{prefix}{i}" for i in range(1, count + 1)}
         missing = expected - designators
-        assert not missing, (
-            f"{prefix} family missing refdes: sample={sorted(missing)[:5]}"
-        )
+        assert not missing, f"{prefix} family missing refdes: sample={sorted(missing)[:5]}"
 
 
 # ---------------------------------------------------------------------------
@@ -237,10 +230,7 @@ def test_shorts_only_failure_does_not_fail_analog():
         for b in blocks[1:]
         if (
             (isinstance(b.record, AnalogRecord) and b.record.status != AnalogStatus.PASS)
-            or (
-                isinstance(b.record, DigitalRecord)
-                and b.record.status != DigitalStatus.PASS
-            )
+            or (isinstance(b.record, DigitalRecord) and b.record.status != DigitalStatus.PASS)
         )
     ]
     assert other_failures == [], (
@@ -302,12 +292,8 @@ def test_neighbor_fail_rate_elevated_vs_far_when_primary_pinned(monkeypatch):
     r51 = counts["R51"]
     r10 = counts["R10"]
 
-    assert r49 > r10, (
-        f"R49 (±1 neighbor) must fail more than R10 (far). Got R49={r49}, R10={r10}."
-    )
-    assert r51 > r10, (
-        f"R51 (±1 neighbor) must fail more than R10 (far). Got R51={r51}, R10={r10}."
-    )
+    assert r49 > r10, f"R49 (±1 neighbor) must fail more than R10 (far). Got R49={r49}, R10={r10}."
+    assert r51 > r10, f"R51 (±1 neighbor) must fail more than R10 (far). Got R51={r51}, R10={r10}."
     assert r49 + r51 >= 3 * max(1, r10), (
         f"Combined ±1 neighbors should be ≥3× the far rate (a generous margin "
         f"that survives stochastic noise). Got R49+R51={r49 + r51}, R10={r10}."
@@ -352,8 +338,7 @@ def test_failure_pareto_clusters_around_primary_under_correlation(monkeypatch):
         f"Pinned primary R50 must be in the top-3 failing refdes. Top-3: {top3}"
     )
     assert top3_names & {"R49", "R51"}, (
-        f"At least one ±1 neighbor of R50 must be in the top-3 failing refdes. "
-        f"Top-3: {top3}"
+        f"At least one ±1 neighbor of R50 must be in the top-3 failing refdes. Top-3: {top3}"
     )
     assert top3_share > 0.30, (
         f"Top-3 failing refdes must account for >30% of all failures under "

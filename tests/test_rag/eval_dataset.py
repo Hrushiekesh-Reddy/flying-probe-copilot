@@ -1,9 +1,17 @@
-"""Phase 3 evaluation dataset — 10 representative root-cause questions.
+"""Phase 3 evaluation dataset — 15 representative root-cause questions.
 
 Each entry maps a natural-language question to the KB-relative doc_id of the
 failure-mode document that should ground the answer. Used by both the offline
-citation-pattern test and the env-gated live ≥8/10 accuracy test in
+citation-pattern test and the env-gated live ≥12/15 accuracy test in
 ``test_eval.py``. Keep in sync with ``docs/eval/phase3-eval-questions.md``.
+
+The set has two question shapes:
+- Descriptive scenarios (entries 1-10) — symptom + context, the original Phase 3
+  exit-criterion shape.
+- Terse "what causes X?" / "what is X?" forms (entries 11-15) — added after the
+  2026-06-21 portfolio capture surfaced that short generic queries were losing
+  the per-section "Likely causes" chunk under the original top_k=5 default
+  (DECISION_LOG 2026-06-21).
 """
 
 from __future__ import annotations
@@ -49,6 +57,27 @@ EVAL_QUESTIONS: list[tuple[str, str]] = [
     ),
     (
         "A solder joint has too little fillet and is electrically marginal - what is the defect?",
+        "failure-modes/insufficient-solder.md",
+    ),
+    # Terse short-form regression set (BUG-014 / portfolio capture 2026-06-21).
+    (
+        "what causes tombstoning?",
+        "failure-modes/tombstoning.md",
+    ),
+    (
+        "what are shorts?",
+        "failure-modes/shorts.md",
+    ),
+    (
+        "what are opens?",
+        "failure-modes/opens.md",
+    ),
+    (
+        "what is a cold solder joint?",
+        "failure-modes/cold-solder-joint.md",
+    ),
+    (
+        "what is insufficient solder?",
         "failure-modes/insufficient-solder.md",
     ),
 ]

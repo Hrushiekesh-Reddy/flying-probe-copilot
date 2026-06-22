@@ -19,9 +19,9 @@ def _grounded(question: str) -> Answer:
     return Answer(
         question=question,
         answer_text="Tombstoning: a chip lifts on one end during reflow.",
-        citations=("failure-modes/tombstoning.md#0",),
+        citations=("failure-modes/tombstoning.md#3",),
         refused=False,
-        retrieved_ids=("failure-modes/tombstoning.md#0",),
+        retrieved_ids=("failure-modes/tombstoning.md#3",),
     )
 
 
@@ -70,7 +70,7 @@ def test_chat03_grounded_submit_renders_answer_and_citation(monkeypatch):
     assert len(at.chat_message) == 2  # user + assistant
     md_text = " ".join(m.value for m in at.markdown)
     assert "Tombstoning" in md_text
-    assert "failure-modes/tombstoning.md#0" in md_text
+    assert "failure-modes/tombstoning.md#3" in md_text
 
 
 def test_chat05_refusal_renders_refusal_text(monkeypatch):
@@ -97,6 +97,7 @@ def test_chat06_two_turns_accumulate_history(monkeypatch):
 
 def test_chat08_backend_error_is_handled_gracefully(monkeypatch):
     """CHAT-08: a backend exception renders st.error, appends no turn, no crash."""
+
     def _boom(question):
         raise RuntimeError("gemini down")
 

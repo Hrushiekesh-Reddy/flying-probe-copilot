@@ -24,7 +24,6 @@ from random import Random
 
 from .models import PanelInstance
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -32,7 +31,7 @@ from .models import PanelInstance
 
 _SHIFT_WINDOWS: dict[str, tuple[int, int]] = {
     # shift_letter: (start_hour, length_hours)
-    "A": (6, 8),   # 06:00 - 14:00
+    "A": (6, 8),  # 06:00 - 14:00
     "B": (14, 8),  # 14:00 - 22:00
     "C": (22, 8),  # 22:00 - 06:00 (wraps midnight)
 }
@@ -157,9 +156,7 @@ def generate_panel_schedule(
 
     # 4. Build PanelInstance objects.
     panels: list[PanelInstance] = []
-    for i, (ts, shift, op) in enumerate(
-        zip(snapped_timestamps, shift_letters, operator_sequence)
-    ):
+    for i, (ts, shift, op) in enumerate(zip(snapped_timestamps, shift_letters, operator_sequence)):
         serial = _serial_for(ts, i + 1)
         panels.append(
             PanelInstance(

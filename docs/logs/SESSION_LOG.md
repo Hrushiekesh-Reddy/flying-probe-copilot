@@ -4,6 +4,284 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-06-21 — Phase 4 slice 3 — GitHub Actions CI workflows + ruff config — branch: feature/phase4-slice3-ci-workflows
+
+**Goal:** Phase 4 slice 3: ship the unchecked Phase 4 deliverable "GitHub Actions workflow: lint + tests on PR" + a path-filtered screenshot-recapture workflow on UI/analytics PRs (closes the slice-2 follow-up named in CLAUDE.md "Next" pointer). Owner pre-ratified D1-D4 at brief time: cache build artifact for sample DB; CI artifacts only (no auto-commit); hold public flip until slice 4; ruff only (no mypy). Tier: Medium (full 12-step loop).
+**Outcome:** Shipped. Two NEW workflow files + ruff dev-dep + 4-block ruff config + 93-test `tests/test_ci/` package over a one-time `ruff --fix` + `ruff format` cleanup pass (D17 ratified as slice-3 exception to read-only `src/**`). **Suite: 659 passing / 5 skipped / 1 xfailed / 97% coverage** (baseline 566/5/1 → +93 ci tests). Zero `.claude/**` edits. Zero `scripts/**` edits. Three commits on branch ready for `feature/phase4-slice3-ci-workflows → dev` PR.
+
+### Done — CI infrastructure (executor sub-agent)
+- `.github/workflows/ci.yml` (NEW, 41 lines): two parallel jobs (`lint`, `tests`) on `pull_request` to `dev`/`main`. `lint` runs `ruff check . --output-format=github` + `ruff format --check .` (timeout 5 min). `tests` runs `uv run pytest -q --cov=src/flying_probe_copilot --cov-report=term` (timeout 15 min). Both use `actions/checkout@v4` + `astral-sh/setup-uv@v8` (with `version: ">=0.7"`, `python-version: "3.11"`, `enable-cache: true`) + `uv sync --frozen --all-groups`. Top-level `concurrency.group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`. `permissions: contents: read`. `paths-ignore: ["docs/**", "**/*.md", "notebooks/**", ".claude/**"]` per MD-4. `"on":` quoted per B-1 (PyYAML treats bare `on:` as bool `True`).
+- `.github/workflows/screenshots.yml` (NEW, 47 lines): single `capture` job on PRs touching `src/flying_probe_copilot/ui/**`, `src/flying_probe_copilot/analytics/**`, `docs/knowledge-base/**`, `scripts/capture_screenshots.py`, `scripts/_capture_app.py`. Steps: checkout → setup-uv → `uv sync --frozen --all-groups` → `actions/cache@v4` keyed on `hashFiles('src/.../generator/cli.py', 'src/.../generator/**', 'src/.../parser/cli.py', 'src/.../parser/**', 'scripts/build-portfolio-data.sh', 'uv.lock')` per B-5 non-glob anchors + `restore-keys: sample-duckdb-` per W-1 → conditional `bash scripts/build-portfolio-data.sh` (if `steps.cache-db.outputs.cache-hit != 'true'`) → `uv run playwright install --with-deps chromium` → `uv run python scripts/capture_screenshots.py all --db data/db/sample.duckdb --out docs/img-ci/` → `actions/upload-artifact@v4` `name: recaptured-dashboard-screenshots`, `path: docs/img-ci/`, `retention-days: 14` per D2. No `GOOGLE_API_KEY` reference anywhere (the shim covers Co-Pilot capture).
+
+### Done — approval-gated `pyproject.toml` edit (owner-ratified at Decision Gate)
+- `[dependency-groups].dev`: added `ruff>=0.6` (alphabetized last by ASCII: playwright, pytest-cov, pytest, ruff — `-` 0x2D < no-char, so `pytest-cov` sorts before `pytest`).
+- `[tool.ruff]`: `line-length=100`, `target-version="py311"`, `extend-exclude=["data","docs","notebooks",".claude","scripts"]` (D16: `"scripts"` added per B-4 to honor the read-only `scripts/` guardrail at the lint layer).
+- `[tool.ruff.lint]`: `select=["E","F","W","I"]` (D5 minimal set).
+- `[tool.ruff.lint.per-file-ignores]`: `"tests/**/*.py" = ["E501", "F401"]` (D6 + W-8 explicit glob).
+- `[tool.ruff.format]`: empty block (defaults).
+- `uv.lock`: regenerated; ruff 0.15.18 + transitive deps added.
+
+### Done — cleanup pass (one-time exception per D17 = A)
+- Lint preflight via `uvx ruff` surfaced 301 errors (`I001` 100, `E501` 95, `F401` 67, `F811` 24, `E401` 8, `F841` 4, `E712` 2, `E741` 1) + 58 unformatted files. Owner ratified Option A (cleanup pass) over Option B (defer CI lint), C (narrow rule set), D (split slice).
+- Commit `056459e`: `ruff check --fix --select E,F,W,I --line-length 100 --target-version py311 src tests` applied 189 auto-fixes (I001 + F401 + F811 + E401). `ruff format --line-length 100 --target-version py311 src tests` reformatted 58 files (mostly multi-line strings collapsing into single lines at 100 char width).
+- D17.1 hybrid policy for the remaining 7 non-auto-fixable + 1 import-restoration:
+  - 11 inline `import duckdb  # noqa: F811` adds in `tests/test_ui/test_views_smoke.py` `_smoke_*` functions — load-bearing for `AppTest.from_function` subprocess execution (the function source is extracted and run in a fresh interpreter, so module-level imports don't propagate). Without these, 12 view-smoke tests fail with `NameError: name 'duckdb' is not defined`.
+  - 4 F841 (unused-variable, intent-marker locals in `test_spc.py`, `test_cli.py`, `test_roundtrip.py`, `test_capture_real.py`): per-line `# noqa: F841` with comment.
+  - 2 E712 (true-false-comparison on pandas `.loc` in `test_data.py`): per-line `# noqa: E712 — pandas idiom`.
+  - 1 E741 (ambiguous-name `l` in tuple unpack in `test_ingest.py`:856-857): refactored `l` → `line_val`, `s` → `shift_val` (the tuple unpack target).
+  - 13 E501 (line-too-long, all in tests/): absorbed by `[tool.ruff.lint.per-file-ignores]."tests/**/*.py" = ["E501", "F401"]` once `pyproject.toml` config landed at E5.
+- Diff: 68 files changed (+1517 / -1126). 26 src/ files (mostly format) + 42 tests/ files (format + the 11+7 suppressions). Suite stays at 566 passing.
+
+### Done — tests/test_ci/ package (executor sub-agent)
+- `tests/test_ci/__init__.py` (NEW): empty marker.
+- `tests/test_ci/conftest.py` (NEW): 4 session-scope fixtures per test-plan §A.1: `_workflow_dir` (Path anchored to repo root via `parents[2]`), `_load_yaml(name)` (memoized + `copy.deepcopy` per call per W-6 to guard against test mutation leakage), `_load_yaml_text(name)` (raw text for substring searches like "GOOGLE_API_KEY does NOT appear"), `_pyproject` (tomllib-loaded `pyproject.toml`).
+- `tests/test_ci/test_workflow_yaml.py` (NEW): 83 `def test_*` functions + 9 `@pytest.mark.parametrize` decorators = 93 collected tests. Sections: A.3 sanity (1) + B `ci.yml` (25) + C `screenshots.yml` (30) + D `pyproject.toml` ruff config (17) + E cross-workflow (10, dropped E-08 per W-3). Defense-in-depth on secrets (no `GOOGLE_API_KEY`, no `ANTHROPIC_API_KEY`, no bare `secrets.` substring) covered by 6 tests across the file. Action-version pins enforced (`actions/checkout@v4`, `actions/cache@v4`, `actions/upload-artifact@v4`, `astral-sh/setup-uv@v8`). Float-coercion trap caught (`isinstance(python_version, str)` AND `==` "3.11").
+
+### Done — bookkeeping (parent at Step 10)
+- `docs/ROADMAP.md`: Phase 4 deliverable line `- [ ] GitHub Actions workflow: lint + tests on PR` → `- [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)`.
+- `CLAUDE.md`: Status block flipped Phase 4 slice 2 IN PR → slice 3 IN PR (full Plan Rev1 + cleanup pass + 93-test test-ci + ruff config narrative); this session-log line appended.
+- `docs/logs/DECISION_LOG.md`: slice-3 entry covering D1-D4 (brief), D5-D15 (Plan), D16 (B-4 closure), D17/D17.1 (cleanup-pass + hybrid suppress), MD-4 + BR + BUNDLE smaller calls + 7 BLOCKER + 12 WARN + 8 MISSING-DECISION closures + rejected alternatives.
+- `docs/plans/2026-06-21-phase4-slice3-{brief,plan,plan-rev1,test-plan,redteam,decision-gate,exec-report,verify-execution}.md`: 8 artifacts committed.
+- Branch renamed `claude/sweet-jones-7291db` → `feature/phase4-slice3-ci-workflows` at Step 10 (matches slice 1+2 naming pattern per BR ratification).
+
+### Step 5 red-team caught 7 BLOCKERs + 12 WARNs + 8 MISSING-DECISIONs (all closed in Plan-Rev1 before Execute)
+- **B-1** PyYAML reads bare `on:` as Python `True` (YAML 1.1 boolean) — live-verified `yaml.safe_load("on:\n  pull_request:")` returns `{True: ...}`. Closure: quote `"on":` in both workflow YAML files. GitHub Actions accepts quoted form.
+- **B-2** PyYAML coerces unquoted `python-version: 3.11` to float (printed as `3.11` but isn't exactly representable in IEEE-754). Closure: `python-version: "3.11"` explicit quoting + tests E-09/C-11/B-10 assert `isinstance(v, str)`.
+- **B-3** `astral-sh/setup-uv@v3` is three majors stale (current is v8.2.0 per WebFetch 2026-06-03). Closure: bumped to `@v8`. Action's `enable-cache` + `python-version` inputs work since v6+, eliminating need for separate `actions/setup-python` step (W-3 closure).
+- **B-4** `[tool.ruff].extend-exclude` omitted `"scripts"` while brief §3 marked `scripts/` read-only — ruff would fire on `scripts/capture_screenshots.py` + `scripts/_capture_app.py` without a legal edit channel. Closure: added `"scripts"` per new D16.
+- **B-5** `hashFiles('src/.../generator/**', ...)` returns empty string on zero glob match → cache key collapses to `sample-duckdb-` constant → silent stale cache forever. Closure: added `cli.py` non-glob anchor files (guaranteed to exist) to each glob root.
+- **B-6** `uv sync --frozen --all-groups` requires uv ≥ 0.5.4 (flag added late 2024); `setup-uv@v3` predates this. Closure: bumped to `@v8` (B-3) + explicit `version: ">=0.7"` belt-and-suspenders.
+- **B-7** `ruff format --check .` policy on existing code — preflight surfaced 301 lint errors + 58 unformatted files. Owner-blocking; closed at Decision Gate via D17 = A (cleanup pass as one-time exception).
+
+### Live-discovered issue in-session (out of red-team scope)
+- Cleanup `ruff --fix` stripped 11 inline `import duckdb` statements from `_smoke_*` functions in `test_views_smoke.py` as F811 (redefined-while-unused) — but those inline imports are load-bearing for Streamlit's `AppTest.from_function`, which extracts the function source and runs it in a fresh subprocess that doesn't inherit the test module's imports. 12 tests failed with `NameError: name 'duckdb' is not defined`. Fixed by restoring all 11 inline `import duckdb  # noqa: F811` lines. Suite restored to 566 baseline.
+
+### Bugs surfaced
+None new this slice. The cleanup pass touched 26 src/ files but only mechanically — no semantic edits, no behavior regressions (suite stays 566/5/1 across before-cleanup-after).
+
+### Phase 4 status
+- **Slice 1**: shipped (PR #32 merged).
+- **Slice 2**: shipped (PR #34 merged).
+- **Slice 3 IN PR.** CI workflows + ruff config on branch ready for `feature/phase4-slice3-ci-workflows → dev` PR.
+- **Slice 4 queued**: portfolio promotion (final guardrails audit + repo public flip per D3 deferral + `docs/DEMO.md` + blog post + LinkedIn post + resume bullet + branch-protection rules requiring CI green on PRs to `main` + CI status badge in README).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice3-ci-workflows → dev` PR. First CI run on the slice-3 PR validates `ci.yml` end-to-end (G5). `screenshots.yml` correctly will NOT run on this PR (no UI/analytics/KB/script paths touched — per D14).
+2. After merge to `dev`: a follow-up UI-touching PR will be the first live test of `screenshots.yml`.
+3. Then start Phase 4 slice 4 (portfolio promotion).
+
+---
+
+
+## 2026-06-21 — Phase 4 slice 2 — headless screenshot capture + demo gif — branch: feature/phase4-slice2-screenshots
+
+**Goal:** Phase 4 slice 2: ship `scripts/capture_screenshots.py` (Playwright + Pillow) as the auto-recapture infrastructure that closes the "Capture screenshots from CI, not by hand" follow-up named in slice 1's case-study retrospective. Six dashboard JPGs + `docs/img/demo.gif` regenerate from one command against the gitignored `data/db/sample.duckdb`, no live Gemini key needed. Tier: Medium (full 12-step loop).
+**Outcome:** Shipped. New `scripts/` package (`capture_screenshots.py` 400 LOC + `_capture_app.py` Streamlit shim) + `tests/test_scripts/` (38 unit + 4 shim tests = 42 new green; 5 new env-gated correctly skipped) over a Playwright>=1.49 dev-group dep add. **Suite: 566 passing / 5 skipped / 1 xfailed / 97% coverage on `src/` denominator** (baseline 524/3/1 → +42/+2). Six 60-145 KB JPGs + 748 KB GIF89a regenerated against the freshly-built 900-panel `sample.duckdb`; README hero strip embedded the gif above the table. Zero `src/flying_probe_copilot/**` edits. Zero `.claude/**` edits. Ready for `feature/phase4-slice2-screenshots → dev` PR.
+
+### Done — code (executor sub-agent)
+- `scripts/capture_screenshots.py` (NEW, 400 LOC): pure helpers `build_canned_answer` / `assemble_gif` / `pick_free_port` / `check_outputs_complete` / `parse_args`; orchestration `capture_screenshots(db_path, out_dir, port=None)` launches `sys.executable -m streamlit run scripts/_capture_app.py` (W-3 fix: no `uv run` middleman → `proc.terminate()` reaches the actual server); Playwright Chromium 1440×900 viewport; sidebar-nav clicks scoped to `[data-testid='stSidebarNav']` with regex name to handle Streamlit's emoji-prefixed labels (B-5); Co-Pilot branch fills `stChatInput`, waits for `[data-testid='stChatMessage']`, clicks the "Citations (N)" expander via `get_by_text` (Streamlit renders `st.expander` as `<details><summary>`, not `<button>`); gif assembled via Pillow's `Image.save(save_all=True, append_images=..., duration=2000, loop=0, optimize=True)`. Constants: `CANNED_CITATION_ID = "failure-modes/tombstoning.md#3"` (B-1 fix from red-team; chunk #0 was the title section), `PAGE_CAPTURE_SPECS` (6-tuple in README hero-strip order).
+- `scripts/_capture_app.py` (NEW, 32 LOC): Streamlit shim. Imports `chat as _chat`, rebinds `_chat.answer_question = build_canned_answer`, then defensive `assert _chat.answer_question is build_canned_answer` (B-4 fix), then `from flying_probe_copilot.ui.app import main; main()`. `FPC_CAPTURE_DRY_IMPORT` sentinel short-circuits `main()` for subprocess import tests.
+- `scripts/__init__.py` + `tests/test_scripts/__init__.py` (NEW): empty package markers.
+- `tests/test_scripts/test_capture_screenshots.py` (NEW, 38 tests): unit-tests every pure helper (CAP-01..81 from the test-plan).
+- `tests/test_scripts/test_capture_shim.py` (NEW, 4 tests): subprocess-based shim monkeypatch survival checks (CAP-20..23).
+- `tests/test_scripts/test_capture_real.py` (NEW, 4 tests env-gated on `CAPTURE_RUN_PLAYWRIGHT=1`): end-to-end Playwright smoke; correctly skipped by default.
+- `tests/test_scripts/test_streamlit_sidebar_dom_shape.py` (NEW, 1 test env-gated): F18 sidebar-DOM canary; pins `data-testid='stSidebarNav'` against future Streamlit releases.
+- `tests/test_scripts/conftest.py` (NEW): autouse `_strip_llm_env` for defense-in-depth.
+- `tests/conftest.py` (MOD): `ui_db_path` fixture + `_populate_ui_db` helper lifted from `tests/test_ui/conftest.py` (MD-3 ratification); session-scope unchanged, no caller-name changes; both `test_ui/` and `test_scripts/` now resolve the fixture by name.
+- `tests/test_ui/conftest.py` (MOD): stripped to just `_strip_llm_env`; 270 → ~30 lines.
+- `tests/test_ui/test_chat_smoke.py` (MOD): declared parallel edit — `_grounded()` stub's `citations` + `retrieved_ids` tuples + CHAT-03's assertion all `tombstoning.md#0` → `#3` to keep the fixture and the capture shim's canned answer in sync (B-1 closure ripple).
+
+### Done — approval-gated dep + config (owner-ratified at Decision Gate)
+- `pyproject.toml`: added `playwright>=1.49` to `[dependency-groups].dev` (alphabetized; lockfile pinned 1.60.0); added `pythonpath = [".", "src"]` to `[tool.pytest.ini_options]` so `from scripts import capture_screenshots` resolves in tests (B-3 fix). MD-5 bundled both edits under one owner approval.
+- `uv.lock`: regenerated; +110 lines (playwright 1.60.0 + greenlet 3.5.2 + pyee 13.0.1).
+- One-time runtime: `uv run playwright install chromium` (NOT committed; AppData install).
+
+### Done — capture invocation (parent at Plan Step 11)
+- Pre-flight: built `data/db/sample.duckdb` via `bash scripts/build-portfolio-data.sh` (~3 min for 3×300-panel batches, 900 panels total, ~18 MB DB).
+- Two iterations of the capture script: (1) first run timed out on the Citations expander click (`get_by_role("button"...)` against Streamlit's `<details><summary>` → fixed to `get_by_text`); Overview screenshot was chart-skeletons only (2000ms initial settle insufficient for Overview's twin Plotly charts in `st.columns` → bumped initial settle to 4000ms, per-nav settle to 2500ms). (2) Second run produced all 7 portfolio-grade outputs.
+- Final outputs in `docs/img/`: `screenshot-overview.jpg` (91 KB; KPIs + Yield-by-board + Failure-Pareto-top-5 charts + sidebar filter dates), `screenshot-yield.jpg` (62 KB; 96.0% / 94.3% / 93.3% by board), `screenshot-pareto.jpg` (80 KB; A-RES dominant + cumulative %), `screenshot-spc.jpg` (145 KB; XmR chart with rule_1 + rule_4 alarms), `screenshot-anomalies.jpg` (83 KB; z-score by shift), `screenshot-copilot.jpg` (111 KB; canned tombstoning answer + **expanded** Citations (1) showing `failure-modes/tombstoning.md#3` — exactly the BUG-014 narrative artifact). `docs/img/demo.gif` (748 KB GIF89a; 6-frame cycle, 2 s/frame, 12 s loop).
+
+### Done — docs (parent at Plan Steps 12-13)
+- `README.md`: inserted `![Demo walkthrough](docs/img/demo.gif)` between the "Dashboard at a glance" header and the hero-strip table (D8 ratification — above strip, after intro).
+- `docs/case-study.md:123`: footnote-resolved the "Slice 1.5 candidate" line with `*[Resolved 2026-06-21 — slice 2 shipped automated capture; see scripts/capture_screenshots.py and the slice-2 brief.]*` (MD-2 ratification — preserves retrospective candor + adds receipt).
+- `docs/ROADMAP.md`: Phase 4 deliverable line for "README polished … screenshot strip" now reads "… (Phase 4 slice 1, 2026-06-21) + demo gif (Phase 4 slice 2, 2026-06-21)".
+- `docs/logs/DECISION_LOG.md`: full slice-2 entry covering the 18 owner-ratified decisions + 5 BLOCKER closures + rejected alternatives + revisit conditions.
+- `docs/plans/2026-06-21-phase4-slice2-{brief,plan,plan-rev1,test-plan,redteam,decision-gate,exec-report}.md`: 7 artifacts committed.
+- `CLAUDE.md`: Status block flipped Phase 4 slice 1 IN PR → slice 2 IN PR; this session-log line appended.
+
+### Step 5 red-team caught 5 BLOCKERs + 12 WARNINGs + 6 MISSING DECISIONs (all closed in Plan-Rev1 before Execute)
+- **B-1** Canned citation `#0` was the **title chunk** (empty body), not "Likely causes" — `failure-modes/tombstoning.md` chunk #3 is the section that actually answers "what causes tombstoning?". Closed: `CANNED_CITATION_ID = "...#3"` + declared parallel edit to `test_chat_smoke.py:24`.
+- **B-2** `st.expander` defaults to **collapsed** — the Co-Pilot screenshot would have shown an unopened "Citations (1)" disclosure, defeating the whole point of the demo. Closed: Playwright must click the expander toggle after rerun, before screenshot. No `chat.py` edit (out-of-scope).
+- **B-3** `from scripts import …` fails in pytest without `pythonpath = [".", "src"]` in `[tool.pytest.ini_options]`. Closed: bundled with the playwright dep-add under MD-5.
+- **B-4** Monkeypatch could be clobbered by Streamlit's rerun. Closed: defensive `assert` line in the shim + subprocess-based RED test.
+- **B-5** Sidebar nav `name="Overview"` won't match Streamlit's emoji-prefixed `"📊 Overview"`. Closed: regex name match scoped to `[data-testid='stSidebarNav']`.
+
+### Live-capture issues caught in-session (out of red-team scope)
+- Citations expander selector: red-team's `get_by_role("button", name=...)` recommendation was wrong — `st.expander` renders as `<details><summary>`, not a `<button>`. Switched to `get_by_text(re.compile(r"Citations \(\d+\)"))`. Worked first try after the fix.
+- Overview chart settle: initial 2000ms wait was enough for KPIs + sidebar but not for the two Plotly charts inside `st.columns`. Bumped initial settle 2000 → 4000ms; per-nav settle 1500 → 2500ms. All 4 of {yield, pareto, spc, anomalies} pages with single charts rendered cleanly at the original settle; Overview's twin-column layout was the outlier.
+
+### Bugs surfaced
+None new this slice. The Co-Pilot canned answer text (471 chars, parent-drafted at Decision Gate MD-6) is grounded entirely in `tombstoning.md` §Likely causes + §ICT signature — no factual drift from the cited chunk.
+
+### Phase 4 status
+- **Slice 1**: shipped (PR-merged Phase 4 slice 1 README + case-study).
+- **Slice 2 IN PR.** Capture script + demo gif + auto-recaptured hero strip on branch.
+- **Slice 3 queued**: GitHub Actions workflow (lint + tests + screenshot-recapture-on-PR), repo flip to public after guardrails audit.
+- **Slice 4 queued**: portfolio promotion (blog post + LinkedIn + resume bullet).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice2-screenshots → dev` PR (new gif renders on GitHub, hero strip looks fresh, capture script is single-command).
+2. Merge → start Phase 4 slice 3 (GH Actions workflow that runs `python scripts/capture_screenshots.py all` on dashboard-touching PRs + lint + tests; repo public flip after final guardrails audit).
+---
+
+## 2026-06-21 — Phase 4 slice 1 — README polish + portfolio writeup — branch: feature/phase4-slice1-readme
+
+**Goal:** Phase 4 slice 1: replace the Phase-0 README with a portfolio-grade rewrite (hero strip, Mermaid diagram, status table, About-the-author footer) and author `docs/case-study.md` (~2,000 words) anchored on three engineering stories and the verified metrics suite. Tier: Medium (reduced loop, no code, no tests).
+**Outcome:** Shipped. New README + 6-screenshot strip in `docs/img/` + ~2,100-word case-study + ROADMAP ticks + CLAUDE.md status flip. Suite stayed 519 / 1 xfailed / 97% (zero code touched). Ready for `feature/phase4-slice1-readme → dev` PR.
+
+### Done
+- **README.md**: full rewrite. Shields-row (Phase 3 shipped / 519 tests / 97% / 10/10 eval / MIT), 2×3 hero strip of 6 dashboard screenshots, Mermaid architecture diagram (quoted-label syntax), 60-second elevator, 7-step Quickstart with the parser stamped-run-dir gotcha called out, tech stack table, project-structure tree, doc-map table, status-and-roadmap table, Contributing/License, About-the-author footer with LinkedIn + portfolio URLs.
+- **docs/case-study.md** (new, ~2,100 words, 7 sections): problem framing → scope decisions → architecture walk → three engineering stories (BUG-004 shift-snap overnight, BUG-013 model retirement diagnosis, BUG-011 flaky test under parallel load) → RAG design choices → verified results table → honest retrospective.
+- **docs/img/** (new dir): 6 PNG screenshots — `screenshot-{overview,yield,pareto,spc,anomalies,copilot}.png` captured by owner against live `streamlit run` on :8501 with the rotated `GOOGLE_API_KEY`.
+- **docs/ROADMAP.md**: ticked the README + case-study Phase 4 deliverables (per Decision Gate item 7, agent-conduct line 64).
+- **docs/plans/2026-06-21-phase4-slice1-{brief,plan,decision-gate}.md** committed as artifacts.
+- **CLAUDE.md**: Status block flipped Phase 3 → Phase 4 slice 1 IN PR; this session-log line appended.
+- **Metrics verified live before writing**: 78 commits / 29 PRs (not the "97/28" the placeholder Plan flagged); 519 / 97% / 10/10 / 37.13s confirmed in source.
+
+### Decisions (owner-ratified at Decision Gate)
+1. Screenshot capture method = **A — owner manual**. I generated sample data + launched Streamlit; owner snipped 6 pages.
+2. Employer framing = **A — generic** ("Manufacturing Engineer, ~4 years PCBA"). Per `docs/GUARDRAILS.md §8.4`.
+3. LinkedIn + portfolio URLs = **A — add both now**. Owner provided URLs at Execute time.
+4. ROADMAP tick = **A — tick now** (1-2 lines, scope-bounded).
+
+### Parent pre-decided (with notice)
+- Mermaid only, no SVG export (default; binary-churn cost vs marginal benefit).
+- 2×3 markdown-table hero strip layout (GitHub-friendly).
+- Case-study CTA in both README §3 and §9 (discovery from both elevator and doc-map).
+- `gemini-3.5-flash` assumed green for Co-Pilot screenshot (BUG-013 closed same-day).
+
+### Step 5 red-team caught 3 BLOCKERs + 5 WARNINGs + 3 MINORs (all resolved in Plan Revision 1 before Execute)
+- **B-1**: Mermaid HTML-entity-encoded parens (`answer&#40;&#41;`) render literally on GitHub → swapped to quoted-label syntax `["answer()..."]` throughout the skeleton.
+- **B-2**: Generator `--out=DIR` writes to `DIR/run_<stamp>/`, not `DIR` — Plan's parser `--input` would have failed the `manifest.json` check. Fixed by capturing `RUN_DIR=$(ls -dt data/synthetic/run_* | head -1)` in step 1b.
+- **B-3**: Made gitignore expectation explicit — only `docs/img/*.png` committed; sample DB + run dir stay local.
+- **W-1**: `answer()` grounds on KB only, not DuckDB rows. Narrative guardrail added to Plan; case-study §3 + §5 both say "KB-grounded" explicitly.
+- **W-2**: `CLAUDE.md` Status block rewritten wholesale, not patched.
+- **W-3**: 78 / 29 verified, not placeholder 97 / 28.
+- **W-4**: Reduced loop step-skip (4, 11) made explicit in Plan.
+- **W-5**: `grep -niE "IPC-A-610|J-STD-001|Keysight|i3070|HP3070"` audit added to verification checklist; case-study cites those by name only, never quotes verbatim.
+- 3 missing decisions surfaced + ratified (LinkedIn link, employer framing, ROADMAP tick).
+
+### Bugs surfaced
+None new this slice. Existing chips still open: SDK migration (`task_decc4276`), BUG-010 (TestJetRecord PytestCollectionWarning), BUG-012 (use_container_width deprecation).
+
+### Phase 4 status
+- **Slice 1 IN PR.** README + case-study + screenshot strip + ROADMAP ticks shipped on branch.
+- **Slice 2 queued**: demo gif / headless screenshot automation.
+- **Slice 3 queued**: test/coverage hardening (BUG-010, BUG-012, SDK migration follow-up).
+
+### Next session should
+1. Owner reviews `feature/phase4-slice1-readme → dev` PR (rendered README + hero strip + case-study on GitHub).
+2. Merge → start Phase 4 slice 2 (demo gif + Playwright headless capture for future slice updates).
+---
+
+## 2026-06-21 — Phase 4 polish: RAG retrieval default for short queries — branch: feature/rag-retrieval-short-queries
+
+**Goal:** Fix the retrieval miss surfaced during portfolio-screenshot capture: typing the terse "what causes tombstoning?" into the Co-Pilot chat returned a refusal because `failure-modes/tombstoning.md#3` ("Likely causes") fell out of the `top_k=5` cut. The eval-dataset questions all worked (descriptive phrasings give both BM25 and the vector index strong signal), so the live eval gate had not caught the failure shape. Tier: Medium (full TDD loop). Branch: `feature/rag-retrieval-short-queries`.
+**Outcome:** `answer()` default `top_k` bumped **5 → 10** (extracted to `DEFAULT_TOP_K` module constant) + eval dataset expanded 10 → 15 (added 5 terse short-form regression questions; live-eval threshold scaled 8/10 → ≥12/15 at the same 80% pass rate). Full offline suite **524 passed / 3 skipped / 1 xfailed / 97%** (519→524 = +5 from the new EVAL-01 parametrized cases; +2 of the 3 skips are the new env-gated `RAG_RUN_MODEL_TESTS` retrieval contract). Env-gated real-embedder retrieval tests: 2 passed in 14.14s. **Live `RAG_RUN_LLM_EVAL=1` ≥12/15 eval PASSED in 75.06s on `gemini-3.5-flash`.** Phase 3 exit criterion now stronger (15 q over both descriptive + terse shapes, 80% pass rate); ready for `dev` PR.
+
+### Done — Empirical baseline
+- Probed the real `HybridRetriever` (sentence-transformers `all-MiniLM-L6-v2` + BM25 + RRF) over `docs/knowledge-base/` against the failing query "what causes tombstoning?". **Target chunk `failure-modes/tombstoning.md#3` is at rank 9.** This contradicted the brief's assumption that `top_k=8` would catch it. Cause: the #3 chunk body uses generic vocabulary ("uneven heating", "pad design", "excess paste") with no rare topic-word anchor; several other docs' own "Likely causes" sections out-rank tombstoning's because they contain "causes" plus their own topic words. Probed 7 additional terse queries to confirm tombstoning is the outlier (most targets land within rank 4; "reason for missing components?" was the second-worst at rank 7).
+- Owner re-ratified at Decision Gate: bump `DEFAULT_TOP_K` to **10** (not 8), no heading-aware or doc-aware boost, no re-chunking.
+
+### Done — Code
+- `src/flying_probe_copilot/rag/answer.py`: extracted `DEFAULT_TOP_K = 10` module constant with a one-paragraph docstring citing the empirical rationale; `answer()` signature now `top_k: int = DEFAULT_TOP_K`. Single source-of-truth so tests can import and self-update on future bumps.
+- `tests/test_rag/test_answer.py`: ANS-24 renamed `_default_top_k_is_5` → `_default_top_k_matches_module_constant`; imports `DEFAULT_TOP_K`, asserts both the constant's value (`== 10`) and that it flows through the signature (`r.calls == [DEFAULT_TOP_K]`). Bidirectional check — a regression that silently divorces the signature default from the constant still fails.
+- `tests/test_rag/eval_dataset.py`: appended 5 empirically-verified terse questions (all target-doc-resolved at rank ≤4 under `top_k=10`): `"what causes tombstoning?"`, `"what are shorts?"`, `"what are opens?"`, `"what is a cold solder joint?"`, `"what is insufficient solder?"`. Docstring updated to note the two question shapes and cite the 2026-06-21 portfolio capture.
+- `tests/test_rag/test_eval.py`: DATA-01 `_exactly_ten_questions` → `_exactly_fifteen_questions` (`assert len == 15`); live test `_at_least_8_of_10` → `_at_least_12_of_15` (`assert correct >= 12, f"only {correct}/15 ..."`); module docstring updated.
+- `tests/test_rag/test_retrieval_real.py` **(new file)**: 2 env-gated tests (`RAG_RUN_MODEL_TESTS=1`) using the real `all-MiniLM-L6-v2` embedder. RETR-LIVE-01 pins the canonical regression (`tombstoning.md#3` in `top_k=DEFAULT_TOP_K` hits for the failing query); RETR-LIVE-02 covers all 5 new terse questions at the doc level. Module-scoped fixture amortizes one model load across the file. Catches retrieval regressions without burning an API call (the live eval still does, but only via the owner's gated run).
+- `docs/eval/phase3-eval-questions.md`: rewritten for 15 questions / ≥12 threshold; added the new test file to the "How it is measured" section.
+
+### Done — Verification
+- Offline suite (no env): `uv run pytest -q` → **524 passed / 3 skipped / 1 xfailed / 1 warning / 97%** in 93.42s. Coverage `rag/answer.py` 100%; all rag/* modules 99-100%.
+- Env-gated retrieval: `RAG_RUN_MODEL_TESTS=1 uv run pytest tests/test_rag/test_retrieval_real.py -v` → **2 passed in 14.14s** (single warm model load).
+- RED→GREEN proof (out-of-band script): under the old `top_k=5` the new RETR-LIVE-01 assertion fails (chunk not retrieved); under the new `top_k=10` it passes. TDD discipline satisfied.
+- Live eval: `RAG_RUN_LLM_EVAL=1 uv run pytest tests/test_rag/test_eval.py::test_eval_live_at_least_12_of_15 -v` → **1 passed in 75.06s** (15 Q × ~5s + bootstrap; ≥12/15 cited the expected source doc).
+
+### Decisions (owner-ratified)
+- `DEFAULT_TOP_K = 10` (not 8) — empirical: target chunk at rank 9 means `top_k=8` would still miss. 10 catches all 8 probed terse queries with a one-rank safety margin. ~2× baseline prompt context; `gemini-3.5-flash` cost is negligible.
+- Eval grows 10 → 15 (additive, no replacements). Live threshold scales 8/10 → ≥12/15 at the same 80% pass rate. Retains all original descriptive scenarios.
+- No heading-aware boost / no cross-encoder rerank / no re-chunking. Cheapest fix that empirically works; the more architectural options stay in the parking lot unless the KB outgrows the simple top_k bump.
+- New env-gated test file with `RAG_RUN_MODEL_TESTS=1` pattern (mirrors the existing `RAG_RUN_LLM_EVAL` pattern). Keeps the offline suite fast; opt-in for developers and the owner's verification runs.
+
+### Phase 4 status
+- RAG retrieval polish complete; Phase 3 exit criterion strengthened (15 q / ≥12 / both shapes). Outstanding Phase 4 work: README polish (already in flight on `feature/phase4-slice1-readme`), portfolio writeup, demo gif.
+
+### Next session should
+1. Open `feature/rag-retrieval-short-queries → dev` PR.
+2. Continue Phase 4 polish: README screenshots can now use the terse query and demonstrate a non-refused answer.
+
+---
+
+## 2026-06-21 — Phase 4 P3 cleanups: BUG-010 + BUG-012 — branch: feature/p3-cleanups-bug-010-012
+
+**Goal:** Close the last two P3-deferred Phase 4 chips in one branch: BUG-010 (`TestJetRecord` PytestCollectionWarning on every test run) and BUG-012 (Streamlit `use_container_width` deprecation in `ui/views.py`). Tier: Small.
+**Outcome:** Both bugs RESOLVED. Full offline suite **519 passed / 1 skipped / 1 xfailed / 97%** (baseline held). Warnings audit dropped from 3 → 1 — the only remaining warning is the unrelated opentelemetry `SelectableGroups` DeprecationWarning (transitive via chromadb).
+
+### Done — BUG-010
+- Added `__test__ = False` as a class attribute on `TestJetRecord` in `src/flying_probe_copilot/generator/models.py:329` — pytest's documented per-class opt-out from the `Test*` collection heuristic. Picked over the rename-to-`TJetRecord` alternative because the dunder is the surgical single-line fix; the rename would have touched many call sites for zero behavior gain.
+- Verified Pydantic v2 compatibility: dunders are invisible to Pydantic's field-detection metaclass (no `__annotations__` entry), so `ConfigDict(extra="forbid")` is unaffected. Confirmed empirically: re-ran only the two affected test files (`test_log_parser.py` + `test_roundtrip.py`) — 50 passed in 33.74s with zero warnings; the two `PytestCollectionWarning` entries previously printed for these files are gone.
+
+### Done — BUG-012
+- Owner-approved approval-gated `pyproject.toml` edit: `streamlit>=1.40` → `streamlit>=1.45` (`uv.lock` unchanged — already on 1.58.0; floor bump is non-disruptive).
+- All 10 call sites in `src/flying_probe_copilot/ui/views.py` migrated `use_container_width=True` → `width="stretch"` via a single `replace_all`. All sites were `=True` (zero `=False` cases), so no `width="content"` substitution was needed. Double-quoted `"stretch"` matches the file's existing string-quote convention. Grep across `src/` + `tests/` confirms zero remaining `use_container_width` references.
+
+### Decisions (owner-ratified)
+- Branching: one feature branch with two coherent commits (one per bug). Both are P3 cleanups; bundling makes review trivial without violating "one coherent change per commit". Branch: `feature/p3-cleanups-bug-010-012` off latest `dev` (post-PR #30).
+- Streamlit floor target: `>=1.45` (broad floor matching project pattern; uv.lock still pins 1.58.0).
+- BUG-010 fix shape: `__test__ = False` dunder (surgical), not rename.
+
+### Phase 4 status
+- All three Phase 4 chips carried out of the 2026-06-20 / 2026-06-21 Phase 3 wrap-up are now closed in code:
+  - SDK migration (`google-generativeai` → `google-genai`) ✅ shipped PR #30 (merged into `dev` as commit `e4e9a0a`).
+  - BUG-010 `TestJetRecord` ✅ this session.
+  - BUG-012 Streamlit `use_container_width` ✅ this session.
+- Remaining Phase 4 work: README polish, portfolio writeup, demo gif.
+
+### Next session should
+1. Open `feature/p3-cleanups-bug-010-012 → dev` PR.
+2. Continue Phase 4 polish (README + portfolio writeup + demo gif).
+
+---
+
+## 2026-06-21 — Phase 4 chip: SDK migrate google-generativeai → google-genai — branch: feature/sdk-migrate-google-genai
+
+**Goal:** Close the Phase 4 chip carried out of the 2026-06-21 Phase 3 exit-criterion session — migrate the end-of-support `google-generativeai` 0.8.6 package to the supported `google-genai` package, on the same model id (`gemini-3.5-flash`). Tier: Small-to-Medium (single touchpoint: one function body + 2 docstring lines + 1 pyproject line + lockfile refresh).
+**Outcome:** Dep swap landed, `_call_model` rewritten on the new client API, full offline suite still **519 passed / 1 skipped / 1 xfailed / 97%** (identical to pre-migration baseline), **live `RAG_RUN_LLM_EVAL=1` ≥8/10 eval re-confirmed PASSED on the new SDK** (`gemini-3.5-flash`, single invocation, 166.20s wall-clock — longer than the prior 37.13s only because this run paid the cold sentence-transformers + Chroma bootstrap cost; the model call itself is unchanged). BUG-013 follow-up note closed. Ready for `dev` PR.
+
+### Done
+- Confirmed new SDK shape on PyPI (`google-genai` 2.9.0, released 2026-06-19): `from google import genai; from google.genai import types; client = genai.Client(api_key=...); client.models.generate_content(model=..., contents=..., config=types.GenerateContentConfig(response_mime_type="application/json")).text`.
+- Owner sign-off captured before any approval-gated edit (`pyproject.toml` swap: `google-generativeai>=0.8` → `google-genai>=1.0`, floor pattern matches `duckdb>=1.1` / `chromadb>=0.6` style).
+- `uv sync` refreshed `uv.lock`: `google-generativeai` removed, `google-genai==2.9.0` resolved.
+- `src/flying_probe_copilot/rag/llm.py` — `_call_model` body swapped (7 lines, still `# pragma: no cover - live API`); module docstring `google.generativeai` → `google.genai`; `GeminiClient` class docstring `(google-generativeai 0.8.x)` → `(google-genai 1.x+)`. No public API change, no protocol change.
+- Offline LLM contract suite (LLM-01..05b) still green — those tests cover lazy construction + key resolution + Protocol conformance, none of which change.
+- Warnings audit on the offline run: 3 warnings = 1 opentelemetry `SelectableGroups` (transitive via chromadb, pre-existing) + 2 × `TestJetRecord` PytestCollectionWarning (BUG-010, deferred). **Zero `google.generativeai` FutureWarnings, zero `google.genai` warnings.** Clean.
+
+### Decisions (owner-ratified)
+- pyproject floor = `google-genai>=1.0` (broad floor + lockfile pin; matches the project's existing style).
+- No new offline test for `_call_model` — exercising it would need ~30 LOC of `sys.modules` monkeypatching to mock `from google import genai`. The 6-line body change is mechanical; the live env-gated ≥8/10 eval is the real acceptance test (same posture as the BUG-013 model-bump session).
+- Worktree branch renamed locally `claude/naughty-gates-63f1a9` → `feature/sdk-migrate-google-genai` before any commit.
+
+### Phase 3 / 4 status
+- Phase 3 exit criterion still MET (no model id change; `gemini-3.5-flash` unchanged).
+- Phase 4 SDK-migrate chip now closed in code; outstanding chip BUG-010 (TestJetRecord) + BUG-012 (Streamlit `use_container_width` floor bump) remain P3-deferred.
+
+### Next session should
+1. ~~Owner runs `RAG_RUN_LLM_EVAL=1` ≥8/10 acceptance test~~ — **DONE this session: PASSED on the new SDK.**
+2. Open `feature/sdk-migrate-google-genai → dev` PR.
+3. Continue Phase 4 polish (README + portfolio writeup + demo gif).
+
+---
+
 ## 2026-06-21 — Phase 3 exit-criterion run + model bump (BUG-013) — branch: claude/tender-pascal-30e50a
 
 **Goal:** Run the live ≥8/10 `RAG_RUN_LLM_EVAL=1` eval (Phase 3 exit criterion) against the rotated `GOOGLE_API_KEY`, then start Phase 4. Tier: Small (one-line model bump after a 404 surfaced).

@@ -33,7 +33,7 @@ def test_init_database_creates_all_9_tables(con):
 
 def test_init_database_idempotent_when_called_twice(con):
     """Calling init_database twice must not raise or create duplicate tables."""
-    from flying_probe_copilot.db.schema import TABLES, init_database
+    from flying_probe_copilot.db.schema import init_database
 
     init_database(con)
     init_database(con)  # second call — must be safe
@@ -137,9 +137,7 @@ def test_each_table_has_expected_columns(con):
         rows = con.execute(f"DESCRIBE {table}").fetchall()
         actual_cols = {r[0] for r in rows}
         missing = cols - actual_cols
-        assert not missing, (
-            f"Table '{table}' is missing columns: {missing!r}"
-        )
+        assert not missing, f"Table '{table}' is missing columns: {missing!r}"
 
 
 def test_test_runs_operator_id_is_not_null(con):
@@ -155,9 +153,7 @@ def test_test_runs_operator_id_is_not_null(con):
     rows = con.execute("DESCRIBE test_runs").fetchall()
     # DESCRIBE returns: column_name, column_type, null, key, default, extra
     nullable_by_col = {r[0]: r[2] for r in rows}
-    assert "operator_id" in nullable_by_col, (
-        "Column 'operator_id' not found in test_runs"
-    )
+    assert "operator_id" in nullable_by_col, "Column 'operator_id' not found in test_runs"
     assert nullable_by_col["operator_id"] == "NO", (
         f"test_runs.operator_id must be NOT NULL, "
         f"but nullable flag is {nullable_by_col['operator_id']!r}"
@@ -179,6 +175,4 @@ def test_tables_constant_lists_all_9_canonical_names():
         "measurements",
         "failures",
     }
-    assert set(TABLES) == canonical, (
-        f"TABLES mismatch. Expected {canonical!r}, got {set(TABLES)!r}"
-    )
+    assert set(TABLES) == canonical, f"TABLES mismatch. Expected {canonical!r}, got {set(TABLES)!r}"

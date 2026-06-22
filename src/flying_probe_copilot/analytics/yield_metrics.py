@@ -18,8 +18,8 @@ from datetime import datetime
 
 import duckdb
 
-from .models import YieldRow
 from ._window import _compute_window_bounds, _resolve_anchor
+from .models import YieldRow
 
 # ---------------------------------------------------------------------------
 # Group-by configuration table
@@ -93,10 +93,7 @@ def yield_over_time(
     """
     if group_by not in _GROUP_BY_CONFIG:
         allowed = ", ".join(f"{v!r}" for v in _ALLOWED_GROUP_BY)
-        raise ValueError(
-            f"group_by={group_by!r} is not supported. "
-            f"Allowed values: {allowed}"
-        )
+        raise ValueError(f"group_by={group_by!r} is not supported. Allowed values: {allowed}")
 
     # Validate window_days before hitting the DB (Decision #4 / R1-L).
     if window_days < 1:

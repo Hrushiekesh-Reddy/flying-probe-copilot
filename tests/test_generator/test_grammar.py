@@ -7,7 +7,6 @@ Patterns are derived from the Keysight i3070 Log Record Format chapter.
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # Accept cases
 # ---------------------------------------------------------------------------
@@ -28,26 +27,17 @@ def test_grammar_accepts_minimal_batch_btest():
 
 
 def test_grammar_accepts_a_res_with_lim3():
-    text = (
-        "{@A-RES|0|+1.000000E+04|R12}\r\n"
-        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
-    )
+    text = "{@A-RES|0|+1.000000E+04|R12}\r\n{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
     assert _validate(text) == []
 
 
 def test_grammar_accepts_a_cap_with_lim3():
-    text = (
-        "{@A-CAP|0|+1.000000E-06|C1}\r\n"
-        "{@LIM3|+1.000000E-06|+1.100000E-06|+9.000000E-07}\r\n"
-    )
+    text = "{@A-CAP|0|+1.000000E-06|C1}\r\n{@LIM3|+1.000000E-06|+1.100000E-06|+9.000000E-07}\r\n"
     assert _validate(text) == []
 
 
 def test_grammar_accepts_a_dio_with_lim2():
-    text = (
-        "{@A-DIO|0|+7.000000E-01|D1}\r\n"
-        "{@LIM2|+8.000000E-01|+5.000000E-01}\r\n"
-    )
+    text = "{@A-DIO|0|+7.000000E-01|D1}\r\n{@LIM2|+8.000000E-01|+5.000000E-01}\r\n"
     assert _validate(text) == []
 
 
@@ -89,19 +79,13 @@ def test_grammar_rejects_unknown_prefix():
 
 
 def test_grammar_rejects_invalid_status_code_in_analog():
-    text = (
-        "{@A-RES|99|+1.000000E+04|R12}\r\n"
-        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
-    )
+    text = "{@A-RES|99|+1.000000E+04|R12}\r\n{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
     errors = _validate(text)
     assert errors, "expected analog status code 99 to be rejected"
 
 
 def test_grammar_rejects_non_scientific_float():
-    text = (
-        "{@A-RES|0|10000|R12}\r\n"
-        "{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
-    )
+    text = "{@A-RES|0|10000|R12}\r\n{@LIM3|+1.000000E+04|+1.010000E+04|+9.900000E+03}\r\n"
     errors = _validate(text)
     assert errors, "expected non-scientific measured value to be rejected"
 
@@ -115,22 +99,15 @@ def test_grammar_rejects_invalid_timestamp_length():
 
 
 def test_grammar_rejects_a_res_with_lim2_instead_of_lim3():
-    text = (
-        "{@A-RES|0|+1.000000E+04|R12}\r\n"
-        "{@LIM2|+1.010000E+04|+9.900000E+03}\r\n"
-    )
+    text = "{@A-RES|0|+1.000000E+04|R12}\r\n{@LIM2|+1.010000E+04|+9.900000E+03}\r\n"
     errors = _validate(text)
     assert errors, "expected A-RES followed by LIM2 to be rejected"
 
 
 def test_grammar_accepts_btest_13_field_and_14_field_forms():
     """13-field @BTEST (no parent_panel_id) and 14-field (with parent_panel_id) must both pass."""
-    thirteen = (
-        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\r\n"
-    )
-    fourteen = (
-        "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A|PNL-X-001}\r\n"
-    )
+    thirteen = "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A}\r\n"
+    fourteen = "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1|OP-001|A|LINE-A|PNL-X-001}\r\n"
     assert _validate(thirteen) == []
     assert _validate(fourteen) == []
 
@@ -141,6 +118,4 @@ def test_grammar_btest_requires_operator_id_field():
         "{@BTEST|SYN-2026W14-00001|0|260401083000|12|0|all|0|0|0|260401083012||1}\r\n"
     )
     errors = _validate(old_twelve_field)
-    assert errors, (
-        "expected OLD 12-field @BTEST (missing operator_id) to be rejected by grammar"
-    )
+    assert errors, "expected OLD 12-field @BTEST (missing operator_id) to be rejected by grammar"

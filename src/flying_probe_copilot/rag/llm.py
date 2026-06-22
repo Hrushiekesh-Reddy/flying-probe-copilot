@@ -4,7 +4,7 @@
 `generate(prompt: str) -> str`. Tests inject a fake; production uses
 `GeminiClient`. The only code that touches the network (`_call_model`) is
 `# pragma: no cover` — it requires a real key + connectivity and is exercised
-only by Manual QA. Construction is lazy: no `google.generativeai` import and no
+only by Manual QA. Construction is lazy: no `google.genai` import and no
 key read happen until `generate()` is actually called with a resolvable key.
 """
 
@@ -22,25 +22,27 @@ DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 class LLMClient(Protocol):
     """Anything that turns a prompt into a text completion."""
 
-    def generate(self, prompt: str) -> str:
-        ...
+    def generate(self, prompt: str) -> str: ...
 
 
 def _call_model(api_key: str, prompt: str, model_name: str) -> str:  # pragma: no cover - live API
-    # Imported lazily so the deprecated package is not pulled in (and its
-    # FutureWarning not emitted) on every `import flying_probe_copilot.rag`.
-    import google.generativeai as genai
+    # Imported lazily so the SDK is not pulled in on every `import
+    # flying_probe_copilot.rag` — keeps cold-import cheap and import-time
+    # side-effect-free.
+    from google import genai
+    from google.genai import types
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name,
-        generation_config={"response_mime_type": "application/json"},
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(response_mime_type="application/json"),
     )
-    return model.generate_content(prompt).text
+    return response.text
 
 
 class GeminiClient:
-    """Google Gemini-backed `LLMClient` (google-generativeai 0.8.x)."""
+    """Google Gemini-backed `LLMClient` (google-genai 1.x+)."""
 
     def __init__(self, model_name: str = DEFAULT_GEMINI_MODEL, api_key: str | None = None) -> None:
         self._model_name = model_name

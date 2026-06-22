@@ -13,7 +13,6 @@ import pytest
 
 from flying_probe_copilot.generator.models import BatchLog, BTESTStatus
 
-
 # ---------------------------------------------------------------------------
 # Helper to write a single-profile run directory
 # ---------------------------------------------------------------------------
@@ -21,7 +20,6 @@ from flying_probe_copilot.generator.models import BatchLog, BTESTStatus
 
 def _write_single_run(tmp_path: Path, batch_log: BatchLog, profile: str, suffix: str = "") -> Path:
     """Write a run directory for a single BatchLog and return the run dir path."""
-    from flying_probe_copilot.generator.models import BTESTStatus
     from flying_probe_copilot.generator.renderers.log import render_log
 
     run_dir = tmp_path / f"run_{profile}_ingest_test{suffix}"
@@ -90,20 +88,23 @@ def test_ingest_inserts_correct_measurements_count_for_failing_panel(
 
     expected = sum(len(b.blocks) for b in small_batch_log.boards)
     count = in_mem_db.execute("SELECT COUNT(*) FROM measurements").fetchone()[0]
-    assert count == expected, (
-        f"Expected {expected} measurements, got {count}"
-    )
+    assert count == expected, f"Expected {expected} measurements, got {count}"
 
 
-def test_ingest_inserts_failures_only_for_non_pass_status(
-    in_mem_db, small_batch_log, tmp_path
-):
+def test_ingest_inserts_failures_only_for_non_pass_status(in_mem_db, small_batch_log, tmp_path):
     """failures table must contain rows only for non-PASS measurements."""
-    from flying_probe_copilot.parser.ingest import ingest_run_directory
     from flying_probe_copilot.generator.models import (
-        AnalogRecord, DigitalRecord, ShortsRecord, TestJetRecord, PinsFailedRecord,
-        AnalogStatus, DigitalStatus, ShortsStatus, TwoDigitStatus, BTESTStatus,
+        AnalogRecord,
+        AnalogStatus,
+        DigitalRecord,
+        DigitalStatus,
+        PinsFailedRecord,
+        ShortsRecord,
+        ShortsStatus,
+        TestJetRecord,
+        TwoDigitStatus,
     )
+    from flying_probe_copilot.parser.ingest import ingest_run_directory
 
     run_dir = _write_single_run(tmp_path, small_batch_log, "small")
     ingest_run_directory(run_dir, in_mem_db)
@@ -125,9 +126,7 @@ def test_ingest_inserts_failures_only_for_non_pass_status(
                 expected_failures += 1
 
     count = in_mem_db.execute("SELECT COUNT(*) FROM failures").fetchone()[0]
-    assert count == expected_failures, (
-        f"Expected {expected_failures} failures, got {count}"
-    )
+    assert count == expected_failures, f"Expected {expected_failures} failures, got {count}"
 
 
 def test_ingest_components_global_per_profile_refdes(in_mem_db, tmp_path):
@@ -136,8 +135,8 @@ def test_ingest_components_global_per_profile_refdes(in_mem_db, tmp_path):
     Components are keyed on (board_profile_id, refdes); INSERT OR IGNORE
     must deduplicate them across multiple ingests.
     """
-    from flying_probe_copilot.parser.ingest import ingest_run_directory
     from flying_probe_copilot.generator.cli import _build_batch_log
+    from flying_probe_copilot.parser.ingest import ingest_run_directory
 
     class _A1:
         board_profile = "small"
@@ -217,8 +216,8 @@ def test_ingest_medium_profile_ingests_successfully(in_mem_db, medium_batch_log,
 
 def test_ingest_unknown_profile_does_not_crash(in_mem_db, tmp_path):
     """An unknown board_profile in manifest.json must not crash the ingest."""
-    from flying_probe_copilot.parser.ingest import ingest_run_directory
     from flying_probe_copilot.generator.cli import _build_batch_log
+    from flying_probe_copilot.parser.ingest import ingest_run_directory
 
     class _A:
         board_profile = "small"
@@ -237,8 +236,8 @@ def test_ingest_unknown_profile_does_not_crash(in_mem_db, tmp_path):
     run_dir = tmp_path / "run_unknown_profile"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir()
-    from flying_probe_copilot.generator.renderers.log import render_log
     from flying_probe_copilot.generator.models import BatchLog
+    from flying_probe_copilot.generator.renderers.log import render_log
 
     for board in bl.boards:
         single = BatchLog(batch=bl.batch, boards=[board])
@@ -286,30 +285,49 @@ def test_ingest_run_with_no_logs_dir_handles_gracefully(in_mem_db, tmp_path):
 
 def test_ingest_helper_failure_category_all_types():
     """_failure_category must return the correct category string for each type."""
-    from flying_probe_copilot.parser.ingest import _failure_category
     from flying_probe_copilot.generator.models import (
-        AnalogRecord, AnalogStatus, AnalogType, Limits2,
-        DigitalRecord, DigitalStatus,
-        ShortsRecord, ShortsStatus,
-        TestJetRecord, TwoDigitStatus,
+        AnalogRecord,
+        AnalogStatus,
+        AnalogType,
+        DigitalRecord,
+        DigitalStatus,
+        Limits2,
         PinsFailedRecord,
+        ShortsRecord,
+        ShortsStatus,
+        TestJetRecord,
+        TwoDigitStatus,
     )
+    from flying_probe_copilot.parser.ingest import _failure_category
 
     # Passing records → None
-    shorts_pass = ShortsRecord(status=ShortsStatus.PASS, shorts_count=0, opens_count=0, phantoms_count=0)
+    shorts_pass = ShortsRecord(
+        status=ShortsStatus.PASS, shorts_count=0, opens_count=0, phantoms_count=0
+    )
     assert _failure_category(shorts_pass) is None
 
     # Failing records → correct category
-    shorts_fail = ShortsRecord(status=ShortsStatus.FAIL, shorts_count=1, opens_count=0, phantoms_count=0)
+    shorts_fail = ShortsRecord(
+        status=ShortsStatus.FAIL, shorts_count=1, opens_count=0, phantoms_count=0
+    )
     assert _failure_category(shorts_fail) == "SHORTS"
 
     analog_fail = AnalogRecord(
-        record_type=AnalogType.DIO, status=AnalogStatus.FAIL,
-        measured=1.0, designator="D1", limits=Limits2(high=2.0, low=0.5)
+        record_type=AnalogType.DIO,
+        status=AnalogStatus.FAIL,
+        measured=1.0,
+        designator="D1",
+        limits=Limits2(high=2.0, low=0.5),
     )
     assert _failure_category(analog_fail) == "ANALOG"
 
-    dig_fail = DigitalRecord(status=DigitalStatus.FAIL, substatus=0, failing_vector=0, failing_pin_count=1, designator="U1")
+    dig_fail = DigitalRecord(
+        status=DigitalStatus.FAIL,
+        substatus=0,
+        failing_vector=0,
+        failing_pin_count=1,
+        designator="U1",
+    )
     assert _failure_category(dig_fail) == "DIGITAL"
 
     tjet_fail = TestJetRecord(status=TwoDigitStatus.FAIL, pin_count=10, designator="TJET1")
@@ -330,11 +348,12 @@ def test_ingest_component_family_for_unknown_refdes():
 
 def test_ingest_record_type_str_tjet_and_pf_and_unknown():
     """_record_type_str returns 'TJET', 'PF', or 'UNKNOWN' for unrecognized types."""
-    from flying_probe_copilot.parser.ingest import _record_type_str
     from flying_probe_copilot.generator.models import (
-        TestJetRecord, TwoDigitStatus,
         PinsFailedRecord,
+        TestJetRecord,
+        TwoDigitStatus,
     )
+    from flying_probe_copilot.parser.ingest import _record_type_str
 
     tjet = TestJetRecord(status=TwoDigitStatus.PASS, pin_count=8, designator="TJET1")
     assert _record_type_str(tjet) == "TJET"
@@ -350,8 +369,8 @@ def test_ingest_record_type_str_tjet_and_pf_and_unknown():
 
 def test_ingest_target_refdes_for_record_without_designator_attr():
     """_target_refdes_for must return None for a record with no 'designator' attribute."""
-    from flying_probe_copilot.parser.ingest import _target_refdes_for
     from flying_probe_copilot.generator.models import ShortsRecord, ShortsStatus
+    from flying_probe_copilot.parser.ingest import _target_refdes_for
 
     # ShortsRecord has no designator field — returns None via first branch
     shorts = ShortsRecord(status=ShortsStatus.PASS, shorts_count=0, opens_count=0, phantoms_count=0)
@@ -366,15 +385,22 @@ def test_ingest_target_refdes_for_record_without_designator_attr():
 
 def test_ingest_tjet_and_pf_blocks_produce_measurements(in_mem_db, tmp_path):
     """A BatchLog with TestJetRecord and PinsFailedRecord blocks must produce measurements."""
-    from flying_probe_copilot.parser.ingest import _ingest_batch_log, _Counters
+    from datetime import datetime
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.generator.models import (
-        BatchLog, BatchRecord, BoardLog, BoardTestRecord, PanelInstance,
-        BTESTStatus, BlockRecord, TestBlock,
-        TestJetRecord, TwoDigitStatus,
+        BatchLog,
+        BatchRecord,
+        BlockRecord,
+        BoardLog,
+        BoardTestRecord,
+        PanelInstance,
         PinsFailedRecord,
+        TestBlock,
+        TestJetRecord,
+        TwoDigitStatus,
     )
-    from datetime import datetime
+    from flying_probe_copilot.parser.ingest import _Counters, _ingest_batch_log
 
     init_database(in_mem_db)
 
@@ -383,25 +409,42 @@ def test_ingest_tjet_and_pf_blocks_produce_measurements(in_mem_db, tmp_path):
         "INSERT OR IGNORE INTO boards (board_profile_id, name, component_count, net_count, typical_test_count)"
         " VALUES ('small', 'small', 50, 100, 51)"
     )
-    in_mem_db.execute(
-        "INSERT OR IGNORE INTO operators (operator_id) VALUES ('OP01')"
-    )
+    in_mem_db.execute("INSERT OR IGNORE INTO operators (operator_id) VALUES ('OP01')")
 
     batch = BatchRecord(
-        uut_type="TST", uut_rev="A", fixture_id=1, testhead_num=1,
-        testhead_type="", process_step="TEST", batch_id="BAT-0099",
-        operator_id="OP01", controller="ctrl1", testplan_id="tp1",
-        testplan_rev="1", parent_panel_type="PPT", parent_panel_rev="A",
+        uut_type="TST",
+        uut_rev="A",
+        fixture_id=1,
+        testhead_num=1,
+        testhead_type="",
+        process_step="TEST",
+        batch_id="BAT-0099",
+        operator_id="OP01",
+        controller="ctrl1",
+        testplan_id="tp1",
+        testplan_rev="1",
+        parent_panel_type="PPT",
+        parent_panel_rev="A",
     )
     panel = PanelInstance(
-        serial="SYN-2026W30-001", panel_position=1, board_profile_id="small",
-        operator_id="OP01", line_id="L1", shift="A",
+        serial="SYN-2026W30-001",
+        panel_position=1,
+        board_profile_id="small",
+        operator_id="OP01",
+        line_id="L1",
+        shift="A",
         timestamp=datetime(2026, 7, 20, 8, 0, 0),
     )
     btest = BoardTestRecord(
-        board_id="SYN-2026W30-001", status=BTESTStatus.PASS,
-        start_ts=260720080000, duration_s=120, end_ts=260720082000,
-        board_number=1, operator_id="OP-001", shift="A", line_id="LINE-A",
+        board_id="SYN-2026W30-001",
+        status=BTESTStatus.PASS,
+        start_ts=260720080000,
+        duration_s=120,
+        end_ts=260720082000,
+        board_number=1,
+        operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     tjet_block = TestBlock(
         block=BlockRecord(designator="TJET1", status=0),
@@ -440,13 +483,21 @@ def test_ingest_tjet_and_pf_blocks_produce_measurements(in_mem_db, tmp_path):
 
 def test_ingest_bad_btest_timestamp_skips_test_run(in_mem_db, tmp_path):
     """A board with an invalid start_ts must have its test_run skipped (no crash)."""
-    from flying_probe_copilot.parser.ingest import _ingest_batch_log, _Counters
+    from datetime import datetime
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.generator.models import (
-        BatchLog, BatchRecord, BoardLog, BoardTestRecord, PanelInstance,
-        BTESTStatus, BlockRecord, TestBlock, ShortsRecord, ShortsStatus,
+        BatchLog,
+        BatchRecord,
+        BlockRecord,
+        BoardLog,
+        BoardTestRecord,
+        PanelInstance,
+        ShortsRecord,
+        ShortsStatus,
+        TestBlock,
     )
-    from datetime import datetime
+    from flying_probe_copilot.parser.ingest import _Counters, _ingest_batch_log
 
     init_database(in_mem_db)
 
@@ -454,30 +505,49 @@ def test_ingest_bad_btest_timestamp_skips_test_run(in_mem_db, tmp_path):
         "INSERT OR IGNORE INTO boards (board_profile_id, name, component_count, net_count, typical_test_count)"
         " VALUES ('small', 'small', 50, 100, 51)"
     )
-    in_mem_db.execute(
-        "INSERT OR IGNORE INTO operators (operator_id) VALUES ('OP01')"
-    )
+    in_mem_db.execute("INSERT OR IGNORE INTO operators (operator_id) VALUES ('OP01')")
 
     batch = BatchRecord(
-        uut_type="TST", uut_rev="A", fixture_id=1, testhead_num=1,
-        testhead_type="", process_step="TEST", batch_id="BAT-0100",
-        operator_id="OP01", controller="ctrl1", testplan_id="tp1",
-        testplan_rev="1", parent_panel_type="PPT", parent_panel_rev="A",
+        uut_type="TST",
+        uut_rev="A",
+        fixture_id=1,
+        testhead_num=1,
+        testhead_type="",
+        process_step="TEST",
+        batch_id="BAT-0100",
+        operator_id="OP01",
+        controller="ctrl1",
+        testplan_id="tp1",
+        testplan_rev="1",
+        parent_panel_type="PPT",
+        parent_panel_rev="A",
     )
     panel = PanelInstance(
-        serial="SYN-2026W31-001", panel_position=1, board_profile_id="small",
-        operator_id="OP01", line_id="L1", shift="A",
+        serial="SYN-2026W31-001",
+        panel_position=1,
+        board_profile_id="small",
+        operator_id="OP01",
+        line_id="L1",
+        shift="A",
         timestamp=datetime(2026, 7, 27, 8, 0, 0),
     )
     # start_ts = 999999999999 → month=99 → strptime raises ValueError → ParseError
     btest = BoardTestRecord(
-        board_id="SYN-2026W31-001", status=BTESTStatus.PASS,
-        start_ts=999999999999, duration_s=120, end_ts=999999999999,
-        board_number=1, operator_id="OP-001", shift="A", line_id="LINE-A",
+        board_id="SYN-2026W31-001",
+        status=BTESTStatus.PASS,
+        start_ts=999999999999,
+        duration_s=120,
+        end_ts=999999999999,
+        board_number=1,
+        operator_id="OP-001",
+        shift="A",
+        line_id="LINE-A",
     )
     shorts_block = TestBlock(
         block=BlockRecord(designator="TS1", status=0),
-        record=ShortsRecord(status=ShortsStatus.PASS, shorts_count=0, opens_count=0, phantoms_count=0),
+        record=ShortsRecord(
+            status=ShortsStatus.PASS, shorts_count=0, opens_count=0, phantoms_count=0
+        ),
     )
     board_log = BoardLog(panel=panel, btest=btest, blocks=[shorts_block])
     batch_log = BatchLog(batch=batch, boards=[board_log])
@@ -512,6 +582,7 @@ def test_ingest_missing_manifest_raises_file_not_found(in_mem_db, tmp_path):
 def test_ingest_parse_exception_captured_in_report(in_mem_db, tmp_path):
     """When parse_log_file raises an exception, ingest captures it in parse_errors."""
     from unittest.mock import patch
+
     from flying_probe_copilot.parser.ingest import ingest_run_directory
 
     run_dir = tmp_path / "run_bad_log_exc_test"
@@ -558,14 +629,19 @@ def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
     """
     import json as json_module
     from datetime import datetime
+
+    import duckdb
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.generator.models import (
-        BatchLog, BatchRecord, BoardLog, BoardTestRecord, BTESTStatus,
+        BatchLog,
+        BatchRecord,
+        BoardLog,
+        BoardTestRecord,
         PanelInstance,
     )
     from flying_probe_copilot.generator.renderers.log import render_log
     from flying_probe_copilot.parser.ingest import ingest_run_directory
-    import duckdb
 
     con = duckdb.connect(":memory:")
     init_database(con)
@@ -573,11 +649,18 @@ def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
     # Build 4 boards each with a distinct operator_id
     distinct_ops = ["OP-001", "OP-002", "OP-003", "OP-004"]
     batch_record = BatchRecord(
-        uut_type="BRD-SMALL", uut_rev="A", fixture_id=1, testhead_num=1,
-        process_step="ICT", batch_id="BAT-MULTI",
+        uut_type="BRD-SMALL",
+        uut_rev="A",
+        fixture_id=1,
+        testhead_num=1,
+        process_step="ICT",
+        batch_id="BAT-MULTI",
         operator_id="OP-001",  # batch-level — parser should NOT use this per-panel
-        controller="ICT01", testplan_id="TP-001", testplan_rev="v1.0",
-        parent_panel_type="PNL-SMALL", parent_panel_rev="A",
+        controller="ICT01",
+        testplan_id="TP-001",
+        testplan_rev="v1.0",
+        parent_panel_type="PNL-SMALL",
+        parent_panel_rev="A",
     )
     boards = []
     for i, op_id in enumerate(distinct_ops, start=1):
@@ -651,8 +734,7 @@ def test_multi_operator_run_distinct_operators_per_panel(tmp_path):
     op_rows = con.execute("SELECT operator_id FROM operators ORDER BY operator_id").fetchall()
     op_ids = {r[0] for r in op_rows}
     assert ingested_ops.issubset(op_ids), (
-        f"All ingested operator_ids must be in operators dim; "
-        f"ingested={ingested_ops}, dim={op_ids}"
+        f"All ingested operator_ids must be in operators dim; ingested={ingested_ops}, dim={op_ids}"
     )
 
     con.close()
@@ -671,14 +753,19 @@ def test_multi_shift_multi_line_run_distinct_per_panel(tmp_path):
     """
     import json as json_module
     from datetime import datetime
+
+    import duckdb
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.generator.models import (
-        BatchLog, BatchRecord, BoardLog, BoardTestRecord, BTESTStatus,
+        BatchLog,
+        BatchRecord,
+        BoardLog,
+        BoardTestRecord,
         PanelInstance,
     )
     from flying_probe_copilot.generator.renderers.log import render_log
     from flying_probe_copilot.parser.ingest import ingest_run_directory
-    import duckdb
 
     con = duckdb.connect(":memory:")
     init_database(con)
@@ -690,10 +777,18 @@ def test_multi_shift_multi_line_run_distinct_per_panel(tmp_path):
         ("OP-004", "A", "LINE-4"),
     ]
     batch_record = BatchRecord(
-        uut_type="BRD-SMALL", uut_rev="A", fixture_id=1, testhead_num=1,
-        process_step="ICT", batch_id="BAT-MULTI",
-        operator_id="OP-001", controller="ICT01", testplan_id="TP-001",
-        testplan_rev="v1.0", parent_panel_type="PNL-SMALL", parent_panel_rev="A",
+        uut_type="BRD-SMALL",
+        uut_rev="A",
+        fixture_id=1,
+        testhead_num=1,
+        process_step="ICT",
+        batch_id="BAT-MULTI",
+        operator_id="OP-001",
+        controller="ICT01",
+        testplan_id="TP-001",
+        testplan_rev="v1.0",
+        parent_panel_type="PNL-SMALL",
+        parent_panel_rev="A",
     )
     boards = []
     for i, (op_id, shift, line_id) in enumerate(distinct_panels, start=1):
@@ -758,7 +853,8 @@ def test_multi_shift_multi_line_run_distinct_per_panel(tmp_path):
     )
 
     serial_to_expected = {
-        f"SYN-MULTI-{i:05d}": (s, l) for i, (_, s, l) in enumerate(distinct_panels, start=1)
+        f"SYN-MULTI-{i:05d}": (shift_val, line_val)
+        for i, (_, shift_val, line_val) in enumerate(distinct_panels, start=1)
     }
     for panel_serial, shift, line_id in rows:
         exp_shift, exp_line = serial_to_expected[panel_serial]

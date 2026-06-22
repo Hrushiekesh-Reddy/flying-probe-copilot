@@ -35,11 +35,9 @@ from flying_probe_copilot.ui.data import (
     cached_yield,
     distinct_boards,
     distinct_refdes,
-    distinct_values,
     filter_df_by_key,
     overview_kpis,
 )
-
 
 # ---------------------------------------------------------------------------
 # Overview
@@ -94,14 +92,14 @@ def render_overview(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
         if yield_df.empty:
             st.info("No yield data in the selected window.")
         else:
-            st.plotly_chart(build_yield_bar(yield_df), use_container_width=True)
+            st.plotly_chart(build_yield_bar(yield_df), width="stretch")
 
     with col_right:
         st.subheader("Failure Pareto (top 5)")
         if pareto_df.empty:
             st.info("No failure data in the selected window.")
         else:
-            st.plotly_chart(build_pareto_chart(pareto_df), use_container_width=True)
+            st.plotly_chart(build_pareto_chart(pareto_df), width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -130,10 +128,7 @@ def render_yield(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     )
 
     if yield_df.empty:
-        st.info(
-            f"No test runs in the selected window for dimension '{dim}'. "
-            "Widen the date range."
-        )
+        st.info(f"No test runs in the selected window for dimension '{dim}'. Widen the date range.")
         return
 
     # Value multiselect (post-filter on grouped rows)
@@ -141,10 +136,10 @@ def render_yield(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     selected = st.multiselect(f"Filter {dim} values", all_vals, default=[])
     filtered_df = filter_df_by_key(yield_df, "group_key", selected)
 
-    st.plotly_chart(build_yield_bar(filtered_df), use_container_width=True)
+    st.plotly_chart(build_yield_bar(filtered_df), width="stretch")
 
     with st.expander("Data table"):
-        st.dataframe(filtered_df, use_container_width=True)
+        st.dataframe(filtered_df, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -174,10 +169,10 @@ def render_pareto(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
         st.info("No failures found in the selected window.")
         return
 
-    st.plotly_chart(build_pareto_chart(pareto_df), use_container_width=True)
+    st.plotly_chart(build_pareto_chart(pareto_df), width="stretch")
 
     with st.expander("Data table"):
-        st.dataframe(pareto_df, use_container_width=True)
+        st.dataframe(pareto_df, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -230,17 +225,15 @@ def render_spc(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     )
 
     if spc_df.empty:
-        st.info(
-            f"No SPC data for {board}/{refdes} in the selected window."
-        )
+        st.info(f"No SPC data for {board}/{refdes} in the selected window.")
         return
 
-    st.plotly_chart(build_spc_chart(spc_df), use_container_width=True)
+    st.plotly_chart(build_spc_chart(spc_df), width="stretch")
 
     with st.expander("Data table"):
         st.dataframe(
             spc_df[["panel_serial", "start_ts", "value", "mean", "ucl", "lcl", "alarms"]],
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -283,18 +276,21 @@ def render_anomalies(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
 
     st.plotly_chart(
         build_anomaly_bar(anomaly_df, threshold=threshold),
-        use_container_width=True,
+        width="stretch",
     )
 
     # Table with ⚠ flag label
-    display_df = anomaly_df[
-        ["group_key", "value", "z_score", "flagged", "flag_label"]
-    ].copy()
+    display_df = anomaly_df[["group_key", "value", "z_score", "flagged", "flag_label"]].copy()
     display_df.rename(
-        columns={"group_key": "Group", "value": "Failure rate",
-                 "z_score": "Z-score", "flagged": "Flagged", "flag_label": "Flag"},
+        columns={
+            "group_key": "Group",
+            "value": "Failure rate",
+            "z_score": "Z-score",
+            "flagged": "Flagged",
+            "flag_label": "Flag",
+        },
         inplace=True,
     )
 
     with st.expander("Data table"):
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, width="stretch")
