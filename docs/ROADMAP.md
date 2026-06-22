@@ -157,9 +157,9 @@ anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q
 - [x] README polished with architecture diagram (Mermaid) + dashboard screenshot strip (Phase 4 slice 1, 2026-06-21) + demo gif (Phase 4 slice 2, 2026-06-21).
 - [x] Case-study writeup at `docs/case-study.md` (~2,100 words) — portfolio-site copy/adapt remains owner task (Phase 4 slice 1, 2026-06-21)
 - [ ] Blog post: "Building an AI co-pilot for PCBA test analytics"
-- [ ] `docs/DEMO.md` walkthrough script
+- [x] `docs/DEMO.md` walkthrough script (Phase 4 slice 4, 2026-06-22)
 - [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)
-- [ ] Repo flipped to public after guardrails checklist passes
+- [ ] Repo flipped to public after guardrails checklist passes — checklist authored + **all 6 GUARDRAILS §8 checks PASS** (`docs/public-flip-checklist.md`, Phase 4 slice 4, 2026-06-22); the visibility flip itself is an owner action
 - [ ] LinkedIn post with screenshots
 - [ ] Resume bullet drafted (see SKILLS.md for template)
 
