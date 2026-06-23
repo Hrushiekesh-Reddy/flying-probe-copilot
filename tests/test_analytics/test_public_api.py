@@ -139,8 +139,9 @@ def test_api02_spc_point_dataclass_shape():
 
     # frozen=True: assigning to a field must raise FrozenInstanceError.
     ts = datetime(2026, 4, 14, 10, 0, 0)
-    row = SPCPoint(panel_serial="SPC-001", start_ts=ts, value=1.0,
-                   mean=1.0, ucl=2.0, lcl=0.0, alarm_flags=())
+    row = SPCPoint(
+        panel_serial="SPC-001", start_ts=ts, value=1.0, mean=1.0, ucl=2.0, lcl=0.0, alarm_flags=()
+    )
     try:
         row.value = 99.0  # type: ignore[misc]
         raise AssertionError("SPCPoint must be frozen (immutable)")
@@ -164,9 +165,7 @@ def test_api03_anomaly_row_dataclass_shape():
     )
 
     # Regression guard: placeholder_fields must NOT be present (removed 2026-06-18).
-    assert "placeholder_fields" not in fields, (
-        "AnomalyRow must not reintroduce placeholder_fields"
-    )
+    assert "placeholder_fields" not in fields, "AnomalyRow must not reintroduce placeholder_fields"
 
     hints = AnomalyRow.__dataclass_fields__
     assert hints["group_key"].type in (str, "str"), "group_key must be str"
@@ -177,8 +176,9 @@ def test_api03_anomaly_row_dataclass_shape():
     assert hints["flagged"].type in (bool, "bool"), "flagged must be bool"
 
     # frozen=True.
-    row = AnomalyRow(group_key="G1", value=0.5, baseline_mean=0.2,
-                     baseline_std=0.1, z_score=3.0, flagged=True)
+    row = AnomalyRow(
+        group_key="G1", value=0.5, baseline_mean=0.2, baseline_std=0.1, z_score=3.0, flagged=True
+    )
     try:
         row.z_score = 99.0  # type: ignore[misc]
         raise AssertionError("AnomalyRow must be frozen (immutable)")

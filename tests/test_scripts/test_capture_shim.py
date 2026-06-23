@@ -6,13 +6,10 @@ All subprocess tests set FPC_CAPTURE_DRY_IMPORT=1 so ``main()`` is never called
 
 from __future__ import annotations
 
-import importlib
 import os
 import subprocess
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -78,9 +75,7 @@ def test_cap21_dry_import_does_not_call_main():
         "print('dry_import_env:', got_env)"
     )
     result = _run_py(code)
-    assert result.returncode == 0, (
-        f"subprocess failed (exit {result.returncode}):\n{result.stderr}"
-    )
+    assert result.returncode == 0, f"subprocess failed (exit {result.returncode}):\n{result.stderr}"
     # The subprocess ran without raising — proves main() was NOT called
     # (calling app.main() outside Streamlit runtime would crash with
     # streamlit.errors.StreamlitAPIException or similar).
@@ -108,9 +103,7 @@ def test_cap22_reload_is_idempotent():
     )
     result = _run_py(code)
     assert result.returncode == 0, f"subprocess failed:\n{result.stderr}"
-    assert "ok: True" in result.stdout, (
-        f"Monkeypatch lost after reload: {result.stdout!r}"
-    )
+    assert "ok: True" in result.stdout, f"Monkeypatch lost after reload: {result.stdout!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +123,4 @@ def test_cap23_assert_present_in_shim_source():
     assert_pos = source.index("assert _chat.answer_question is build_canned_answer")
     # Find last occurrence of "main()" which is the actual call
     main_pos = source.rindex("main()")
-    assert assert_pos < main_pos, (
-        "Defensive assert appears AFTER main() call — wrong ordering"
-    )
+    assert assert_pos < main_pos, "Defensive assert appears AFTER main() call — wrong ordering"

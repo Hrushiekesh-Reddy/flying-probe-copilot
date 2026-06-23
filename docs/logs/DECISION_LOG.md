@@ -5,6 +5,69 @@ Every non-obvious choice gets an entry here: what was decided, why, what was rej
 
 ---
 
+## 2026-06-21 — Phase 4 slice 3: GitHub Actions CI workflows + ruff config
+
+**Decision:** Ship `.github/workflows/ci.yml` + `.github/workflows/screenshots.yml` as the slice's CI deliverable, plus a one-time ruff `--fix` + `format` cleanup pass across `src/` + `tests/` as a slice-3 exception to the read-only `src/**` guardrail. Owner-ratified 4 pre-Decision-Gate decisions (D1-D4 via `AskUserQuestion`), 11 Plan decisions (D5-D15), 4 new decisions surfaced by Plan Rev1 (D16-D17.1), and 8 inferred-Recommended smaller calls (MD-4, BR, BUNDLE + multi-select bundle).
+
+| ID | Decision | Choice | Rationale |
+|---|---|---|---|
+| D1 | CI sample-DB strategy | actions/cache keyed on generator/parser/build-script/uv.lock | ~5 s on hit, zero repo bloat, zero binary drift; build runs only when generator/parser source changes |
+| D2 | Recaptured-screenshot disposition | CI artifacts only (no auto-commit) | No bot-as-author commits, no PAT scope, simpler audit trail |
+| D3 | Public-flip timing | Hold until slice 4 | Repo flip + blog + LinkedIn launch coordinate as one event |
+| D4 | Lint stack | ruff only (no mypy) | Codebase untyped; mypy would surface dozens-to-hundreds of issues that need annotating-or-ignoring (separate project, not slice 3) |
+| D5 | Ruff rule set | `["E", "F", "W", "I"]` | Pycodestyle + pyflakes + warnings + isort: minimal-but-sound. Bigger sets (B, UP, SIM) surface more catches but at higher Execute risk |
+| D6 | Per-file-ignores for tests | `"tests/**/*.py" = ["E501", "F401"]` | Test files have long parametrize lines (E501) and import-for-availability patterns (F401) — both legitimate |
+| D7 | If real violations: suppress + chip | **SUPERSEDED by D17/D17.1** — cleanup pass replaces it | Preflight at Step 6 surfaced 301 lint errors + 58 unformatted files; suppress-and-chip wouldn't scale |
+| D8 | Sample-DB cache key composition | `generator/cli.py` + `generator/**` + `parser/cli.py` + `parser/**` + `build-portfolio-data.sh` + `uv.lock` | `cli.py` anchors prevent zero-match collapse (B-5); `uv.lock` inclusion catches dep-driven ingest changes |
+| D9 | Concurrency cancel-in-progress | YES on both workflows | Saves CI minutes on rapid pushes; W-10 surfaced screenshots.yml as a "may want to preserve mid-capture runs" concern — kept uniform per ratification |
+| D10 | `permissions:` block | `contents: read` only | Least privilege; matches public-repo posture for slice 4 |
+| D11 | Coverage threshold | None this slice (no `--cov-fail-under`) | First-CI integration risk; let coverage drift be reviewed manually before adding a hard floor |
+| D12 | ci.yml `paths-ignore` | `docs/**`, `**/*.md`, `notebooks/**`, `.claude/**` per MD-4 | Docs-only / notebook-only / governance-only PRs skip tests; matches GH paths-ignore "all-paths-match" semantics |
+| D13 | `.gitattributes` add | NO — `git ls-files --eol scripts/build-portfolio-data.sh` shows `i/lf` (LF in index) | ubuntu-latest checks out LF natively; CRLF only in Windows working tree, not in CI |
+| D14 | Screenshot job paths-filter expectation on slice-3 PR | Job will NOT run on the slice-3 PR (no `src/ui/**` paths touched) | Correct, not a bug — first live run is the next UI-touching PR |
+| D15 | Ruff CLI flags | `ruff check . --output-format=github` (inline PR annotations) + `ruff format --check .` (no auto-fix in CI) | Best-practice for posture and signal |
+| **D16** | **Add `"scripts"` to `[tool.ruff].extend-exclude`** | YES | Honors the read-only `scripts/` guardrail at the lint layer (B-4 closure). Without it, ruff would fire on `capture_screenshots.py` + `_capture_app.py` with no legal edit channel slice-3 |
+| **D17** | **Ruff/format enforcement policy on existing code** | **A — Cleanup pass** (one-time slice-3 exception to read-only `src/**`) | Preflight at Decision Gate showed 301 lint errors + 58 unformatted files. Option B (defer CI lint) ships checkbox-engineering. Option C (narrow `["E9","F63","F7","F82"]`) gives weak signal. Option D (split slice) adds 2 sub-slices. Phase 4 = "polish & portfolio"; a codebase with 301 lint errors isn't hireable. Risk capped by `git diff --stat` owner-review-before-commit at E0 step 4 + 566 suite as safety net |
+| **D17.1** | **How to handle 102 non-auto-fixable errors** | **Hybrid: per-file-ignore where systemic + `# noqa` for one-offs + refactor for clarity** | 13 E501 absorbed by `"tests/**/*.py" = ["E501", "F401"]` per-file-ignore. 4 F841 + 2 E712 = per-line `# noqa` with explanatory comment. 1 E741 (`l` in tuple unpack) refactored to `shift_val`/`line_val` for clarity. Cleanest precision-vs-effort tradeoff. |
+| MD-4 | Add `"notebooks/**"` + `".claude/**"` to ci.yml paths-ignore | YES | Defensive — avoids unnecessary CI runs on notebook/governance edits |
+| BR | Rename worktree branch at Step 10 | YES → `feature/phase4-slice3-ci-workflows` | Matches slice 1+2 naming pattern |
+| BUNDLE | Slice-3 PR bundles cleanup + workflows | YES (one coherent PR with cleanup commit + workflows commit + docs commit) | Cleaner review than 3 separate PRs |
+
+**Context / Why:**
+- Phase 4 "polish & portfolio" needs a CI signal — a recruiter landing on a public repo expects PRs to be tested in CI. The README will eventually carry a CI status badge (slice 4 chip).
+- The cleanup pass was unavoidable: introducing ruff to a codebase that predates any formatter surfaces real violations. Options were A (clean it up), B (lint but don't enforce), C (lint with a near-no-op rule set), D (split the slice). Owner picked A: pay the one-time cost to ship a hireable codebase. The 566 suite + 97% coverage acted as the safety net through the cleanup.
+- Step 5 red-team caught 7 BLOCKERs including 3 that would have produced silent-wrong-behavior in CI (B-1 PyYAML `on:` → True, B-5 cache-key glob collapse, B-7 ruff format policy gap). Plan Rev1 closed 6 mechanically; B-7 required owner ratification. None reached Execute.
+- B-3/B-6 modernization to `setup-uv@v8` brings the action's lockfile-keyed cache + Python install + uv-version pin into a single step, eliminating the redundant `actions/setup-python@v5` (W-3) and giving belt-and-suspenders coverage on the `--all-groups` flag dependency.
+
+**Rejected:**
+- (D17b) Defer all CI lint enforcement — ships checkbox-engineering: pyproject has ruff config but CI doesn't enforce it. Disconnect undermines the "we added lint" narrative for slice 4.
+- (D17c) Narrow rule set `["E9", "F63", "F7", "F82"]` to avoid existing-code violations — very weak signal; only catches truly-broken code that pytest already catches at import time.
+- (D17d) Split slice into 3a (workflows only), 3.5 (cleanup pass), 3b (ruff config) — adds 2 sub-slices to Phase 4 timeline + coordination burden + 3 separate PR reviews.
+- (D17.1b) All-per-line `# noqa` for the 102 non-auto-fixable errors — most precise but most labor (~100 lines to annotate); per-file-ignore for systemic E501 is cleaner.
+- (D17.1c) Per-file-ignores blanket suppression like `"src/**" = ["E501", "F841", "F811", "E712", "E741"]` — less precise; ruff becomes near-no-op for entire `src/` directory.
+- (D17.1d) Refactor everything to satisfy the rule — highest behavioral risk; biggest review burden.
+- Auto-fix with `--unsafe-fixes` — 6 additional hidden fixes available but `--unsafe-fixes` can rewrite semantics; preserved at default-safe.
+- Tightening `[tool.ruff.lint].select` to `["E", "F", "W", "I", "B", "UP"]` (adding bugbear + pyupgrade) — out of slice 3 scope; chip for after slice 4 stabilizes the codebase on the minimal set.
+- `paths-ignore: docs/img-ci/**` on ci.yml — `docs/img-ci/` is CI-only, never committed, so the path never appears in PR diffs.
+- `paths-ignore: data/**` on ci.yml — already gitignored, so doesn't appear in diffs.
+- `actions/cache/restore` + `actions/cache/save` split (M-3) — explicit save-on-success-only semantics; not needed slice 3 since the screenshot capture rarely fails mid-job.
+- `if: github.event.pull_request.draft == false` to skip draft PRs (M-4) — chip for slice 4 around public flip.
+- CI status badge in README at slice 3 end (M-8) — chip; needs first green CI run as a precondition.
+- Branch-protection rules requiring CI green on PRs to `main` — slice 4 (around public flip).
+- Coverage threshold `--cov-fail-under=N` — D11 explicitly deferred; chip for after slice 4 stabilizes coverage.
+- `secrets.` block of any kind — slice 3 needs zero secrets. If a future slice adds one, it lands in a separate workflow file with explicit owner approval at that slice's Decision Gate.
+- Editing `scripts/build-portfolio-data.sh` to add a `--ci-mode` flag — out-of-scope per slice-3 read-only `scripts/**` guardrail. Bash script as-is + ubuntu-latest natively checking out LF (D13) covers it.
+
+**Revisit when:**
+- First CI run on the slice-3 PR (G5) — manual QA at Step 11. If it fails, fix-forward on the same branch.
+- After first green CI run, add CI status badge to README (chip).
+- After slice 4 ships and CI is stable across N PRs, revisit (a) tightening ruff rule set to `["E", "F", "W", "I", "B", "UP"]`, (b) adding `--cov-fail-under=95` to ci.yml's pytest step, (c) splitting `actions/cache/restore` + `actions/cache/save` for explicit save-on-success.
+- If `screenshots.yml` cold-cache runs exceed 12 min wall-clock, revisit the cache key composition (D8) — maybe drop `uv.lock` from the key to allow stale-but-valid samples on dep bumps.
+- If owner observes "rapid push iteration loses in-flight capture artifacts" pain (W-10 concern), revisit D9 to set `cancel-in-progress: false` on `screenshots.yml` only.
+- Mypy revisit: post-Phase-4, if owner ever adds type annotations to `src/`, add `mypy` to `[dependency-groups].dev` + new CI job.
+
+---
+
 ## 2026-06-21 — Phase 4 slice 2: headless screenshot capture + demo gif
 
 **Decision:** Ship `scripts/capture_screenshots.py` + `scripts/_capture_app.py` (Playwright + Pillow) as the slice's auto-recapture infrastructure. 18 owner-ratified decisions at the Decision Gate (D1–D12 + MD-1..6) cover scope (script + demo gif, no GitHub Actions this slice), tool choice (Playwright >= 1.49 added as dev-group dep; Pillow already locked via streamlit transitive), Co-Pilot stub strategy (monkeypatch `chat.answer_question` at shim load time, no production-code touch), gif format (12-s loop at 2 s/frame, Pillow defaults, < 5 MB target), and 5 BLOCKER closures from Step 5 red-team. Owner-approved gated edits: `pyproject.toml` (×2: playwright dep + `[tool.pytest.ini_options].pythonpath`), `README.md` (gif embed above hero strip), declared parallel `tests/test_ui/test_chat_smoke.py:24` `#0`→`#3` to match the new `CANNED_CITATION_ID = "failure-modes/tombstoning.md#3"` (the BUG-014 narrative chunk, not the title).

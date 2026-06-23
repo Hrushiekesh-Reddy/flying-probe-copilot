@@ -25,7 +25,6 @@ from random import Random
 
 from .models import BTESTStatus
 
-
 # ---------------------------------------------------------------------------
 # Failure-mode -> @BTEST status mapping (spec table, rev 1).
 # ---------------------------------------------------------------------------

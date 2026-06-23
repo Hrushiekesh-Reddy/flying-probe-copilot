@@ -11,13 +11,11 @@ deterministic per-test fixtures (R1-D resolution).
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-import duckdb
 import pytest
 
-from flying_probe_copilot.analytics import ParetoRow, failure_pareto
-from flying_probe_copilot.db.schema import init_database
+from flying_probe_copilot.analytics import failure_pareto
 
 # ---------------------------------------------------------------------------
 # Shared fixture spec helpers
@@ -40,26 +38,126 @@ def _ts(days_before_anchor: float = 0.0) -> datetime:
 def test_pareto_by_record_type_orders_descending(_make_pareto_db):
     """P-01: failure_pareto rows sorted by count DESC."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R1",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R2",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R3",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R4",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R5",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R6",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R7",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R8",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R9",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R10", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U1",  "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U2",  "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U3",  "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U4",  "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U5",  "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U6",  "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None,  "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None,  "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None,  "start_ts": _ts(1)},
-        {"record_type": "A-DIO", "failure_category": "open",   "target_refdes": "D1",  "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R3",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R4",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R5",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R6",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R7",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R8",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R9",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R10",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U3",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U4",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U5",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U6",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-DIO",
+            "failure_category": "open",
+            "target_refdes": "D1",
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
@@ -68,7 +166,7 @@ def test_pareto_by_record_type_orders_descending(_make_pareto_db):
     assert len(rows) == 4, f"Expected 4 rows, got {len(rows)}"
     for i in range(len(rows) - 1):
         assert rows[i].count >= rows[i + 1].count, (
-            f"Row {i} count={rows[i].count} < row {i+1} count={rows[i+1].count}"
+            f"Row {i} count={rows[i].count} < row {i + 1} count={rows[i + 1].count}"
         )
     assert rows[0].key == "A-RES", f"Expected A-RES first, got {rows[0].key!r}"
 
@@ -81,12 +179,42 @@ def test_pareto_by_record_type_orders_descending(_make_pareto_db):
 def test_pareto_tiebreak_orders_by_key_asc(_make_pareto_db):
     """P-02: Tied counts are broken by key ASC (L15)."""
     spec = [
-        {"record_type": "A-CAP", "failure_category": "open", "target_refdes": "C1", "start_ts": _ts(1)},
-        {"record_type": "A-CAP", "failure_category": "open", "target_refdes": "C2", "start_ts": _ts(1)},
-        {"record_type": "A-CAP", "failure_category": "open", "target_refdes": "C3", "start_ts": _ts(1)},
-        {"record_type": "A-IND", "failure_category": "open", "target_refdes": "L1", "start_ts": _ts(1)},
-        {"record_type": "A-IND", "failure_category": "open", "target_refdes": "L2", "start_ts": _ts(1)},
-        {"record_type": "A-IND", "failure_category": "open", "target_refdes": "L3", "start_ts": _ts(1)},
+        {
+            "record_type": "A-CAP",
+            "failure_category": "open",
+            "target_refdes": "C1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-CAP",
+            "failure_category": "open",
+            "target_refdes": "C2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-CAP",
+            "failure_category": "open",
+            "target_refdes": "C3",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-IND",
+            "failure_category": "open",
+            "target_refdes": "L1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-IND",
+            "failure_category": "open",
+            "target_refdes": "L2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-IND",
+            "failure_category": "open",
+            "target_refdes": "L3",
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
@@ -106,14 +234,54 @@ def test_pareto_tiebreak_orders_by_key_asc(_make_pareto_db):
 def test_pareto_by_record_type_cumulative_pct_monotonic(_make_pareto_db):
     """P-03: cumulative_pct is non-decreasing; last row ≈ 100.0 when all groups included."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R1", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R2", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R3", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R4", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U1", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U2", "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None, "start_ts": _ts(1)},
-        {"record_type": "A-DIO", "failure_category": "open",   "target_refdes": "D1", "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R3",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R4",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-DIO",
+            "failure_category": "open",
+            "target_refdes": "D1",
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     # top_n == distinct group count (4) → last row should reach ≈ 100%
@@ -124,7 +292,7 @@ def test_pareto_by_record_type_cumulative_pct_monotonic(_make_pareto_db):
     for i in range(len(rows) - 1):
         assert rows[i].cumulative_pct <= rows[i + 1].cumulative_pct, (
             f"cumulative_pct not monotonic at position {i}: "
-            f"{rows[i].cumulative_pct} > {rows[i+1].cumulative_pct}"
+            f"{rows[i].cumulative_pct} > {rows[i + 1].cumulative_pct}"
         )
     assert math.isclose(rows[-1].cumulative_pct, 100.0, abs_tol=1e-6), (
         f"Last row cumulative_pct should ≈ 100.0, got {rows[-1].cumulative_pct}"
@@ -143,11 +311,36 @@ def test_pareto_by_record_type_cumulative_pct_monotonic(_make_pareto_db):
 def test_pareto_by_record_type_sum_equals_total_failures(_make_pareto_db):
     """P-04: sum(r.count for r in rows) equals COUNT(*) FROM failures in same window."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R1", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R2", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U1", "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None, "start_ts": _ts(1)},
-        {"record_type": "A-DIO", "failure_category": "open",   "target_refdes": "D1", "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-DIO",
+            "failure_category": "open",
+            "target_refdes": "D1",
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
 
@@ -174,9 +367,21 @@ def test_pareto_by_record_type_sum_equals_total_failures(_make_pareto_db):
 def test_pareto_default_top_n_returns_at_most_ten(_make_pareto_db):
     """P-05: With 15 distinct record_types, default top_n=10 returns exactly 10."""
     record_types = [
-        "A-RES", "A-CAP", "A-IND", "A-DIO", "A-NPN",
-        "A-PNP", "A-FET", "A-IC", "A-XSTR", "A-BJT",
-        "A-OPAMP", "A-REG", "D-T", "TS", "TJET",
+        "A-RES",
+        "A-CAP",
+        "A-IND",
+        "A-DIO",
+        "A-NPN",
+        "A-PNP",
+        "A-FET",
+        "A-IC",
+        "A-XSTR",
+        "A-BJT",
+        "A-OPAMP",
+        "A-REG",
+        "D-T",
+        "TS",
+        "TJET",
     ]
     spec = [
         {
@@ -202,13 +407,48 @@ def test_pareto_default_top_n_returns_at_most_ten(_make_pareto_db):
 def test_pareto_top_n_limits_results(_make_pareto_db):
     """P-06: top_n=3 returns at most 3 rows from a fixture with ≥4 distinct groups."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R1", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R2", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R3", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U1", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U2", "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None, "start_ts": _ts(1)},
-        {"record_type": "A-DIO", "failure_category": "open",   "target_refdes": "D1", "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R3",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-DIO",
+            "failure_category": "open",
+            "target_refdes": "D1",
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=3, as_of=_ANCHOR)
@@ -226,11 +466,51 @@ def test_pareto_top_n_truncates_tied_groups_at_cutoff_deterministically(_make_pa
     """P-07: Ties at the cutoff are truncated; strict LIMIT; tiebreak by key ASC (L8/L15)."""
     # ranks: A-RES=10, D-T=8, A-CAP=5, TS=5, A-DIO=2
     spec = (
-        [{"record_type": "A-RES", "failure_category": "open", "target_refdes": f"R{i}", "start_ts": _ts(1)} for i in range(10)]
-        + [{"record_type": "D-T",  "failure_category": "dig",  "target_refdes": f"U{i}", "start_ts": _ts(1)} for i in range(8)]
-        + [{"record_type": "A-CAP","failure_category": "open", "target_refdes": f"C{i}", "start_ts": _ts(1)} for i in range(5)]
-        + [{"record_type": "TS",   "failure_category": "short","target_refdes": None,    "start_ts": _ts(1)} for _ in range(5)]
-        + [{"record_type": "A-DIO","failure_category": "open", "target_refdes": f"D{i}", "start_ts": _ts(1)} for i in range(2)]
+        [
+            {
+                "record_type": "A-RES",
+                "failure_category": "open",
+                "target_refdes": f"R{i}",
+                "start_ts": _ts(1),
+            }
+            for i in range(10)
+        ]
+        + [
+            {
+                "record_type": "D-T",
+                "failure_category": "dig",
+                "target_refdes": f"U{i}",
+                "start_ts": _ts(1),
+            }
+            for i in range(8)
+        ]
+        + [
+            {
+                "record_type": "A-CAP",
+                "failure_category": "open",
+                "target_refdes": f"C{i}",
+                "start_ts": _ts(1),
+            }
+            for i in range(5)
+        ]
+        + [
+            {
+                "record_type": "TS",
+                "failure_category": "short",
+                "target_refdes": None,
+                "start_ts": _ts(1),
+            }
+            for _ in range(5)
+        ]
+        + [
+            {
+                "record_type": "A-DIO",
+                "failure_category": "open",
+                "target_refdes": f"D{i}",
+                "start_ts": _ts(1),
+            }
+            for i in range(2)
+        ]
     )
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=3, as_of=_ANCHOR)
@@ -239,7 +519,7 @@ def test_pareto_top_n_truncates_tied_groups_at_cutoff_deterministically(_make_pa
     # top_n=3 → A-RES(10), D-T(8), A-CAP(5) [A-CAP < TS alphabetically, so A-CAP wins]
     assert len(rows) == 3, f"Expected exactly 3 rows, got {len(rows)}"
     assert rows[0].key == "A-RES", f"Expected A-RES first, got {rows[0].key!r}"
-    assert rows[1].key == "D-T",   f"Expected D-T second, got {rows[1].key!r}"
+    assert rows[1].key == "D-T", f"Expected D-T second, got {rows[1].key!r}"
     assert rows[2].key == "A-CAP", f"Expected A-CAP third (tiebreak ASC), got {rows[2].key!r}"
     assert rows[2].count == 5, f"Expected count=5, got {rows[2].count}"
 
@@ -252,12 +532,42 @@ def test_pareto_top_n_truncates_tied_groups_at_cutoff_deterministically(_make_pa
 def test_pareto_by_refdes_skips_null_refdes(_make_pareto_db):
     """P-08: by='refdes' excludes rows where target_refdes IS NULL."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",  "target_refdes": "R1",  "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",  "target_refdes": "R1",  "start_ts": _ts(1)},
-        {"record_type": "A-CAP", "failure_category": "open",  "target_refdes": "C1",  "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short", "target_refdes": None,   "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short", "target_refdes": None,   "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short", "target_refdes": None,   "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-CAP",
+            "failure_category": "open",
+            "target_refdes": "C1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
 
@@ -292,13 +602,43 @@ def test_pareto_window_excludes_old_failures(_make_pareto_db):
     """P-09: Failures with start_ts > 7 days before anchor are excluded."""
     spec = [
         # In-window failures (2 days before anchor)
-        {"record_type": "A-RES", "failure_category": "open", "target_refdes": "R1", "start_ts": _ts(2)},
-        {"record_type": "A-RES", "failure_category": "open", "target_refdes": "R2", "start_ts": _ts(2)},
-        {"record_type": "D-T",   "failure_category": "dig",  "target_refdes": "U1", "start_ts": _ts(2)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(2),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(2),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "dig",
+            "target_refdes": "U1",
+            "start_ts": _ts(2),
+        },
         # Out-of-window failures (8 days before anchor)
-        {"record_type": "TS",    "failure_category": "short","target_refdes": None,  "start_ts": _ts(8)},
-        {"record_type": "TS",    "failure_category": "short","target_refdes": None,  "start_ts": _ts(8)},
-        {"record_type": "TS",    "failure_category": "short","target_refdes": None,  "start_ts": _ts(8)},
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(8),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(8),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(8),
+        },
     ]
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
@@ -343,10 +683,30 @@ def test_pareto_invalid_by_raises_value_error(empty_db):
 def test_pareto_pct_of_total_sums_to_one_hundred_within_tolerance(_make_pareto_db):
     """P-14: sum(pct_of_total) ≈ 100.0 when top_n >= distinct group count."""
     spec = [
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R1", "start_ts": _ts(1)},
-        {"record_type": "A-RES", "failure_category": "open",   "target_refdes": "R2", "start_ts": _ts(1)},
-        {"record_type": "D-T",   "failure_category": "digital","target_refdes": "U1", "start_ts": _ts(1)},
-        {"record_type": "TS",    "failure_category": "short",  "target_refdes": None, "start_ts": _ts(1)},
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "A-RES",
+            "failure_category": "open",
+            "target_refdes": "R2",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "D-T",
+            "failure_category": "digital",
+            "target_refdes": "U1",
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
@@ -366,8 +726,18 @@ def test_pareto_pct_of_total_sums_to_one_hundred_within_tolerance(_make_pareto_d
 def test_pareto_by_refdes_with_all_null_refdes_returns_empty_list(_make_pareto_db):
     """R1-E: by='refdes' with all-NULL target_refdes → [] (no ZeroDivisionError)."""
     spec = [
-        {"record_type": "TS", "failure_category": "short", "target_refdes": None, "start_ts": _ts(1)},
-        {"record_type": "TS", "failure_category": "short", "target_refdes": None, "start_ts": _ts(1)},
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
+        {
+            "record_type": "TS",
+            "failure_category": "short",
+            "target_refdes": None,
+            "start_ts": _ts(1),
+        },
     ]
     con = _make_pareto_db(spec)
     result = failure_pareto(con, by="refdes", top_n=10, as_of=_ANCHOR)
@@ -396,9 +766,7 @@ def test_pareto_failure_at_lower_window_bound_included(_make_pareto_db):
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
     con.close()
 
-    assert len(rows) == 1, (
-        f"Expected failure at lower bound to be included, got {len(rows)} rows"
-    )
+    assert len(rows) == 1, f"Expected failure at lower bound to be included, got {len(rows)} rows"
     assert rows[0].count == 1
 
 
@@ -421,9 +789,7 @@ def test_pareto_failure_at_upper_window_bound_included(_make_pareto_db):
     rows = failure_pareto(con, by="record_type", top_n=10, as_of=_ANCHOR)
     con.close()
 
-    assert len(rows) == 1, (
-        f"Expected failure at upper bound to be included, got {len(rows)} rows"
-    )
+    assert len(rows) == 1, f"Expected failure at upper bound to be included, got {len(rows)} rows"
     assert rows[0].count == 1
 
 

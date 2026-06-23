@@ -28,14 +28,28 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "playwright>=1.49",
-    "pytest>=8.3",
     "pytest-cov>=6.0",
+    "pytest>=8.3",
+    "ruff>=0.6",
 ]
 
 [tool.pytest.ini_options]
 testpaths    = ["tests"]
 addopts      = "--cov=src/flying_probe_copilot --cov-report=term-missing"
 pythonpath   = [".", "src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "docs", "notebooks", ".claude", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E501", "F401"]
+
+[tool.ruff.format]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flying_probe_copilot"]

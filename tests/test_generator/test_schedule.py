@@ -7,10 +7,8 @@ stability.
 
 from __future__ import annotations
 
-import random
 import re
 from datetime import datetime, timedelta
-
 
 # Canonical schedule-window used by these tests.
 START = datetime(2026, 4, 1, 0, 0, 0)

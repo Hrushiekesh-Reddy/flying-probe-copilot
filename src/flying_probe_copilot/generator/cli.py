@@ -31,7 +31,6 @@ from .renderers.json_ import render_json
 from .renderers.log import render_log
 from .schedule import generate_panel_schedule
 
-
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
@@ -56,9 +55,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--end-date", default="2026-04-29")
     p.add_argument("--operators", type=int, default=4)
     p.add_argument("--lines", type=int, default=2)
-    p.add_argument(
-        "--format", default="all", choices=["log", "csv", "json", "all"]
-    )
+    p.add_argument("--format", default="all", choices=["log", "csv", "json", "all"])
     p.add_argument(
         "--encoding",
         default="cp1252",
@@ -117,9 +114,7 @@ def _build_batch_log(args, profile_name: str) -> BatchLog:
         blocks = generate_blocks(profile, outcome, panel_seed)
         derived = derive_btest_status(blocks)
         start_ts = int(panel.timestamp.strftime("%y%m%d%H%M%S"))
-        end_ts = int(
-            (panel.timestamp + timedelta(seconds=12)).strftime("%y%m%d%H%M%S")
-        )
+        end_ts = int((panel.timestamp + timedelta(seconds=12)).strftime("%y%m%d%H%M%S"))
         btest = BoardTestRecord(
             board_id=panel.serial,
             status=derived,
@@ -166,9 +161,7 @@ def _write_outputs(run_dir: Path, batch_log: BatchLog, args) -> None:
     for board in batch_log.boards:
         single = BatchLog(batch=batch_log.batch, boards=[board])
         if args.format in ("log", "all"):
-            render_log(
-                single, logs_dir / f"{board.panel.serial}.log", encoding=args.encoding
-            )
+            render_log(single, logs_dir / f"{board.panel.serial}.log", encoding=args.encoding)
 
     if args.format in ("csv", "all"):
         render_csv(batch_log, run_dir / "results.csv")
@@ -190,15 +183,9 @@ def _write_config_and_manifest(run_dir: Path, args, batch_log: BatchLog) -> None
         "format": args.format,
         "encoding": args.encoding,
     }
-    (run_dir / "config.yaml").write_text(
-        yaml.safe_dump(cfg, sort_keys=True), encoding="utf-8"
-    )
+    (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=True), encoding="utf-8")
 
-    failing = sum(
-        1
-        for board in batch_log.boards
-        if board.btest.status != BTESTStatus.PASS
-    )
+    failing = sum(1 for board in batch_log.boards if board.btest.status != BTESTStatus.PASS)
     manifest = {
         "panel_count": args.count,
         "fault_rate": args.fault_rate,

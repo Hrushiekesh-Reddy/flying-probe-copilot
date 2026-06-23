@@ -13,16 +13,14 @@ Empty-data variants use a narrow past window to hit the ``st.info`` branches.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import duckdb
-import pytest
 from streamlit.testing.v1 import AppTest
-
 
 # ---------------------------------------------------------------------------
 # Helper: build a Filters-like kwargs dict from ui_db_path
 # ---------------------------------------------------------------------------
+
 
 def _base_kwargs(ui_db_path: str) -> dict:
     """Return kwargs to pass to view smoke functions."""
@@ -50,10 +48,13 @@ def _empty_kwargs(ui_db_path: str) -> dict:
 
 
 def _smoke_overview(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
-    from flying_probe_copilot.ui.data import Filters, get_connection
+
+    import duckdb  # noqa: F811
+
+    from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_overview
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -64,10 +65,13 @@ def _smoke_overview(db_path, window_days, as_of_iso):
 
 
 def _smoke_overview_empty(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_overview
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -86,9 +90,9 @@ class TestRenderOverview:
     def test_smoke_has_header(self, ui_db_path):
         at = AppTest.from_function(_smoke_overview, kwargs=_base_kwargs(ui_db_path))
         at.run(timeout=10)
-        assert len(at.header) > 0 or len(at.subheader) > 0 or len(at.title) > 0 or len(at.markdown) > 0, (
-            "expected at least one header/title/markdown element in render_overview"
-        )
+        assert (
+            len(at.header) > 0 or len(at.subheader) > 0 or len(at.title) > 0 or len(at.markdown) > 0
+        ), "expected at least one header/title/markdown element in render_overview"
 
     def test_smoke_empty_window_no_exception(self, ui_db_path):
         at = AppTest.from_function(_smoke_overview_empty, kwargs=_empty_kwargs(ui_db_path))
@@ -102,10 +106,13 @@ class TestRenderOverview:
 
 
 def _smoke_yield(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_yield
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -116,10 +123,13 @@ def _smoke_yield(db_path, window_days, as_of_iso):
 
 
 def _smoke_yield_empty(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_yield
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -147,10 +157,13 @@ class TestRenderYield:
 
 
 def _smoke_pareto(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_pareto
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -161,10 +174,13 @@ def _smoke_pareto(db_path, window_days, as_of_iso):
 
 
 def _smoke_pareto_empty(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_pareto
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -192,10 +208,13 @@ class TestRenderPareto:
 
 
 def _smoke_spc(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_spc
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -206,10 +225,13 @@ def _smoke_spc(db_path, window_days, as_of_iso):
 
 
 def _smoke_spc_empty(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_spc
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -221,11 +243,14 @@ def _smoke_spc_empty(db_path, window_days, as_of_iso):
 
 def _smoke_spc_no_boards(db_path, window_days, as_of_iso):
     """Runs render_spc against a DB with no boards (covers no-boards guard)."""
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.db.schema import init_database
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_spc
+
     con = duckdb.connect(":memory:")
     init_database(con)
     filters = Filters(
@@ -263,10 +288,13 @@ class TestRenderSpc:
 
 
 def _smoke_anomalies(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_anomalies
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,
@@ -277,10 +305,13 @@ def _smoke_anomalies(db_path, window_days, as_of_iso):
 
 
 def _smoke_anomalies_empty(db_path, window_days, as_of_iso):
-    import duckdb
     from datetime import datetime
+
+    import duckdb  # noqa: F811
+
     from flying_probe_copilot.ui.data import Filters
     from flying_probe_copilot.ui.views import render_anomalies
+
     con = duckdb.connect(db_path, read_only=True)
     filters = Filters(
         window_days=window_days,

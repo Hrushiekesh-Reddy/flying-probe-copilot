@@ -19,13 +19,13 @@ generation and citation are slice-2 concerns.
 
 from __future__ import annotations
 
-from .models import Chunk, RetrievedChunk
+from .answer import Answer, answer
 from .kb_loader import load_kb
 from .lexical_index import LexicalIndex
-from .vector_index import VectorIndex
-from .retriever import HybridRetriever, build_retriever
 from .llm import GeminiClient, LLMClient
-from .answer import Answer, answer
+from .models import Chunk, RetrievedChunk
+from .retriever import HybridRetriever, build_retriever
+from .vector_index import VectorIndex
 
 __all__ = [
     # slice 1 — retrieval

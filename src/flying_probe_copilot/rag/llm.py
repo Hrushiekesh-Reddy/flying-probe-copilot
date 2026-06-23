@@ -22,8 +22,7 @@ DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 class LLMClient(Protocol):
     """Anything that turns a prompt into a text completion."""
 
-    def generate(self, prompt: str) -> str:
-        ...
+    def generate(self, prompt: str) -> str: ...
 
 
 def _call_model(api_key: str, prompt: str, model_name: str) -> str:  # pragma: no cover - live API

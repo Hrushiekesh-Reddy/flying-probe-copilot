@@ -35,11 +35,9 @@ from flying_probe_copilot.ui.data import (
     cached_yield,
     distinct_boards,
     distinct_refdes,
-    distinct_values,
     filter_df_by_key,
     overview_kpis,
 )
-
 
 # ---------------------------------------------------------------------------
 # Overview
@@ -130,10 +128,7 @@ def render_yield(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     )
 
     if yield_df.empty:
-        st.info(
-            f"No test runs in the selected window for dimension '{dim}'. "
-            "Widen the date range."
-        )
+        st.info(f"No test runs in the selected window for dimension '{dim}'. Widen the date range.")
         return
 
     # Value multiselect (post-filter on grouped rows)
@@ -230,9 +225,7 @@ def render_spc(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     )
 
     if spc_df.empty:
-        st.info(
-            f"No SPC data for {board}/{refdes} in the selected window."
-        )
+        st.info(f"No SPC data for {board}/{refdes} in the selected window.")
         return
 
     st.plotly_chart(build_spc_chart(spc_df), width="stretch")
@@ -287,12 +280,15 @@ def render_anomalies(con: duckdb.DuckDBPyConnection, filters: Filters) -> None:
     )
 
     # Table with ⚠ flag label
-    display_df = anomaly_df[
-        ["group_key", "value", "z_score", "flagged", "flag_label"]
-    ].copy()
+    display_df = anomaly_df[["group_key", "value", "z_score", "flagged", "flag_label"]].copy()
     display_df.rename(
-        columns={"group_key": "Group", "value": "Failure rate",
-                 "z_score": "Z-score", "flagged": "Flagged", "flag_label": "Flag"},
+        columns={
+            "group_key": "Group",
+            "value": "Failure rate",
+            "z_score": "Z-score",
+            "flagged": "Flagged",
+            "flag_label": "Flag",
+        },
         inplace=True,
     )
 

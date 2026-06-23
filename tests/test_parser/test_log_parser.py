@@ -23,7 +23,6 @@ from flying_probe_copilot.generator.models import (
 )
 from flying_probe_copilot.generator.renderers.log import render_log
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -110,13 +109,12 @@ def test_render_helper_isolates_to_tmp_path_not_repo_root(small_batch_log, tmp_p
 
 def test_parse_batch_record(small_batch_log):
     """@BATCH fields must round-trip through the parser."""
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
@@ -132,21 +130,18 @@ def test_parse_batch_record(small_batch_log):
 
 def test_parse_btest_record(small_batch_log):
     """@BTEST status and board_id must round-trip through the parser."""
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
         batch_log_parsed, report = parse_log_file(Path(fname))
         assert len(batch_log_parsed.boards) == len(small_batch_log.boards)
-        for parsed_board, orig_board in zip(
-            batch_log_parsed.boards, small_batch_log.boards
-        ):
+        for parsed_board, orig_board in zip(batch_log_parsed.boards, small_batch_log.boards):
             assert parsed_board.btest.status == orig_board.btest.status
             assert parsed_board.btest.board_id == orig_board.btest.board_id
     finally:
@@ -155,21 +150,18 @@ def test_parse_btest_record(small_batch_log):
 
 def test_parse_block_record(small_batch_log):
     """@BLOCK designator must round-trip through the parser."""
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
         batch_log_parsed, report = parse_log_file(Path(fname))
         # Each board should have blocks
-        for parsed_board, orig_board in zip(
-            batch_log_parsed.boards, small_batch_log.boards
-        ):
+        for parsed_board, orig_board in zip(batch_log_parsed.boards, small_batch_log.boards):
             assert len(parsed_board.blocks) == len(orig_board.blocks), (
                 f"Block count mismatch: parsed={len(parsed_board.blocks)}, "
                 f"orig={len(orig_board.blocks)}"
@@ -182,14 +174,13 @@ def test_parse_block_record(small_batch_log):
 
 def test_parse_analog_record_with_lim3(small_batch_log):
     """@A-RES + @LIM3 must produce an AnalogRecord with Limits3."""
+    import os
+    import tempfile
+
+    from flying_probe_copilot.generator.models import AnalogType, Limits3
     from flying_probe_copilot.parser.log_parser import parse_log_file
-    from flying_probe_copilot.generator.models import Limits3, AnalogType
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
@@ -199,9 +190,7 @@ def test_parse_analog_record_with_lim3(small_batch_log):
         for board in batch_log_parsed.boards:
             for tb in board.blocks:
                 if isinstance(tb.record, AnalogRecord) and tb.record.record_type == AnalogType.RES:
-                    assert isinstance(tb.record.limits, Limits3), (
-                        "A-RES must have Limits3"
-                    )
+                    assert isinstance(tb.record.limits, Limits3), "A-RES must have Limits3"
                     res_found = True
                     break
             if res_found:
@@ -214,14 +203,13 @@ def test_parse_analog_record_with_lim3(small_batch_log):
 
 def test_parse_analog_record_with_lim2(small_batch_log):
     """@A-DIO + @LIM2 must produce an AnalogRecord with Limits2."""
+    import os
+    import tempfile
+
+    from flying_probe_copilot.generator.models import AnalogType, Limits2
     from flying_probe_copilot.parser.log_parser import parse_log_file
-    from flying_probe_copilot.generator.models import Limits2, AnalogType
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
@@ -230,9 +218,7 @@ def test_parse_analog_record_with_lim2(small_batch_log):
         for board in batch_log_parsed.boards:
             for tb in board.blocks:
                 if isinstance(tb.record, AnalogRecord) and tb.record.record_type == AnalogType.DIO:
-                    assert isinstance(tb.record.limits, Limits2), (
-                        "A-DIO must have Limits2"
-                    )
+                    assert isinstance(tb.record.limits, Limits2), "A-DIO must have Limits2"
                     dio_found = True
                     break
             if dio_found:
@@ -245,13 +231,12 @@ def test_parse_analog_record_with_lim2(small_batch_log):
 
 def test_parse_digital_record(small_batch_log):
     """@D-T must produce a DigitalRecord with correct substatus."""
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
@@ -268,13 +253,12 @@ def test_parse_digital_record(small_batch_log):
 
 def test_parse_shorts_record_counts(small_batch_log):
     """@TS must produce ShortsRecord with correct counts."""
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
@@ -294,21 +278,19 @@ def test_parse_shorts_record_counts(small_batch_log):
 
 def test_parse_tjet_record_two_digit_status(tmp_path):
     """@TJET with zero-padded status '00' must parse as TwoDigitStatus.PASS."""
-    from flying_probe_copilot.parser.log_parser import parse_log_file
+    from datetime import datetime
+
     from flying_probe_copilot.generator.models import (
         BatchLog,
         BatchRecord,
-        BoardLog,
+        BlockRecord,
         BoardTestRecord,
         BTESTStatus,
-        BlockRecord,
-        TestBlock,
-        TestJetRecord,
-        TwoDigitStatus,
         PanelInstance,
+        TestBlock,
+        TwoDigitStatus,
     )
-
-    from datetime import datetime
+    from flying_probe_copilot.parser.log_parser import parse_log_file
 
     panel = PanelInstance(
         serial="SYN-TEST-00001",
@@ -366,18 +348,16 @@ def test_parse_tjet_record_two_digit_status(tmp_path):
 
 def test_parse_pf_record_outer_only_subrecord_ignored(tmp_path):
     """@PF with nested @PIN\\N must parse the outer PF fields; subrecord ignored."""
-    from flying_probe_copilot.parser.log_parser import parse_log_file
     from flying_probe_copilot.generator.models import (
         BatchLog,
         BatchRecord,
-        BoardLog,
+        BlockRecord,
         BoardTestRecord,
         BTESTStatus,
-        BlockRecord,
-        TestBlock,
-        PinsFailedRecord,
         PanelInstance,
+        TestBlock,
     )
+    from flying_probe_copilot.parser.log_parser import parse_log_file
 
     panel = PanelInstance(
         serial="SYN-TEST-00002",
@@ -440,18 +420,16 @@ def test_parse_pf_record_outer_only_subrecord_ignored(tmp_path):
 
 def test_pin_list_backslash_count_is_literal_not_escape(tmp_path):
     """@PIN\\N backslash must be treated as literal chars, not an escape."""
-    from flying_probe_copilot.parser.log_parser import parse_log_file
     from flying_probe_copilot.generator.models import (
         BatchLog,
         BatchRecord,
-        BoardLog,
+        BlockRecord,
         BoardTestRecord,
         BTESTStatus,
-        BlockRecord,
-        TestBlock,
-        PinsFailedRecord,
         PanelInstance,
+        TestBlock,
     )
+    from flying_probe_copilot.parser.log_parser import parse_log_file
 
     panel = PanelInstance(
         serial="SYN-TEST-00003",
@@ -515,29 +493,23 @@ def test_scientific_float_round_trips_within_ieee754_eps(small_batch_log):
     round-trip tolerance is 1e-6 (not IEEE-754 eps). This is format-limited, not
     a parser bug — see plan spec and renderer log.py _fmt_float().
     """
+    import os
+    import tempfile
+
     from flying_probe_copilot.parser.log_parser import parse_log_file
 
-    import tempfile, os
-
-    with tempfile.NamedTemporaryFile(
-        suffix=".log", delete=False, mode="wb"
-    ) as f:
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False, mode="wb") as f:
         render_log(small_batch_log, f.name, encoding="utf-8")
         fname = f.name
     try:
         batch_log_parsed, report = parse_log_file(Path(fname))
-        for orig_board, parsed_board in zip(
-            small_batch_log.boards, batch_log_parsed.boards
-        ):
+        for orig_board, parsed_board in zip(small_batch_log.boards, batch_log_parsed.boards):
             for otb, ptb in zip(orig_board.blocks, parsed_board.blocks):
                 if isinstance(otb.record, AnalogRecord) and isinstance(ptb.record, AnalogRecord):
                     # {:+.6E} renders 7 significant digits → rel_tol=1e-6 is the
                     # theoretical maximum precision for this format.
-                    assert math.isclose(
-                        otb.record.measured, ptb.record.measured, rel_tol=1e-6
-                    ), (
-                        f"Float round-trip failed: {otb.record.measured} vs "
-                        f"{ptb.record.measured}"
+                    assert math.isclose(otb.record.measured, ptb.record.measured, rel_tol=1e-6), (
+                        f"Float round-trip failed: {otb.record.measured} vs {ptb.record.measured}"
                     )
     finally:
         os.unlink(fname)
@@ -573,7 +545,7 @@ def test_utf8_lf_input_parses(small_batch_log, tmp_path):
 
 def test_parse_log_file_returns_batchlog_and_parsereport(small_batch_log, tmp_path):
     """parse_log_file must return (BatchLog, ParseReport) with correct board count."""
-    from flying_probe_copilot.parser.log_parser import parse_log_file, ParseReport
+    from flying_probe_copilot.parser.log_parser import ParseReport, parse_log_file
 
     log_path = tmp_path / "roundtrip.log"
     render_log(small_batch_log, log_path, encoding="utf-8")
@@ -584,9 +556,7 @@ def test_parse_log_file_returns_batchlog_and_parsereport(small_batch_log, tmp_pa
     assert isinstance(batch_log_parsed, BatchLog), (
         f"Expected BatchLog, got {type(batch_log_parsed)}"
     )
-    assert isinstance(report, ParseReport), (
-        f"Expected ParseReport, got {type(report)}"
-    )
+    assert isinstance(report, ParseReport), f"Expected ParseReport, got {type(report)}"
     assert len(batch_log_parsed.boards) == len(small_batch_log.boards)
     assert report.record_count > 0
 
@@ -794,7 +764,7 @@ def test_parse_log_file_skips_tjet_pf_when_btest_bad_timestamp(tmp_path):
         # Bad BTEST timestamp
         "{@BTEST|SYN-BAD-SKIP|0|999999999999|12|0|all|0|0|0|999999999999||1|OP-001|A|LINE-A}\n"
         "{@BLOCK|TJET1|0}\n"
-        "{@TJET|00|48|TJET1}\n"    # Must be skipped
+        "{@TJET|00|48|TJET1}\n"  # Must be skipped
         "{@BLOCK|U1|0}\n"
         "{@PF|U1|0|3{@PIN\\3|0101|0102|0103}}\n"  # Must be skipped
     )
@@ -966,7 +936,9 @@ def test_record_without_pending_block_does_not_crash(tmp_path):
     log_path.write_text(log_content, encoding="utf-8")
 
     batch_log, report = parse_log_file(log_path)
-    assert isinstance(batch_log, BatchLog), "Must return BatchLog when records arrive without @BLOCK"
+    assert isinstance(batch_log, BatchLog), (
+        "Must return BatchLog when records arrive without @BLOCK"
+    )
 
 
 def test_pending_analog_flushed_when_new_block_arrives(tmp_path):

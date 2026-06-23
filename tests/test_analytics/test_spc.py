@@ -21,12 +21,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from flying_probe_copilot.analytics import SPCPoint, individuals_chart
-
+from flying_probe_copilot.analytics import individuals_chart
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _ts(offset_hours: int) -> datetime:
     """Return a naive UTC datetime 2026-04-14 10:00:00 + offset_hours."""
@@ -41,21 +41,17 @@ def _ts(offset_hours: int) -> datetime:
 def test_spc01_sigma_estimator_is_mr_bar_over_d2(_make_spc_db):
     """SPC-01: ucl/lcl use MR_bar/1.128; NOT sample stdev; back-check sigma."""
     series = [10.0, 12.0, 11.0, 13.0, 12.0]
-    rows_in = [
-        ("R1", series[i], _ts(i))
-        for i in range(len(series))
-    ]
+    rows_in = [("R1", series[i], _ts(i)) for i in range(len(series))]
     con = _make_spc_db(rows_in)
 
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     assert len(result) == 5, f"expected 5 points, got {len(result)}"
 
     # Hand-computed values.
-    mr_bar = 1.5          # = mean([2,1,2,1])
-    center = 11.6         # = 58/5
+    mr_bar = 1.5  # = mean([2,1,2,1])
+    center = 11.6  # = 58/5
     sigma_hat = mr_bar / 1.128
     expected_ucl = center + 3.0 * sigma_hat
     expected_lcl = center - 3.0 * sigma_hat
@@ -73,7 +69,7 @@ def test_spc01_sigma_estimator_is_mr_bar_over_d2(_make_spc_db):
     # Back-check: (ucl - mean) / 3 == MR_bar / 1.128 (R1-B1).
     recovered_sigma = (r0.ucl - r0.mean) / 3.0
     assert math.isclose(recovered_sigma, mr_bar / 1.128, rel_tol=1e-9), (
-        f"recovered sigma {recovered_sigma} != MR_bar/1.128 = {mr_bar/1.128}"
+        f"recovered sigma {recovered_sigma} != MR_bar/1.128 = {mr_bar / 1.128}"
     )
 
     # Defuse landmine #1: the implementation must NOT use sample stdev.
@@ -95,16 +91,13 @@ def test_spc02_center_line_is_grand_mean_on_every_row(_make_spc_db):
     series = [10.0, 12.0, 11.0, 13.0, 12.0]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     # All rows share the same center.
     means = {r.mean for r in result}
     assert len(means) == 1, f"expected single unique mean, got {means}"
-    assert math.isclose(result[0].mean, 11.6, rel_tol=1e-9), (
-        f"grand mean {result[0].mean} != 11.6"
-    )
+    assert math.isclose(result[0].mean, 11.6, rel_tol=1e-9), f"grand mean {result[0].mean} != 11.6"
 
     # Values match the input series in start_ts order.
     actual_values = [r.value for r in result]
@@ -129,9 +122,13 @@ def test_spc03_rule1_positive_outlier_trips_alarm(_make_spc_db):
     series = baseline + [outlier_val]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     outlier_idx = 10
@@ -150,8 +147,7 @@ def test_spc03_rule1_positive_outlier_trips_alarm(_make_spc_db):
     for i, r in enumerate(result):
         if i != outlier_idx:
             assert "rule_1" not in r.alarm_flags, (
-                f"rule_1 must NOT fire on non-outlier point {i}; "
-                f"alarm_flags={r.alarm_flags}"
+                f"rule_1 must NOT fire on non-outlier point {i}; alarm_flags={r.alarm_flags}"
             )
 
 
@@ -163,13 +159,23 @@ def test_spc03_rule1_positive_outlier_trips_alarm(_make_spc_db):
 def test_spc04_rule1_negative_in_control_series(_make_spc_db):
     """SPC-04: in-control series → rule_1 fires on no point."""
     # Small jitter around 10000, all within limits.
-    series = [10000.0, 10002.0, 9998.0, 10001.0, 10003.0,
-              9999.0, 10000.0, 10002.0, 9997.0, 10001.0,
-              9999.0, 10000.0]
+    series = [
+        10000.0,
+        10002.0,
+        9998.0,
+        10001.0,
+        10003.0,
+        9999.0,
+        10000.0,
+        10002.0,
+        9997.0,
+        10001.0,
+        9999.0,
+        10000.0,
+    ]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     assert all("rule_1" not in r.alarm_flags for r in result), (
@@ -198,15 +204,28 @@ def test_spc05_rule4_positive_run_of_8_triggers(_make_spc_db):
     """
     # 4 alternating pairs (establish large sigma/wide limits), then 8-run.
     series = [
-        10000.0, 10200.0, 10000.0, 10200.0,  # alternating: sigma grows
-        10010.0, 10010.0, 10010.0, 10010.0,  # 8-run starts here (all below
-        10010.0, 10010.0, 10010.0, 10010.0,  # center≈10040, side=-1)
+        10000.0,
+        10200.0,
+        10000.0,
+        10200.0,  # alternating: sigma grows
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # 8-run starts here (all below
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # center≈10040, side=-1)
     ]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     assert len(result) == 12
@@ -223,8 +242,7 @@ def test_spc05_rule4_positive_run_of_8_triggers(_make_spc_db):
 
     # rule_4 fires at index 11 (8th consecutive same-side point in run).
     assert "rule_4" in result[11].alarm_flags, (
-        f"rule_4 must fire at index 11 (8th in run); "
-        f"alarm_flags={result[11].alarm_flags}"
+        f"rule_4 must fire at index 11 (8th in run); alarm_flags={result[11].alarm_flags}"
     )
     # rule_1 must NOT fire on any point (all values within 3-sigma).
     for i, r in enumerate(result):
@@ -236,16 +254,28 @@ def test_spc05_rule4_positive_run_of_8_triggers(_make_spc_db):
     # Boundary check: a 7-run does NOT trip rule_4.
     # Replace 8-run with [10010*7, 10200] — the last point switches side.
     series_7 = [
-        10000.0, 10200.0, 10000.0, 10200.0,  # alternating baseline
-        10010.0, 10010.0, 10010.0, 10010.0,  # 7-run starts
-        10010.0, 10010.0, 10010.0,           # (7 points total, indices 4-10)
-        10200.0,                              # side flip, breaks the run
+        10000.0,
+        10200.0,
+        10000.0,
+        10200.0,  # alternating baseline
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # 7-run starts
+        10010.0,
+        10010.0,
+        10010.0,  # (7 points total, indices 4-10)
+        10200.0,  # side flip, breaks the run
     ]
     rows_in_7 = [("R1", v, _ts(i)) for i, v in enumerate(series_7)]
     con2 = _make_spc_db(rows_in_7)
-    result_7 = individuals_chart(con2, board_profile_id="small", refdes="R1",
-                                 rules=("rule_1", "rule_4"),
-                                 as_of=_ts(len(series_7)))
+    result_7 = individuals_chart(
+        con2,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_4"),
+        as_of=_ts(len(series_7)),
+    )
     con2.close()
 
     assert all("rule_4" not in r.alarm_flags for r in result_7), (
@@ -266,16 +296,28 @@ def test_spc06_rule4_negative_7_run_no_flag(_make_spc_db):
     no rule_1 interference.
     """
     series = [
-        10000.0, 10200.0, 10000.0, 10200.0,  # alternating baseline
-        10010.0, 10010.0, 10010.0, 10010.0,  # 7-run starts (indices 4-10)
-        10010.0, 10010.0, 10010.0,
-        10200.0,                              # switches side, breaks run
+        10000.0,
+        10200.0,
+        10000.0,
+        10200.0,  # alternating baseline
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # 7-run starts (indices 4-10)
+        10010.0,
+        10010.0,
+        10010.0,
+        10200.0,  # switches side, breaks run
     ]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     assert all("rule_4" not in r.alarm_flags for r in result), (
@@ -299,7 +341,7 @@ def test_spc07_rule2_gating_silent_under_default_rules(_make_spc_db):
     # MR_bar for alternating 10000/10010 = 10; sigma = 10/1.128 ≈ 8.865
     # 2*sigma ≈ 17.73; 3*sigma ≈ 26.60
     # Center = grand mean. Insert enough baseline first.
-    baseline = [10000.0, 10010.0] * 6   # 12 points, alternating
+    baseline = [10000.0, 10010.0] * 6  # 12 points, alternating
     # grand mean ≈ 10005; sigma ≈ 8.865; 2s=17.73 → target >2s: >10022.73
     # Use 10025 (between 2s and 3s) for two consecutive points.
     excursion_val = 10025.0  # above 2*sigma=17.73 → above center+17.73=10022.73
@@ -309,8 +351,7 @@ def test_spc07_rule2_gating_silent_under_default_rules(_make_spc_db):
 
     # Default rules: ('rule_1', 'rule_4') — rule_2 must be silent even though
     # the 2-of-3 pattern is present.
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     assert all("rule_2" not in r.alarm_flags for r in result), (
@@ -331,9 +372,13 @@ def test_spc08_rule2_positive_fires_when_enabled(_make_spc_db):
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
 
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_2", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_2", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     # The second excursion point (last point) completes the 2-of-3 pattern.
@@ -343,8 +388,7 @@ def test_spc08_rule2_positive_fires_when_enabled(_make_spc_db):
     )
     # rule_1 must NOT be present (excursion is inside 3-sigma).
     assert "rule_1" not in last.alarm_flags, (
-        f"rule_1 must not fire on excursion inside 3-sigma; "
-        f"alarm_flags={last.alarm_flags}"
+        f"rule_1 must not fire on excursion inside 3-sigma; alarm_flags={last.alarm_flags}"
     )
 
 
@@ -360,9 +404,13 @@ def test_spc09_rule2_negative_single_excursion_no_flag(_make_spc_db):
     series = baseline + [excursion_val]  # only one excursion
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_2", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_2", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     assert all("rule_2" not in r.alarm_flags for r in result), (
@@ -387,8 +435,7 @@ def test_spc10_rule3_gating_silent_under_default_rules(_make_spc_db):
     series = baseline + [one_sigma_val, one_sigma_val, one_sigma_val, one_sigma_val]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     assert all("rule_3" not in r.alarm_flags for r in result), (
@@ -409,9 +456,13 @@ def test_spc11_rule3_positive_fires_when_enabled(_make_spc_db):
     series = baseline + [one_sigma_val, one_sigma_val, one_sigma_val, one_sigma_val, one_sigma_val]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_3", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_3", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     # Last point completes 5-of-5 (≥4 of 5), so rule_3 fires there.
@@ -438,9 +489,13 @@ def test_spc12_rule3_negative_3of5_no_flag(_make_spc_db):
     series = baseline + [one_sigma_val, 10002.0, one_sigma_val, one_sigma_val, 10003.0]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_3"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_3"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     assert all("rule_3" not in r.alarm_flags for r in result), (
@@ -458,8 +513,7 @@ def test_spc13_invalid_rule_name_raises_value_error(_make_spc_db):
     con = _make_spc_db([])  # empty DB — validation must fire before anchor
 
     with pytest.raises(ValueError, match=r"rule_9"):
-        individuals_chart(con, board_profile_id="small", refdes="R1",
-                          rules=("rule_1", "rule_9"))
+        individuals_chart(con, board_profile_id="small", refdes="R1", rules=("rule_1", "rule_9"))
     con.close()
 
 
@@ -467,8 +521,7 @@ def test_spc13b_invalid_rule_raises_listing_allowed_rules(_make_spc_db):
     """SPC-13b: ValueError message lists the allowed rule names."""
     con = _make_spc_db([])
     with pytest.raises(ValueError, match=r"rule_1.*rule_2.*rule_3.*rule_4|Allowed values"):
-        individuals_chart(con, board_profile_id="small", refdes="R1",
-                          rules=("rule_bad",))
+        individuals_chart(con, board_profile_id="small", refdes="R1", rules=("rule_bad",))
     con.close()
 
 
@@ -480,8 +533,12 @@ def test_spc13b_invalid_rule_raises_listing_allowed_rules(_make_spc_db):
 def test_spc14_tz_aware_as_of_raises_value_error(empty_db):
     """SPC-14: tz-aware as_of raises ValueError via _resolve_anchor."""
     with pytest.raises(ValueError, match=r"as_of must be naive UTC"):
-        individuals_chart(empty_db, board_profile_id="small", refdes="R1",
-                          as_of=datetime(2026, 5, 1, tzinfo=timezone.utc))
+        individuals_chart(
+            empty_db,
+            board_profile_id="small",
+            refdes="R1",
+            as_of=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -492,11 +549,9 @@ def test_spc14_tz_aware_as_of_raises_value_error(empty_db):
 def test_spc15_window_days_less_than_1_raises_value_error(empty_db):
     """SPC-15: window_days=0 and window_days=-1 raise ValueError."""
     with pytest.raises(ValueError, match=r"window_days must be >= 1"):
-        individuals_chart(empty_db, board_profile_id="small", refdes="R1",
-                          window_days=0)
+        individuals_chart(empty_db, board_profile_id="small", refdes="R1", window_days=0)
     with pytest.raises(ValueError, match=r"window_days must be >= 1"):
-        individuals_chart(empty_db, board_profile_id="small", refdes="R1",
-                          window_days=-1)
+        individuals_chart(empty_db, board_profile_id="small", refdes="R1", window_days=-1)
 
 
 # ---------------------------------------------------------------------------
@@ -509,19 +564,15 @@ def test_spc16_constant_series_zero_width_limits_no_flags(_make_spc_db):
     series = [10000.0] * 6
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(len(series)))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(len(series)))
     con.close()
 
     assert len(result) == 6
     for r in result:
         assert r.ucl == r.mean == r.lcl == 10000.0, (
-            f"constant series must have zero-width limits: ucl={r.ucl}, "
-            f"mean={r.mean}, lcl={r.lcl}"
+            f"constant series must have zero-width limits: ucl={r.ucl}, mean={r.mean}, lcl={r.lcl}"
         )
-        assert r.alarm_flags == (), (
-            f"no alarm flags on constant series; got {r.alarm_flags}"
-        )
+        assert r.alarm_flags == (), f"no alarm flags on constant series; got {r.alarm_flags}"
 
 
 # ---------------------------------------------------------------------------
@@ -532,8 +583,7 @@ def test_spc16_constant_series_zero_width_limits_no_flags(_make_spc_db):
 def test_spc17_single_point_zero_width_no_flags(_make_spc_db):
     """SPC-17: 1 point in window → 1 SPCPoint, ucl==lcl==mean==value, no flags."""
     con = _make_spc_db([("R1", 10000.0, _ts(0))])
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(1))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(1))
     con.close()
 
     assert len(result) == 1
@@ -554,8 +604,7 @@ def test_spc18_no_matching_refdes_returns_empty_list(_make_spc_db):
     """SPC-18: a refdes with no measurements → [] (not a crash)."""
     rows_in = [("R1", 10.0, _ts(0)), ("R1", 11.0, _ts(1))]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R999",
-                               as_of=_ts(2))
+    result = individuals_chart(con, board_profile_id="small", refdes="R999", as_of=_ts(2))
     con.close()
 
     assert result == [], f"expected [], got {result}"
@@ -571,9 +620,9 @@ def test_spc19_short_series_rule4_cannot_fire(_make_spc_db):
     series = [10000.0] * 5
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_4"),
-                               as_of=_ts(5))
+    result = individuals_chart(
+        con, board_profile_id="small", refdes="R1", rules=("rule_1", "rule_4"), as_of=_ts(5)
+    )
     con.close()
 
     assert len(result) == 5
@@ -608,8 +657,7 @@ def test_spc21_time_ordering_independent_of_insert_order(_make_spc_db):
         ("R1", 11.0, _ts(1)),
     ]
     con = _make_spc_db(shuffled)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(4))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(4))
     con.close()
 
     ts_list = [r.start_ts for r in result]
@@ -629,9 +677,9 @@ def test_spc21b_colliding_start_ts_panel_serial_tiebreak(_make_spc_db):
     # in _make_spc_db: "SPC-0001" and "SPC-0002" based on first occurrence.
     # We must ensure the result is deterministic.
     ts = _ts(0)
-    rows_in = [
-        ("R1", 100.0, ts),   # first ts → panel SPC-0001
-        ("R1", 200.0, ts),   # same ts → different panel? No: same ts → same panel in fixture
+    rows_in = [  # noqa: F841 — intent-marker for the deterministic-tiebreak setup
+        ("R1", 100.0, ts),  # first ts → panel SPC-0001
+        ("R1", 200.0, ts),  # same ts → different panel? No: same ts → same panel in fixture
     ]
     # The fixture groups by ts, so both go into the same panel/test_run.
     # We need two distinct panels sharing the same ts to test tiebreak.
@@ -645,8 +693,7 @@ def test_spc21b_colliding_start_ts_panel_serial_tiebreak(_make_spc_db):
         ("R1", 20.0, ts1),  # inserted second but earlier ts
     ]
     con2 = _make_spc_db(rows_tiebreak)
-    result2 = individuals_chart(con2, board_profile_id="small", refdes="R1",
-                                as_of=_ts(1))
+    result2 = individuals_chart(con2, board_profile_id="small", refdes="R1", as_of=_ts(1))
     con2.close()
 
     ts_list = [r.start_ts for r in result2]
@@ -671,8 +718,7 @@ def test_spc22_per_panel_value_is_mean_of_measurements(_make_spc_db):
         ("R1", 15.0, ts_other),  # other panel
     ]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(2))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(2))
     con.close()
 
     # Panel 1 has two measurements → value must be mean = 15.0, not 30 (sum) or
@@ -701,8 +747,7 @@ def test_spc23_refdes_filter_isolates_target_component(_make_spc_db):
         ("R2", 3000.0, _ts(2)),
     ]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(3))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(3))
     con.close()
 
     actual_values = [r.value for r in result]
@@ -737,13 +782,12 @@ def test_spc24_window_excludes_out_of_window_panels(_make_spc_db):
         ("R1", 99999.0, anchor - timedelta(days=9)),
     ]
     con = _make_spc_db(in_window + out_window)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               window_days=window_days, as_of=anchor)
+    result = individuals_chart(
+        con, board_profile_id="small", refdes="R1", window_days=window_days, as_of=anchor
+    )
     con.close()
 
-    assert len(result) == 3, (
-        f"only 3 in-window panels expected; got {len(result)}"
-    )
+    assert len(result) == 3, f"only 3 in-window panels expected; got {len(result)}"
     assert all(r.value == 10.0 for r in result), (
         f"out-of-window values (99999) must not appear; got {[r.value for r in result]}"
     )
@@ -760,13 +804,12 @@ def test_spc25_null_measured_value_excluded_from_mean(_make_spc_db):
     ts_normal = _ts(1)
     # One panel: 1 NULL row + 1 numeric row (12.0) → AVG ignores NULL → value=12.0.
     rows_in = [
-        ("R1", None, ts_with_null),   # NULL row
-        ("R1", 12.0, ts_with_null),   # numeric row in same panel
+        ("R1", None, ts_with_null),  # NULL row
+        ("R1", 12.0, ts_with_null),  # numeric row in same panel
         ("R1", 10.0, ts_normal),
     ]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               as_of=_ts(2))
+    result = individuals_chart(con, board_profile_id="small", refdes="R1", as_of=_ts(2))
     con.close()
 
     # Panel at ts_with_null should have value=12.0 (NULL excluded by AVG).
@@ -793,16 +836,29 @@ def test_spc_rule4_9run_flags_points_8_and_9(_make_spc_db):
     in the run), but not at indices 0-10.
     """
     series = [
-        10000.0, 10200.0, 10000.0, 10200.0,  # alternating baseline
-        10010.0, 10010.0, 10010.0, 10010.0,  # 9-run starts at index 4
-        10010.0, 10010.0, 10010.0, 10010.0,  # (total 9 same-side points)
+        10000.0,
+        10200.0,
+        10000.0,
+        10200.0,  # alternating baseline
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # 9-run starts at index 4
+        10010.0,
+        10010.0,
+        10010.0,
+        10010.0,  # (total 9 same-side points)
         10010.0,
     ]
     rows_in = [("R1", v, _ts(i)) for i, v in enumerate(series)]
     con = _make_spc_db(rows_in)
-    result = individuals_chart(con, board_profile_id="small", refdes="R1",
-                               rules=("rule_1", "rule_4"),
-                               as_of=_ts(len(series)))
+    result = individuals_chart(
+        con,
+        board_profile_id="small",
+        refdes="R1",
+        rules=("rule_1", "rule_4"),
+        as_of=_ts(len(series)),
+    )
     con.close()
 
     assert len(result) == 13
@@ -812,8 +868,7 @@ def test_spc_rule4_9run_flags_points_8_and_9(_make_spc_db):
         f"rule_4 must fire at index 11 (8th in run); alarm_flags={result[11].alarm_flags}"
     )
     assert "rule_4" in result[12].alarm_flags, (
-        f"rule_4 must fire at index 12 (9th in run, overlap); "
-        f"alarm_flags={result[12].alarm_flags}"
+        f"rule_4 must fire at index 12 (9th in run, overlap); alarm_flags={result[12].alarm_flags}"
     )
     # Indices 0-10 must NOT have rule_4.
     for i in range(11):
@@ -846,14 +901,17 @@ def test_spc_record_type_filter_two_branch(_make_spc_db):
     con = _make_spc_db(rows_res)
 
     # record_type=None should return both rows.
-    result_none = individuals_chart(con, board_profile_id="small", refdes="R1",
-                                    record_type=None, as_of=_ts(2))
+    result_none = individuals_chart(
+        con, board_profile_id="small", refdes="R1", record_type=None, as_of=_ts(2)
+    )
     # record_type='A-RES' should also return both rows (all are A-RES).
-    result_ares = individuals_chart(con, board_profile_id="small", refdes="R1",
-                                    record_type="A-RES", as_of=_ts(2))
+    result_ares = individuals_chart(
+        con, board_profile_id="small", refdes="R1", record_type="A-RES", as_of=_ts(2)
+    )
     # record_type='A-CAP' should return no rows (no A-CAP measurements).
-    result_acap = individuals_chart(con, board_profile_id="small", refdes="R1",
-                                    record_type="A-CAP", as_of=_ts(2))
+    result_acap = individuals_chart(
+        con, board_profile_id="small", refdes="R1", record_type="A-CAP", as_of=_ts(2)
+    )
     con.close()
 
     assert len(result_none) == 2, f"record_type=None must return 2 rows; got {len(result_none)}"

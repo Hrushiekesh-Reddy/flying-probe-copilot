@@ -168,7 +168,7 @@ flying-probe-copilot/
 | 1b — Parser & DB | Log parser + DuckDB schema | ✅ Complete |
 | 2 — Analytics | SPC, Pareto, anomaly detection, dashboard v1 | ✅ Complete |
 | 3 — RAG co-pilot | Hybrid RAG + grounded answer + live eval | ✅ Complete (2026-06-21, 10/10 live eval) |
-| 4 — Polish | README, demo gif, case-study, portfolio writeup | 🚧 In progress (slice 1 — this README) |
+| 4 — Polish | README, demo gif, case-study, CI, demo script, public-flip audit | 🚧 In progress (slices 1–4: README + screenshots + CI + DEMO.md/guardrails audit) |
 
 ---
 

@@ -7,12 +7,7 @@ deeper variants.
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from flying_probe_copilot.generator.models import BatchLog
-from flying_probe_copilot.generator.renderers.log import render_log
 
 
 def test_unbalanced_brace_logged_and_skipped_not_crash(tmp_path):
@@ -48,9 +43,7 @@ def test_valid_records_around_corruption_still_parse(malformed_log_path):
     # At least 1 error (the corrupted @A- record)
     assert len(report.errors) > 0, "Expected at least 1 parse error"
     # At least 1 board returned (the @BTEST was valid)
-    assert len(batch_log.boards) >= 1, (
-        "Valid @BTEST must still produce a board entry"
-    )
+    assert len(batch_log.boards) >= 1, "Valid @BTEST must still produce a board entry"
     # The board must have some blocks (blocks before/after the corrupt one)
     total_blocks = sum(len(b.blocks) for b in batch_log.boards)
     assert total_blocks > 0, (
@@ -60,7 +53,7 @@ def test_valid_records_around_corruption_still_parse(malformed_log_path):
 
 def test_parse_report_records_error_line_number_and_snippet(malformed_log_path):
     """ParseReport.errors must include line_no > 0 and a non-empty snippet."""
-    from flying_probe_copilot.parser.log_parser import parse_log_file, ParseError
+    from flying_probe_copilot.parser.log_parser import ParseError, parse_log_file
 
     batch_log, report = parse_log_file(malformed_log_path)
 

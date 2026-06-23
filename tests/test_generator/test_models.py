@@ -8,7 +8,6 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-
 # ---------------------------------------------------------------------------
 # BoardProfile
 # ---------------------------------------------------------------------------
@@ -127,9 +126,10 @@ def test_btest_record_status_uses_intenum():
 
 def test_btest_record_requires_operator_id():
     """BoardTestRecord must require operator_id — omitting it raises ValidationError."""
-    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
     import pytest
     from pydantic import ValidationError
+
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
 
     with pytest.raises(ValidationError):
         BoardTestRecord(
@@ -145,9 +145,10 @@ def test_btest_record_requires_operator_id():
 
 def test_btest_record_operator_id_rejects_empty_string():
     """BoardTestRecord.operator_id must reject empty string (Field min_length=1)."""
-    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
     import pytest
     from pydantic import ValidationError
+
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
 
     with pytest.raises(ValidationError):
         BoardTestRecord(
@@ -165,9 +166,10 @@ def test_btest_record_operator_id_rejects_empty_string():
 
 def test_btest_record_requires_shift_field():
     """BoardTestRecord must require an explicit shift field (BUG-007 close)."""
-    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
     import pytest
     from pydantic import ValidationError
+
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
 
     with pytest.raises(ValidationError):
         BoardTestRecord(
@@ -184,9 +186,10 @@ def test_btest_record_requires_shift_field():
 
 def test_btest_record_shift_rejects_invalid_letter():
     """BoardTestRecord.shift must be Literal['A','B','C']."""
-    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
     import pytest
     from pydantic import ValidationError
+
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
 
     with pytest.raises(ValidationError):
         BoardTestRecord(
@@ -204,9 +207,10 @@ def test_btest_record_shift_rejects_invalid_letter():
 
 def test_btest_record_line_id_rejects_empty_string():
     """BoardTestRecord.line_id must reject empty string (Field min_length=1)."""
-    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
     import pytest
     from pydantic import ValidationError
+
+    from flying_probe_copilot.generator.models import BoardTestRecord, BTESTStatus
 
     with pytest.raises(ValidationError):
         BoardTestRecord(

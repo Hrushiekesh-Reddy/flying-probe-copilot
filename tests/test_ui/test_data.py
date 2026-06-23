@@ -14,9 +14,7 @@ per test function.
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime
 
 import duckdb
 import pandas as pd
@@ -47,7 +45,6 @@ from flying_probe_copilot.ui.data import (
     spc_points_to_df,
     yield_rows_to_df,
 )
-
 
 # ===========================================================================
 # Step 3 — date_range_to_window
@@ -154,8 +151,8 @@ class TestSpcPointsDf:
         df = spc_points_to_df(pts)
         assert "alarmed" in df.columns, "derived 'alarmed' column missing"
         assert "alarms" in df.columns, "derived 'alarms' column missing"
-        assert df.loc[0, "alarmed"] is False or df.loc[0, "alarmed"] == False
-        assert df.loc[1, "alarmed"] is True or df.loc[1, "alarmed"] == True
+        assert df.loc[0, "alarmed"] is False or df.loc[0, "alarmed"] == False  # noqa: E712 — pandas idiom
+        assert df.loc[1, "alarmed"] is True or df.loc[1, "alarmed"] == True  # noqa: E712 — pandas idiom
         assert df.loc[1, "alarms"] == "rule_1"
         assert df.loc[0, "alarms"] == ""
 
@@ -206,9 +203,7 @@ class TestAnomalyRowsDf:
 
 class TestFilterDfByKey:
     def setup_method(self):
-        self.df = pd.DataFrame(
-            {"group_key": ["A", "B", "C", "A"], "val": [1, 2, 3, 4]}
-        )
+        self.df = pd.DataFrame({"group_key": ["A", "B", "C", "A"], "val": [1, 2, 3, 4]})
 
     def test_subset_filter(self):
         result = filter_df_by_key(self.df, "group_key", ["A"])
@@ -239,27 +234,33 @@ class TestFilterDfByKey:
 
 class TestOverviewKpis:
     def test_known_inputs(self):
-        yield_df = pd.DataFrame({
-            "group_key": ["small", "medium"],
-            "total": [10, 5],
-            "passed": [8, 4],
-            "yield_pct": [80.0, 80.0],
-        })
-        pareto_df = pd.DataFrame({
-            "key": ["A-RES", "D-SHO"],
-            "count": [10, 5],
-            "pct_of_total": [66.7, 33.3],
-            "cumulative_pct": [66.7, 100.0],
-        })
-        anomaly_df = pd.DataFrame({
-            "group_key": ["C", "A", "B"],
-            "value": [0.75, 0.0, 0.0],
-            "baseline_mean": [0.1, 0.1, 0.1],
-            "baseline_std": [0.05, 0.05, 0.05],
-            "z_score": [13.0, -2.0, -2.0],
-            "flagged": [True, False, False],
-            "flag_label": ["⚠", "", ""],
-        })
+        yield_df = pd.DataFrame(
+            {
+                "group_key": ["small", "medium"],
+                "total": [10, 5],
+                "passed": [8, 4],
+                "yield_pct": [80.0, 80.0],
+            }
+        )
+        pareto_df = pd.DataFrame(
+            {
+                "key": ["A-RES", "D-SHO"],
+                "count": [10, 5],
+                "pct_of_total": [66.7, 33.3],
+                "cumulative_pct": [66.7, 100.0],
+            }
+        )
+        anomaly_df = pd.DataFrame(
+            {
+                "group_key": ["C", "A", "B"],
+                "value": [0.75, 0.0, 0.0],
+                "baseline_mean": [0.1, 0.1, 0.1],
+                "baseline_std": [0.05, 0.05, 0.05],
+                "z_score": [13.0, -2.0, -2.0],
+                "flagged": [True, False, False],
+                "flag_label": ["⚠", "", ""],
+            }
+        )
         kpis = overview_kpis(yield_df, pareto_df, anomaly_df)
         assert kpis["panels_tested"] == 15
         assert kpis["total_failures"] == 15
@@ -270,10 +271,17 @@ class TestOverviewKpis:
     def test_all_empty_returns_zeros_and_dash(self):
         yield_df = pd.DataFrame({"group_key": [], "total": [], "passed": [], "yield_pct": []})
         pareto_df = pd.DataFrame({"key": [], "count": [], "pct_of_total": [], "cumulative_pct": []})
-        anomaly_df = pd.DataFrame({
-            "group_key": [], "value": [], "baseline_mean": [],
-            "baseline_std": [], "z_score": [], "flagged": [], "flag_label": [],
-        })
+        anomaly_df = pd.DataFrame(
+            {
+                "group_key": [],
+                "value": [],
+                "baseline_mean": [],
+                "baseline_std": [],
+                "z_score": [],
+                "flagged": [],
+                "flag_label": [],
+            }
+        )
         kpis = overview_kpis(yield_df, pareto_df, anomaly_df)
         assert kpis["panels_tested"] == 0
         assert kpis["total_failures"] == 0
@@ -307,6 +315,7 @@ class TestDataDateSpan:
     def test_empty_db_returns_none(self):
         con = duckdb.connect(":memory:")
         from flying_probe_copilot.db.schema import init_database
+
         init_database(con)
         result = data_date_span(con)
         assert result is None
@@ -426,13 +435,15 @@ class TestGetDbPath:
     def test_returns_default_when_env_not_set(self, monkeypatch):
         """get_db_path returns DEFAULT_DB_PATH when FPC_DB_PATH is not set."""
         monkeypatch.delenv("FPC_DB_PATH", raising=False)
-        from flying_probe_copilot.ui.data import get_db_path, DEFAULT_DB_PATH
+        from flying_probe_copilot.ui.data import DEFAULT_DB_PATH, get_db_path
+
         assert get_db_path() == DEFAULT_DB_PATH
 
     def test_returns_env_when_set(self, monkeypatch):
         """get_db_path returns the FPC_DB_PATH env var when set."""
         monkeypatch.setenv("FPC_DB_PATH", "/tmp/custom.duckdb")
         from flying_probe_copilot.ui.data import get_db_path
+
         assert get_db_path() == "/tmp/custom.duckdb"
 
 
