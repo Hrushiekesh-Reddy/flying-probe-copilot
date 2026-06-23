@@ -33,13 +33,13 @@ Cannot test until after the flip — see Phase C smoke test. Pre-flight: confirm
 
 ### A4. Repo settings via UI (Settings → General)
 
-- [ ] **Features → Wikis: OFF** (docs live in `/docs`)
-- [ ] **Features → Discussions: OFF** (flip on later if traction)
-- [ ] **Pull Requests → Allow squash merging: ON; merge commits + rebase: OFF**
-- [ ] **Pull Requests → Always suggest updating PR branches: ON**
-- [ ] **Pull Requests → Allow auto-merge: ON**
-- [ ] **Pull Requests → Automatically delete head branches: ON**
-- [ ] **Releases → Enable release immutability: ON**
+- [X] **Features → Wikis: OFF** (docs live in `/docs`)
+- [X] **Features → Discussions: OFF** (flip on later if traction)
+- [X] **Pull Requests → Allow squash merging: ON; merge commits + rebase: OFF**
+- [X] **Pull Requests → Always suggest updating PR branches: ON**
+- [X] **Pull Requests → Allow auto-merge: ON**
+- [X] **Pull Requests → Automatically delete head branches: ON**
+- [X] **Releases → Enable release immutability: ON**
 
 ### A5. Branch protection — `main`
 
