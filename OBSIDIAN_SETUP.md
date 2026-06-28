@@ -3,7 +3,7 @@
 ## Quick Start
 
 1. **Install Obsidian**: Download from https://obsidian.md
-2. **Open Vault**: File → Open folder as vault → Select `docs/obsidian`
+2. **Open Vault**: File → Open folder as vault → Select `docs/flying-probe-copilot-obsidian`
 3. **Trust Vault**: Click "Trust author" when prompted
 4. **Read Home**: Open `00-Home/Home.md` to navigate
 
@@ -61,4 +61,4 @@ Search by `#feature`, `#architecture`, `#domain-knowledge`
 
 ---
 
-**Need help?** Check `docs/obsidian/README.md` for detailed documentation.
+**Need help?** Check `docs/flying-probe-copilot-obsidian/README.md` for detailed documentation.
