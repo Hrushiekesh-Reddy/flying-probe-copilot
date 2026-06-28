@@ -5,7 +5,7 @@ A comprehensive knowledge management system for the Flying Probe Copilot project
 ## 📁 Vault Structure
 
 ```
-docs/obsidian/
+docs/flying-probe-copilot-obsidian/
 ├── 00-Home/              # Navigation hub & project overview
 ├── 01-Architecture/      # System design & technical decisions
 ├── 02-Features/          # Feature documentation & specifications
@@ -20,7 +20,7 @@ docs/obsidian/
 
 1. **Open in Obsidian**
    - Download [Obsidian](https://obsidian.md)
-   - Open folder: `docs/obsidian`
+   - Open folder: `docs/flying-probe-copilot-obsidian`
    - Trust the vault when prompted
 
 2. **Start with Home**

@@ -54,7 +54,7 @@ def obsidian_nudge(changed_files: list) -> str | None:
         return None
     lines = ["[obsidian] Consider syncing these vault notes:"]
     for note in notes_to_update:
-        lines.append(f"  docs/obsidian/{note}")
+        lines.append(f"  docs/flying-probe-copilot-obsidian/{note}")
     lines.append("  → tell Claude: 'sync the obsidian vault'")
     return "\n".join(lines)
 
