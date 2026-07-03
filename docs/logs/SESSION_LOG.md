@@ -4,6 +4,47 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-07-03 — Phase 4 slice 4 cont'd — Merge → re-audit → public flip → branch protection — branch: feature/phase4-slice4-public-flip
+
+**Goal:** Finish the slice-4 launch: promote the (already-on-`dev`) DEMO.md / checklist / runbook to `main`, re-run GUARDRAILS §8 fresh against post-merge `main` (prior audit was 11 days stale per brief), then on owner go-ahead flip visibility to public and lock branch protection. Blog / LinkedIn / resume / case-study cross-post explicitly deferred per owner. Tier: Small–Medium (mostly verification + one irreversible infra action).
+
+**Outcome:** Shipped. `dev → main` promotion via [PR #42](https://github.com/Hrushiekesh-Reddy/flying-probe-copilot/pull/42) (squash-merge, `23e27d0`, CI green: `lint` + `tests` both PASS). Guardrails §8 re-run against `main` @ `23e27d0` — all 6 checks ✅ PASS. **One net-new non-blocking observation vs 2026-06-22:** check 5 now includes `Claude <noreply@anthropic.com>` as an author on the single slice-4 commit `11ebf77` — AI-tool tag, not a work account, satisfies §8 intent. Owner gave explicit go-ahead at Decision Gate. Executed runbook Phase A5/A6 (branch protection) → A7 (verify) → B1 (visibility flip) → B2 (Dependabot + secret scanning + push protection). Repo is **PUBLIC** as of 2026-07-03. Deviation from brief §3.6: applied branch protection **before** the flip (runbook order), not after — safer since protection blocks force-push / deletion the moment public traffic can reach the branches.
+
+**Key delta from brief §3.6 that surfaced during execution:** `dev` branch was auto-deleted by the "Automatically delete head branches: ON" repo setting when PR #42 squash-merged. Recreated `dev` from `main` HEAD via `gh api POST .../git/refs` before applying A6 protection, then A6's `allow_deletions: false` prevents recurrence. Runbook A7 patched inline with this gotcha (new callout block) so future promotions don't hit it silently.
+
+**Also fixed:** runbook A5/A6 template had wrong check names `["lint","test"]` (singular). GitHub actually emits `["lint","tests"]` (plural) — the wrong name would have silently disabled protection. Patched runbook to the real names.
+
+### Changes
+
+**Modified:**
+- `docs/public-flip-checklist.md` — new "Last run" date 2026-07-03, updated evidence for checks 2/4/5 to reflect current tree state, expanded notes for the new `Claude` author identity, ticked off the visibility-flip / branch-protection / secret-scanning owner-actions.
+- `docs/public-flip-runbook.md` — `["lint","test"]` → `["lint","tests"]` at 3 sites, updated A5 lead-in note, added A7 callout for `dev`-branch auto-delete recovery.
+- `docs/ROADMAP.md` — Phase 4 "Repo flipped to public" deliverable ticked with 2026-07-03 details.
+- `CLAUDE.md` — session log line added.
+- `docs/logs/SESSION_LOG.md` — this entry.
+
+**Added (new file):**
+- `docs/plans/2026-07-03-phase4-slice4-public-flip-brief.md` — the brief that scoped this session (was previously uncommitted in the main worktree; committing so the workflow is auditable).
+
+### Infra state after the flip (evidence for future audits)
+
+- Visibility: `PUBLIC`
+- `main` protection: `contexts: ["lint","tests"]`, `strict: true`, `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`, `required_linear_history: true`, `required_conversation_resolution: true`
+- `dev` protection: `contexts: ["lint","tests"]`, `strict: true`, `enforce_admins: false`, `allow_force_pushes: false`, `allow_deletions: false`
+- Security: Dependabot alerts + automated security fixes + secret scanning + push protection all **enabled**
+
+### Out-of-scope items (deferred, tracked outside this session)
+
+- Blog post ("Building an AI co-pilot for PCBA test analytics") — separate to-do
+- LinkedIn post, resume bullet, portfolio-site case-study cross-post — separate to-dos
+- Post-flip Phase C smoke tests (logged-out README render, push-protection live test, branch-protection live test) — owner to run in a browser / throwaway branch
+
+### Ambient noise not touched
+
+Main worktree had modified `OBSIDIAN_SETUP.md` and untracked `.obsidian/` from local Obsidian use. Not folded into the flip commit per brief §3.1 — left for a separate owner-driven housekeeping pass.
+
+---
+
 ## 2026-06-22 — Phase 4 slice 4 — DEMO.md + architecture-diagram validation + public-flip guardrails audit — branch: feature/phase4-slice4-demo-arch-guardrails
 
 **Goal:** Close three remaining in-repo Phase 4 deliverables on a fresh feature branch off `dev`: (1) `docs/DEMO.md` walkthrough script, (2) README architecture diagram (Mermaid), (3) the public-flip guardrails check (GUARDRAILS §8). Tier: Small–Medium (docs + audit, no product-code changes).

@@ -43,7 +43,7 @@ Cannot test until after the flip — see Phase C smoke test. Pre-flight: confirm
 
 ### A5. Branch protection — `main`
 
-Replace `lint`, `test` with the real check names from A1.
+Replace `lint`, `tests` with the real check names from A1 if they change (as of 2026-07-03 those are the literal names GitHub emits from `ci.yml`).
 
 ```bash
 gh api -X PUT repos/Hrushiekesh-Reddy/flying-probe-copilot/branches/main/protection \
@@ -51,7 +51,7 @@ gh api -X PUT repos/Hrushiekesh-Reddy/flying-probe-copilot/branches/main/protect
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["lint", "test"]
+    "contexts": ["lint", "tests"]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
@@ -82,7 +82,7 @@ gh api -X PUT repos/Hrushiekesh-Reddy/flying-probe-copilot/branches/dev/protecti
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["lint", "test"]
+    "contexts": ["lint", "tests"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {
@@ -112,7 +112,14 @@ gh api repos/Hrushiekesh-Reddy/flying-probe-copilot/branches/dev/protection \
   | jq '{checks: .required_status_checks.contexts, force_push: .allow_force_pushes.enabled, deletions: .allow_deletions.enabled}'
 ```
 
-Expect: `force_push: false`, `deletions: false`, `checks: ["lint", "test", ...]` matching A1.
+Expect: `force_push: false`, `deletions: false`, `checks: ["lint", "tests", ...]` matching A1.
+
+> **Also check that `dev` still exists.** If the `dev → main` promotion PR was squash-merged with **"Automatically delete head branches: ON"** (A4), GitHub deletes the `dev` branch on merge. In that case recreate it from the freshly-merged `main` before applying A6:
+> ```bash
+> MAIN_SHA=$(gh api repos/Hrushiekesh-Reddy/flying-probe-copilot/git/ref/heads/main --jq .object.sha)
+> gh api -X POST repos/Hrushiekesh-Reddy/flying-probe-copilot/git/refs -f ref="refs/heads/dev" -f sha="$MAIN_SHA"
+> ```
+> Then A6's `allow_deletions: false` on the new `dev` protection prevents recurrence.
 
 ---
 

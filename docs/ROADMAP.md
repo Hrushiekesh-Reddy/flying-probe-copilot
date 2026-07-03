@@ -159,7 +159,7 @@ anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q
 - [ ] Blog post: "Building an AI co-pilot for PCBA test analytics"
 - [x] `docs/DEMO.md` walkthrough script (Phase 4 slice 4, 2026-06-22)
 - [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)
-- [ ] Repo flipped to public after guardrails checklist passes — checklist authored + **all 6 GUARDRAILS §8 checks PASS** (`docs/public-flip-checklist.md`, Phase 4 slice 4, 2026-06-22); the visibility flip itself is an owner action
+- [x] Repo flipped to public after guardrails checklist passes — audit re-run against `main` and PASSED (all 6 §8 checks); visibility flipped to public + branch protection on `main`/`dev` (`["lint","tests"]` required, force-push/deletions blocked, `enforce_admins: true` on `main`) + Dependabot alerts + secret scanning + push protection enabled (Phase 4 slice 4 cont'd, 2026-07-03, PR #42)
 - [ ] LinkedIn post with screenshots
 - [ ] Resume bullet drafted (see SKILLS.md for template)
 
