@@ -2,11 +2,6 @@ name: ci
 "on":
   pull_request:
     branches: [dev, main]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - "notebooks/**"
-      - ".claude/**"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
