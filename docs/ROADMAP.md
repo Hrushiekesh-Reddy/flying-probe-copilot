@@ -156,12 +156,11 @@ anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q
 ### Deliverables
 - [x] README polished with architecture diagram (Mermaid) + dashboard screenshot strip (Phase 4 slice 1, 2026-06-21) + demo gif (Phase 4 slice 2, 2026-06-21).
 - [x] Case-study writeup at `docs/case-study.md` (~2,100 words) — portfolio-site copy/adapt remains owner task (Phase 4 slice 1, 2026-06-21)
-- [ ] Blog post: "Building an AI co-pilot for PCBA test analytics"
+- [x] Blog post: "The Co-Pilot That Refuses to Guess: Grounded RAG for PCBA Test Logs" — published to Portfolio 2026-07-03 (`content/blog/hybrid-rag-pcba-test-log-copilot.mdx`)
 - [x] `docs/DEMO.md` walkthrough script (Phase 4 slice 4, 2026-06-22)
 - [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)
 - [x] Repo flipped to public after guardrails checklist passes — audit re-run against `main` and PASSED (all 6 §8 checks); visibility flipped to public + branch protection on `main`/`dev` (`["lint","tests"]` required, force-push/deletions blocked, `enforce_admins: true` on `main`) + Dependabot alerts + secret scanning + push protection enabled (Phase 4 slice 4 cont'd, 2026-07-03, PR #42)
-- [ ] LinkedIn post with screenshots
-- [ ] Resume bullet drafted (see SKILLS.md for template)
+
 
 ### Exit criteria
 A recruiter can land on the repo, watch the demo gif, read the case study, and understand the project in <5 minutes.
