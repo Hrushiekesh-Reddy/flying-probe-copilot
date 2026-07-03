@@ -1,0 +1,21 @@
+{
+  "userIgnoreFilters": [
+    ".venv/",
+    ".pytest_cache/",
+    "__pycache__/",
+    "node_modules/",
+    ".git/",
+    ".cursor/",
+    ".github/",
+    ".claude/",
+    "data/",
+    "*.pyc",
+    "*.lock",
+    "uv.lock"
+  ],
+  "showUnsupportedFiles": false,
+  "useTab": false,
+  "tabSize": 2,
+  "legacyEditor": false,
+  "promptDelete": true
+}
