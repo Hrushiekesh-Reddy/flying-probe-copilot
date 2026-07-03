@@ -60,14 +60,21 @@ def test_ci_yml_targets_dev_and_main(_load_yaml):
     assert {"dev", "main"} <= branches
 
 
-def test_ci_yml_paths_ignore_docs(_load_yaml):
-    """B-05: on.pull_request.paths-ignore contains 'docs/**', '**/*.md', 'notebooks/**', '.claude/**'."""
+def test_ci_yml_no_paths_ignore(_load_yaml):
+    """B-05: on.pull_request has no paths-ignore — CI must fire on every PR (docs included).
+
+    Rationale: paths-ignore + required-checks deadlocks docs-only PRs (workflow never
+    triggers, no checks reported, branch protection blocks with "N of N required checks
+    expected"). Discovered on PR #44 (2026-07-03) and closed by dropping paths-ignore.
+    """
     data = _load_yaml("ci.yml")
-    paths_ignore = data["on"]["pull_request"]["paths-ignore"]
-    assert "docs/**" in paths_ignore
-    assert "**/*.md" in paths_ignore
-    assert "notebooks/**" in paths_ignore
-    assert ".claude/**" in paths_ignore
+    assert "paths-ignore" not in data["on"]["pull_request"], (
+        "ci.yml re-introduced paths-ignore — this deadlocks docs-only PRs against "
+        "the branch-protection required-checks gate. See PR #48 for context."
+    )
+    assert "paths" not in data["on"]["pull_request"], (
+        "ci.yml added a paths inclusion filter — same deadlock as paths-ignore."
+    )
 
 
 def test_ci_yml_has_lint_job(_load_yaml):
