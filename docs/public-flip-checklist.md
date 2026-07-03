@@ -85,9 +85,6 @@ not gated by this checklist:
 - [X] Flip repo visibility private → public (GitHub repo settings) — done 2026-07-03
 - [X] Add branch-protection rules on `main` / `dev` after flip — done 2026-07-03 (main: `enforce_admins: true`, linear history, force-push + deletions blocked, `["lint","tests"]` required; dev: PR-required, force-push + deletions blocked, `["lint","tests"]` required)
 - [X] Enable Dependabot alerts + automated security fixes + secret scanning + push protection — done 2026-07-03
-- [X] Case-study cross-post on portfolio site — done 2026-07-03 (`content/blog/hybrid-rag-pcba-test-log-copilot.mdx`)
-- [X] Blog post + LinkedIn post — done 2026-07-03 (blog live in Portfolio repo; LinkedIn copy drafted, posting is owner action)
-- [ ] Resume bullet
 
 > If any check above ever fails, the fix is `git filter-repo` (history surgery) or a clean
 > re-init — **not** papering over it in a new commit. See GUARDRAILS.md §8.

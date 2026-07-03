@@ -160,8 +160,7 @@ anti-hallucination — needs owner's Gemini API key) and slice 3 (chat UI + 10-Q
 - [x] `docs/DEMO.md` walkthrough script (Phase 4 slice 4, 2026-06-22)
 - [x] GitHub Actions workflow: lint + tests on PR (Phase 4 slice 3, 2026-06-21)
 - [x] Repo flipped to public after guardrails checklist passes — audit re-run against `main` and PASSED (all 6 §8 checks); visibility flipped to public + branch protection on `main`/`dev` (`["lint","tests"]` required, force-push/deletions blocked, `enforce_admins: true` on `main`) + Dependabot alerts + secret scanning + push protection enabled (Phase 4 slice 4 cont'd, 2026-07-03, PR #42)
-- [x] LinkedIn post with screenshots — copy drafted 2026-07-03, posting is owner action
-- [ ] Resume bullet drafted (see SKILLS.md for template)
+
 
 ### Exit criteria
 A recruiter can land on the repo, watch the demo gif, read the case study, and understand the project in <5 minutes.
