@@ -95,5 +95,13 @@ models/
 # --- Claude Code internal ---
 __perm_test
 
+# --- Obsidian: commit shared vault config (see OBSIDIAN_SETUP.md), ignore personal state ---
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/hotkeys.json
+.obsidian/graph.json
+.obsidian/plugins/
+.obsidian/themes/
+
 # --- Research cache (proprietary refs; never commit) ---
 .cache_research/
