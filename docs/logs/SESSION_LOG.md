@@ -4,6 +4,54 @@ One entry per work session. Written at session end before committing. Newest ent
 
 ---
 
+## 2026-08-10 — Phase 4 polish — Test-count + eval-metric reconciliation — branch: working/flying-probe-test-count-daf8f6
+
+**Goal:** Reconcile the public-facing test count. The README badge and `docs/case-study.md` both advertised **519 passing tests** — a Phase-3-era figure never updated after slice 3 raised it to 659 and slice 4 added `tests/test_docs/`. A recruiter checking the résumé claim ("659 passing tests at 97% coverage") against the repo would have seen a *lower* number than the résumé states, which reads as inflation even though the résumé figure was honestly measured. Owner chose to fix the repo, not soften the résumé. Tier: Small (docs-only, no code touched).
+
+**Measured this session (2026-08-10, live run):**
+
+```
+uv run pytest --cov=src/flying_probe_copilot --cov-report=term
+667 passed, 5 skipped, 1 xfailed, 1 warning in 14.65s
+TOTAL   2158   60   97%
+```
+
+Collection reconciles exactly: `671 collected / 2 skipped at collection` → 667 passed + 5 skipped + 1 xfailed = 673. Suite is fully green; zero failures.
+
+**Reconciliation of the historical numbers — all three figures are real, none were wrong when written:**
+
+| Figure | Where it came from | Status |
+|---|---|---|
+| 519 | Phase 3 slice 3 (2026-06-20) | Stale — the number stuck in README + case-study |
+| 659 | Phase 4 slice 3 (2026-06-21), +93 `tests/test_ci` | Stale — correct at the time; this is the résumé's figure |
+| **667** | **This session** — 659 + 8 from `tests/test_docs/test_slice4_docs.py` (slice 4) | **Current, measured** |
+
+Coverage held at **97%** across all three, on the `--cov=src/flying_probe_copilot` denominator (2158 statements). Note: a bare `--cov` reports **96%**, because it folds `tests/` into the denominator — the 97% figure is the src-scoped one, which is also what CI runs. The case-study Results table now names the scoped command explicitly so the number is reproducible.
+
+**Second stale metric found by the same sweep (not in the original brief):** the live RAG eval was advertised as **10/10** in the README badge, README status table, and case-study headline + Results table. BUG-014 (2026-06-21) widened `EVAL_QUESTIONS` from 10 → 15 and scaled the live threshold 8/10 → **≥12/15** at the same 80% pass rate; that run passed **12/15 in 75.06s**. `docs/eval/phase3-eval-questions.md` was already correct at 15/≥12 — only the README and case-study descriptions of it were stale. Corrected to 12/15 alongside the test count. The live eval was **not re-run this session** (env-gated, needs a real Gemini key and burns API calls), so 12/15 / 75.06s carries its original 2026-06-21 measurement date, now labelled as such in the case-study Results table.
+
+### Changes
+
+**Modified:**
+- `README.md` — tests badge `519 → 667`; eval badge `10/10 → 12/15`; feature-bullet `519 tests / 10/10` → `667 tests / 12/15`; tech-stack table `519 passing → 667 passing`; project-structure tree comment `519 → 667`; `docs/eval/` tree comment + doc-map row `10-question → 15-question`; status table Phase 3 `10/10 live eval → 12/15 live eval`.
+- `docs/case-study.md` — headline metrics `519 / 10/10 in 37.13s` → `667 / 12/15 in 75.06s`; Results table rows for passing tests (now `667 (+ 5 skipped, 1 xfailed)`), coverage command (`pytest --cov=src/flying_probe_copilot`), live eval (`12/15`, threshold named), and latency (`75.06s for 15 calls`, BUG-014 run); §5 "Eval as code" paragraph rewritten to carry the 10→15 widening rather than describing the retired 10-question set.
+- `docs/logs/SESSION_LOG.md` — this entry.
+
+**Follow-on commit (same session, owner-requested): phase-status badge.** The README status badge still read `Phase 3 shipped` while Phase 4 slices 1–4 were done, the repo was public, and the blog post was published — the same staleness class, but a positioning claim rather than a measurement. Updated to `Phase 4 shipped`, with the README status table row (`🚧 In progress` → `✅ Complete (2026-07-03 — slices 1–4 + public flip + blog post)`) and the case-study header (`Phase 3 complete; Phase 4 polish in progress` → `Phases 0–4 complete; repo public since 2026-07-03`) brought along so the badge doesn't contradict the prose beneath it.
+
+Basis: `docs/ROADMAP.md` Phase 4 is **6 of 7 ticked**. Every in-repo deliverable is done (README + screenshots + demo gif, case study, blog post published 2026-07-03, `docs/DEMO.md`, CI workflows, public flip + branch protection, LinkedIn copy drafted). The single open box — *"Resume bullet drafted"* — is an off-repo owner artifact, and is precisely the item flagged in this session's follow-up below. The ROADMAP box is **left unticked** because the résumé genuinely still reads 659; only the README/case-study phase claims were advanced.
+
+**Deliberately NOT changed:**
+- Historical `519` / `10/10` references in `SESSION_LOG.md`, `AGENT_HANDOFF_LOG.md`, `BUG_LOG.md`, `ROADMAP.md`, `CLAUDE.md`, and `docs/plans/**` — these are dated records that were accurate when written. Rewriting them would destroy the audit trail that let this reconciliation be done at all.
+- `docs/case-study.md` §4 BUG-013 narrative ("the re-run passed 10/10 in 37.13 seconds") — historically accurate past-tense account of the Phase 3 exit run, when the dataset genuinely was 10 questions.
+- Zero `src/**` and zero `tests/**` edits. No test was altered to change a number.
+
+### Follow-up for the owner
+
+⚠️ **The résumé is now understated, not inflated.** `~/Projects/REFINED_RESUME/BASE/Hrushiekesh_Kanjula_Base_Process_SMT.tex` (Projects section, first bullet of the Flying-Probe entry) reads `reaching 659 passing tests at 97% coverage`. True current figure is **667 passing tests at 97% coverage**. Not edited here — routed through normal résumé review. If rebuilt, the `.tex` has a mandatory font preamble (`mathptmx` before `fontenc`) and the recompiled PDF must pass `pdffonts` with every font reading `Type 1` / `uni yes`.
+
+---
+
 ## 2026-07-03 — Phase 4 slice 4 cont'd — Merge → re-audit → public flip → branch protection — branch: feature/phase4-slice4-public-flip
 
 **Goal:** Finish the slice-4 launch: promote the (already-on-`dev`) DEMO.md / checklist / runbook to `main`, re-run GUARDRAILS §8 fresh against post-merge `main` (prior audit was 11 days stale per brief), then on owner go-ahead flip visibility to public and lock branch protection. Blog / LinkedIn / resume / case-study cross-post explicitly deferred per owner. Tier: Small–Medium (mostly verification + one irreversible infra action).
