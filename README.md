@@ -2,7 +2,7 @@
 
 > A Python system that ingests PCBA flying-probe / ICT test logs into a SQL database, runs yield + Pareto + SPC + anomaly analytics, and answers natural-language root-cause questions through a strictly-grounded RAG co-pilot.
 
-![Status](https://img.shields.io/badge/status-Phase%203%20shipped-success)
+![Status](https://img.shields.io/badge/status-Phase%204%20shipped-success)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![Tests](https://img.shields.io/badge/tests-667%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)
@@ -168,7 +168,7 @@ flying-probe-copilot/
 | 1b — Parser & DB | Log parser + DuckDB schema | ✅ Complete |
 | 2 — Analytics | SPC, Pareto, anomaly detection, dashboard v1 | ✅ Complete |
 | 3 — RAG co-pilot | Hybrid RAG + grounded answer + live eval | ✅ Complete (2026-06-21, 12/15 live eval) |
-| 4 — Polish | README, demo gif, case-study, CI, demo script, public-flip audit | 🚧 In progress (slices 1–4: README + screenshots + CI + DEMO.md/guardrails audit) |
+| 4 — Polish | README, demo gif, case-study, CI, demo script, public-flip audit | ✅ Complete (2026-07-03 — slices 1–4 + public flip + blog post) |
 
 ---
 

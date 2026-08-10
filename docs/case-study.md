@@ -3,7 +3,7 @@
 > A Python system that ingests PCBA flying-probe / ICT test logs, runs the standard yield / Pareto / SPC / anomaly analytics, and answers natural-language root-cause questions with strictly-grounded citations — built over 8 weeks of evenings and weekends as a Manufacturing Engineer's portfolio project for landing an AI-augmented role in EMS.
 
 **Author:** Hrushiekesh Reddy Kanjula · Manufacturing Engineer, ~4 years PCBA · Dallas, TX
-**Repo:** [flying-probe-copilot](https://github.com/Hrushiekesh-Reddy/flying-probe-copilot) · **Status:** Phase 3 complete; Phase 4 polish in progress
+**Repo:** [flying-probe-copilot](https://github.com/Hrushiekesh-Reddy/flying-probe-copilot) · **Status:** Phases 0–4 complete; repo public since 2026-07-03
 **Headline metrics:** 667 passing tests · 97% line coverage · 12/15 live RAG eval in 75.06s · ~1 s to synthesize 1,000 panels
 
 ---
