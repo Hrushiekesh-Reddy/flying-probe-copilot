@@ -4,7 +4,7 @@
 
 **Author:** Hrushiekesh Reddy Kanjula · Manufacturing Engineer, ~4 years PCBA · Dallas, TX
 **Repo:** [flying-probe-copilot](https://github.com/Hrushiekesh-Reddy/flying-probe-copilot) · **Status:** Phase 3 complete; Phase 4 polish in progress
-**Headline metrics:** 519 passing tests · 97% line coverage · 10/10 live RAG eval in 37.13s · ~1 s to synthesize 1,000 panels
+**Headline metrics:** 667 passing tests · 97% line coverage · 12/15 live RAG eval in 75.06s · ~1 s to synthesize 1,000 panels
 
 ---
 
@@ -95,16 +95,16 @@ The Phase 3 co-pilot is the most opinionated part of the project. Three choices 
 
 **Strict anti-hallucination grounding.** The `answer()` function refuses unless all four conditions hold: (1) retrieval returned at least one hit, (2) the LLM emitted valid JSON, (3) the JSON's `sufficient` field is `true`, and (4) at least one cited `chunk_id` is in the retrieved set. Hallucinated citations are dropped; the LLM is never called when retrieval is empty. The refusal text is fixed, not LLM-generated. A failing retrieval costs zero tokens.
 
-**Eval as code, not vibe.** The Phase 3 exit criterion was a frozen 10-question dataset (`tests/test_rag/eval_dataset.py`), one question per failure-mode document. Two layers of eval: an offline citation-pattern test that proves the pipeline wiring with a stubbed retriever + stubbed LLM, and an env-gated live test (`RAG_RUN_LLM_EVAL=1`) that calls the real Gemini API and asserts ≥8/10 questions cite the expected source document. Offline tests run in CI; the live test runs by hand when a real API key is available. The live test passed 10/10 in 37.13s on first green run with `gemini-3.5-flash`.
+**Eval as code, not vibe.** The Phase 3 exit criterion was a frozen question dataset (`tests/test_rag/eval_dataset.py`), one question per failure-mode document. Two layers of eval: an offline citation-pattern test that proves the pipeline wiring with a stubbed retriever + stubbed LLM, and an env-gated live test (`RAG_RUN_LLM_EVAL=1`) that calls the real Gemini API and asserts a threshold of questions cite the expected source document. Offline tests run in CI; the live test runs by hand when a real API key is available. The first green run passed 10/10 in 37.13s with `gemini-3.5-flash`. BUG-014 later widened the dataset to 15 questions — adding five terse "what causes X?" forms that exposed a retrieval miss — and scaled the threshold to ≥12/15 at the same 80% pass rate; that run passed 12/15 in 75.06s.
 
 ## 6. Results
 
 | Metric | Value | Source |
 |---|---|---|
-| Passing tests | 519 | `uv run pytest -q` |
-| Coverage | 97% | `pytest --cov` |
-| Live RAG eval | 10/10 correct citations | `RAG_RUN_LLM_EVAL=1 pytest tests/test_rag/test_eval.py` |
-| Live eval latency | 37.13s for 10 sequential calls | Phase 3 exit run, 2026-06-21 |
+| Passing tests | 667 (+ 5 skipped, 1 xfailed) | `uv run pytest -q` |
+| Coverage | 97% | `pytest --cov=src/flying_probe_copilot` |
+| Live RAG eval | 12/15 correct citations (≥12/15 threshold) | `RAG_RUN_LLM_EVAL=1 pytest tests/test_rag/test_eval.py` |
+| Live eval latency | 75.06s for 15 sequential calls | BUG-014 run, 2026-06-21 |
 | Synthetic-data throughput | ~1 second per 1,000 panels | Phase 1a benchmark |
 | Knowledge-base coverage | 8 failure-mode documents | `docs/knowledge-base/failure-modes/` |
 | Dashboard pages | 6 (Overview / Yield / Pareto / SPC / Anomalies / Co-Pilot) | `src/flying_probe_copilot/ui/app.py` |

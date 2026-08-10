@@ -4,9 +4,9 @@
 
 ![Status](https://img.shields.io/badge/status-Phase%203%20shipped-success)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
-![Tests](https://img.shields.io/badge/tests-519%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-667%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)
-![Eval](https://img.shields.io/badge/live%20RAG%20eval-10/10-brightgreen)
+![Eval](https://img.shields.io/badge/live%20RAG%20eval-12/15-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ---
@@ -41,7 +41,7 @@ It is also the **flagship portfolio project** built to land a Manufacturing / Pr
 - **Analytics library** — `yield_over_time`, `failure_pareto`, `individuals_chart` (Wheeler XmR + run-of-8), `z_score_anomalies` (leave-one-out severity-first). Pure functions, no notebook dependency.
 - **Hybrid RAG co-pilot** — ChromaDB-cosine + rank-bm25 with Reciprocal Rank Fusion over an 8-document failure-mode knowledge base, grounded answers with forced citations, strict anti-hallucination refusal when evidence is insufficient.
 - **Streamlit dashboard** — 6 pages (Overview / Yield / Pareto / SPC / Anomalies / Co-Pilot chat).
-- **519 tests / 97% coverage / 10/10 live RAG eval** verified end-to-end at every phase boundary.
+- **667 tests / 97% coverage / 12/15 live RAG eval** verified end-to-end at every phase boundary.
 
 ---
 
@@ -83,7 +83,7 @@ The KB-grounded RAG layer and the DuckDB-driven analytics layer are independent.
 | Embeddings | `sentence-transformers` (all-MiniLM-L6-v2) | Free, local, deterministic |
 | LLM | Google Gemini 3.5 Flash | Fast + JSON mode + cheap |
 | UI | Streamlit + Plotly | Fastest path to a working dashboard |
-| Tests | pytest | 519 passing, 97% coverage |
+| Tests | pytest | 667 passing, 97% coverage |
 
 ---
 
@@ -126,7 +126,7 @@ flying-probe-copilot/
 │   ├── case-study.md                   # long-form portfolio writeup
 │   ├── SCOPE.md, ROADMAP.md, DECISIONS.md, GUARDRAILS.md, REQUIREMENTS.md
 │   ├── knowledge-base/failure-modes/   # 8 KB docs (synthetic, guardrail-safe)
-│   ├── eval/                           # 10-question eval dataset + run instructions
+│   ├── eval/                           # 15-question eval dataset + run instructions
 │   ├── img/                            # README + case-study screenshots
 │   ├── logs/                           # SESSION_LOG, DECISION_LOG, BUG_LOG
 │   └── plans/                          # per-session briefs + plans
@@ -137,7 +137,7 @@ flying-probe-copilot/
 │   ├── analytics/                      # Phase 2 — yield, pareto, SPC, anomaly
 │   ├── rag/                            # Phase 3 — retrieval, prompts, answer, LLM
 │   └── ui/                             # Phase 3 — Streamlit dashboard + chat
-├── tests/                              # 519 passing, 97% coverage
+├── tests/                              # 667 passing, 97% coverage
 ├── notebooks/                          # 01-queries.ipynb (analytics sketches)
 └── data/                               # all gitignored except samples/
 ```
@@ -154,7 +154,7 @@ flying-probe-copilot/
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phased plan + per-phase definition-of-done |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture Decision Records |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Skills, tools, resources |
-| [docs/eval/phase3-eval-questions.md](docs/eval/phase3-eval-questions.md) | The frozen 10-question Phase 3 RAG eval set |
+| [docs/eval/phase3-eval-questions.md](docs/eval/phase3-eval-questions.md) | The frozen 15-question Phase 3 RAG eval set |
 | [docs/logs/](docs/logs) | Session log, decision log, bug log |
 
 ---
@@ -167,7 +167,7 @@ flying-probe-copilot/
 | 1a — Synthetic data | HP3070-style log generator | ✅ Complete |
 | 1b — Parser & DB | Log parser + DuckDB schema | ✅ Complete |
 | 2 — Analytics | SPC, Pareto, anomaly detection, dashboard v1 | ✅ Complete |
-| 3 — RAG co-pilot | Hybrid RAG + grounded answer + live eval | ✅ Complete (2026-06-21, 10/10 live eval) |
+| 3 — RAG co-pilot | Hybrid RAG + grounded answer + live eval | ✅ Complete (2026-06-21, 12/15 live eval) |
 | 4 — Polish | README, demo gif, case-study, CI, demo script, public-flip audit | 🚧 In progress (slices 1–4: README + screenshots + CI + DEMO.md/guardrails audit) |
 
 ---
